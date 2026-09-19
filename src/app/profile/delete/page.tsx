@@ -1,0 +1,6 @@
+import Link from "next/link";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { LearnerShell } from "@/components/learner-shell";
+import { deleteAccount } from "../actions";
+
+export default async function DeleteAccount({ searchParams }: { searchParams: Promise<{ error?: string }> }) { const { error } = await searchParams; return <LearnerShell active="/profile"><div className="portal-page danger-page"><Link href="/profile" className="back-link"><ArrowLeft size={15} /> Profile settings</Link><section><AlertTriangle size={32} /><span className="eyebrow">PERMANENT ACTION</span><h1>Delete your account?</h1><p>This removes your profile, progress, quiz results, bookmarks, certificates, and sign-in access. It cannot be undone.</p>{error && <div className="form-notice notice-error">{error}</div>}<form action={deleteAccount}><label><input name="confirm" type="checkbox" required /> I understand that my learning data will be permanently deleted.</label><button className="delete-button">Delete account permanently</button></form><small>For your security, this action requires a current authenticated session.</small></section></div></LearnerShell>; }

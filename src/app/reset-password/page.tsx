@@ -1,0 +1,2 @@
+import { AuthForm } from "@/components/auth-form";
+export default async function Reset({ searchParams }: { searchParams: Promise<Record<string, string>> }) { const params = await searchParams; return <AuthForm mode="reset" {...params} />; }
