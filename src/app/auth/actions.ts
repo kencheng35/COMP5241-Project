@@ -35,7 +35,7 @@ export async function signUp(formData: FormData) {
     password: result.data.password,
     options: {
       emailRedirectTo: authCallback("/dashboard"),
-      data: { display_name: result.data.name, age_range: result.data.ageRange },
+      data: { display_name: result.data.name, age_range: result.data.ageRange, guardian_consent_self_attested: result.data.ageRange === "under-13" && result.data.consent === "on", consent_recorded_at: new Date().toISOString() },
     },
   });
   if (error) redirect(destination("/signup", "error", error.message));
@@ -71,9 +71,10 @@ export async function requestReset(formData: FormData) {
   const result = email.safeParse(formData.get("email"));
   if (!result.success) redirect(destination("/forgot-password", "error", result.error.issues[0].message));
   const supabase = await createClient();
-  await supabase.auth.resetPasswordForEmail(result.data, {
+  const { error } = await supabase.auth.resetPasswordForEmail(result.data, {
     redirectTo: authCallback("/reset-password"),
   });
+  if (error) redirect(destination("/forgot-password", "error", "Could not send the reset email. Please try again later."));
   redirect(destination("/forgot-password", "success", "If that email exists, a reset link is on its way."));
 }
 
@@ -88,6 +89,7 @@ export async function resetPassword(formData: FormData) {
 
 export async function logOut() {
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut();
+  if (error) redirect(destination("/profile", "error", "Could not log out. Please try again."));
   redirect("/login");
 }

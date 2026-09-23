@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function NotFound() { return <main className="portal-page"><h1>Lesson or page unavailable.</h1><p>It may not exist or may be private to another account.</p><Link className="text-link" href="/catalog">Browse available lessons</Link></main>; }

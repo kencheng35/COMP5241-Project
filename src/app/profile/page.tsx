@@ -1,11 +1,15 @@
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
-import { Download, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { Download, ShieldCheck, Trash2 } from "lucide-react";
 import { LearnerShell } from "@/components/learner-shell";
 import { createClient } from "@/lib/supabase/server";
-import { updateProfile } from "./actions";
+import { changeEmail, updateProfile } from "./actions";
+import { SubmitButton } from "@/components/submit-button";
+import { isAdmin } from "@/lib/learning-server";
 
 type ProfileRow = {
+  avatar_url: string | null;
   display_name: string;
   age_range: string;
   learning_level: string | null;
@@ -28,7 +32,7 @@ export default async function Profile({
 
   const { data, error: profileError } = await supabase
     .from("profiles")
-    .select("display_name, age_range, learning_level, preferred_subjects, learning_goals")
+    .select("display_name, age_range, learning_level, preferred_subjects, learning_goals, avatar_url")
     .eq("id", user.id)
     .maybeSingle();
   const profile = data as ProfileRow | null;
@@ -52,7 +56,7 @@ export default async function Profile({
         : null;
 
   return (
-    <LearnerShell active="/profile" name={displayName}>
+    <LearnerShell active="/profile" name={displayName} admin={isAdmin(user)}>
       <div className="portal-page profile-page">
         <header className="portal-heading">
           <div>
@@ -69,11 +73,12 @@ export default async function Profile({
         <section className="settings-layout">
           <form action={updateProfile} className="settings-panel">
             <div className="profile-photo-row">
-              <span className="large-avatar">{initials}</span>
+              <span className="large-avatar">{profile?.avatar_url?.startsWith("data:image/jpeg;base64,") ? <Image src={profile.avatar_url} alt="Your profile" width={70} height={70} unoptimized /> : initials}</span>
               <div>
                 <strong>Profile picture</strong>
                 <p>Optional. JPG or PNG, up to 2 MB.</p>
-                <button type="button" className="secondary-button"><Upload size={15} /> Choose image</button>
+                <label>Choose image<input type="file" name="avatar" accept="image/jpeg,image/png" /></label>
+                {profile?.avatar_url && <label><input type="checkbox" name="removeAvatar" /> Remove picture</label>}
               </div>
             </div>
             <div className="settings-fields">
@@ -84,12 +89,13 @@ export default async function Profile({
               <label className="full-field">Preferred subjects<input name="subjects" defaultValue={preferredSubjects} /><small>Separate subjects with commas.</small></label>
               <label className="full-field">Learning goals<textarea name="goals" defaultValue={learningGoals} /></label>
             </div>
-            <button className="auth-submit save-profile" type="submit">Save profile</button>
+            <SubmitButton className="auth-submit save-profile">Save profile</SubmitButton>
           </form>
           <aside className="privacy-panel">
             <ShieldCheck size={24} />
             <h2>Privacy controls</h2>
-            <p>Your profile, progress, quiz results, and saved lessons are private to your account.</p>
+            <p>Your profile and private lessons stay private. Authorized instructors can review your participation and quiz answers for published lessons, but never your coach conversations.</p>
+            <form action={changeEmail} className="learning-form"><label>New email address<input name="email" type="email" required /></label><SubmitButton>Request email change</SubmitButton></form>
             <Link href="/api/account/export" className="data-action"><Download size={17} /><span><strong>Download my data</strong><small>Export a JSON copy</small></span></Link>
             <Link href="/profile/delete" className="data-action danger"><Trash2 size={17} /><span><strong>Delete my account</strong><small>Permanently remove your data</small></span></Link>
             <small className="privacy-fineprint">Forge never asks for your address, phone number, exact birth date, government ID, or financial details.</small>

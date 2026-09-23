@@ -6,7 +6,11 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "check:setup": "node scripts/check-setup.mjs",
+    "test:e2e": "node tests/e2e.mjs",
+    "typecheck": "next typegen && tsc --noEmit --incremental false"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
@@ -15,11 +19,14 @@
     "next": "16.3.5",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "sharp": "0.35.4",
+    "sharp": "^0.35.4",
     "zod": "^4.1.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/eslintrc": "^3.3.1",
+    "@next/env": "^16.3.5",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^20.19.13",
     "@types/react": "^19.1.12",

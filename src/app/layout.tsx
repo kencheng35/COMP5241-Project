@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Forge | Learn to build with AI",
-  description: "An adaptive learning studio for future software builders.",
+  description: "Practical lessons, guided practice and learning records for future software builders.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

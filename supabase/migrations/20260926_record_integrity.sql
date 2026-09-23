@@ -1,0 +1,11 @@
+begin;
+alter table public.forge_attempts add column if not exists original_lesson_id uuid;
+update public.forge_attempts set original_lesson_id = lesson_id where original_lesson_id is null;
+alter table public.forge_attempts alter column original_lesson_id set not null;
+alter table public.forge_attempts alter column lesson_id drop not null;
+alter table public.forge_attempts drop constraint if exists forge_attempts_lesson_id_fkey;
+alter table public.forge_attempts add constraint forge_attempts_lesson_id_fkey foreign key (lesson_id) references public.forge_lessons(id) on delete set null;
+alter table public.forge_enrollments add column if not exists enrollment_kind text not null default 'private' check (enrollment_kind in ('private', 'public'));
+alter table public.forge_enrollments add column if not exists attendance_kind text check (attendance_kind in ('private', 'public'));
+revoke insert, update, delete on public.quiz_results, public.achievements from authenticated, anon;
+commit;

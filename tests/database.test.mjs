@@ -1,0 +1,52 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile, readdir } from "node:fs/promises";
+import { PGlite } from "@electric-sql/pglite";
+
+test("migrations enforce private storage, quotas and durable certificate snapshots", async () => {
+  const database = new PGlite();
+  try {
+    await database.exec(`create role anon; create role authenticated; create role service_role bypassrls;
+      create schema auth; create table auth.users(id uuid primary key, raw_user_meta_data jsonb);
+      create function auth.uid() returns uuid language sql as 'select null::uuid';`);
+    await database.exec(await readFile(new URL("../supabase/schema.sql", import.meta.url), "utf8"));
+    const migrations = new URL("../supabase/migrations/", import.meta.url);
+    for (const filename of (await readdir(migrations)).filter(name => name.endsWith(".sql")).sort()) {
+      await database.exec(await readFile(new URL(filename, migrations), "utf8"));
+    }
+    const author = "00000000-0000-4000-8000-000000000001";
+    const learner = "00000000-0000-4000-8000-000000000002";
+    await database.query("insert into auth.users(id) values ($1),($2)", [author, learner]);
+    const content = JSON.stringify({ questions: Array.from({ length: 10 }, () => ({ correct: 0 })) });
+    const { rows: lessons } = await database.query("insert into forge_lessons(owner_id,title,subject,summary,content) values($1,'Example lesson','Testing','Test summary',$2) returning id", [author, content]);
+    const lesson = lessons[0].id;
+    await database.exec("set role authenticated");
+    await assert.rejects(database.query("select content from forge_lessons"), /permission denied/);
+    await assert.rejects(database.query("select forge_claim_request($1)", [learner]), /permission denied/);
+    await database.exec("reset role");
+    for (let index = 0; index < 6; index++) {
+      const result = await database.query("select forge_claim_request($1) as allowed", [learner]);
+      assert.equal(result.rows[0].allowed, index < 5);
+    }
+    for (let index = 0; index < 16; index++) {
+      const result = await database.query("select forge_claim_coach_request($1) as allowed", [learner]);
+      assert.equal(result.rows[0].allowed, index < 15);
+    }
+    await database.query("insert into forge_enrollments(user_id,lesson_id) values($1,$2)", [learner, lesson]);
+    assert.equal((await database.query("select attended_at from forge_enrollments")).rows[0].attended_at, null);
+    const answers = JSON.stringify(Array(10).fill(0));
+    await database.query("insert into forge_attempts(user_id,lesson_id,original_lesson_id,lesson_title,lesson_version,certificate_kind,answers,questions,score) values($1,$2,$2,'Example lesson',1,'private',$3,$4,6)", [learner, lesson, answers, JSON.stringify(JSON.parse(content).questions)]);
+    await database.query("update forge_lessons set visibility='public', version=2 where id=$1", [lesson]);
+    const attempt = (await database.query("select * from forge_attempts")).rows[0];
+    assert.equal(attempt.lesson_version, 1);
+    assert.equal(attempt.certificate_kind, "private");
+    await database.query("delete from auth.users where id=$1", [author]);
+    const retained = (await database.query("select * from forge_attempts")).rows;
+    assert.equal(retained.length, 1);
+    assert.equal(retained[0].lesson_id, null);
+    assert.equal(retained[0].original_lesson_id, lesson);
+    assert.equal(retained[0].score, 6);
+    await database.query("delete from auth.users where id=$1", [learner]);
+    assert.equal((await database.query("select * from forge_attempts")).rows.length, 0);
+  } finally { await database.close(); }
+});

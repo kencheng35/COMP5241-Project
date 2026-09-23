@@ -1,0 +1,375 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import nextEnv from "@next/env";
+import { createClient } from "@supabase/supabase-js";
+import { chromium, expect } from "@playwright/test";
+import sharp from "sharp";
+
+nextEnv.loadEnvConfig(process.cwd(), true, { info() {}, error() {} });
+const origin = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+assert.ok(["localhost", "127.0.0.1"].includes(new URL(origin).hostname), "Browser tests require a local application server.");
+const database = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+const users = [];
+const runId = randomUUID();
+const output = join(tmpdir(), `forge-e2e-${runId}`);
+let browser;
+let editorPage;
+let profilePage;
+let stage = "initialize";
+
+function step(name) { stage = name; console.log(`CHECK ${name}`); }
+function checked(result) { if (result.error) throw new Error("Fixture operation failed"); return result.data; }
+async function account(role) {
+  const email = `forge-e2e-${role}-${runId}@example.com`;
+  const password = `Test9!${randomUUID()}`;
+  const data = checked(await database.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: `Test ${role}`, age_range: "18-24" }, app_metadata: role === "admin" ? { role: "admin" } : {} }));
+  users.push(data.user.id);
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(20000);
+  await page.goto(`${origin}/login`);
+  await page.getByLabel("Email address", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
+  await page.waitForURL("**/dashboard");
+  await expect(page.getByRole("heading", { name: `Welcome, Test ${role}.` })).toBeVisible();
+  return { id: data.user.id, page, context, password, email };
+}
+async function quiz(page, correctCount) {
+  for (let index = 0; index < 10; index++) await page.locator(`input[name="question-${index}"]`).nth(index < correctCount ? 0 : 1).check();
+  await page.getByRole("button", { name: "Submit quiz", exact: true }).click();
+  await expect(page.getByRole("heading", { name: `${correctCount} / 10 (${correctCount * 10}%)`, exact: true })).toBeVisible();
+}
+async function fits(page, filename) {
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "Horizontal overflow");
+  await page.screenshot({ path: join(output, filename), fullPage: true });
+}
+
+try {
+  await mkdir(output, { recursive: true });
+  browser = await chromium.launch();
+  step("temporary learner, reviewer and administrator sign-in");
+  const owner = await account("owner");
+  editorPage = owner.page;
+  const learner = await account("learner");
+  profilePage = learner.page;
+  const admin = await account("admin");
+  const title = `Test lesson ${runId}`;
+  step("manual private lesson authoring through the editor");
+  await owner.page.goto(`${origin}/studio?manual=1`);
+  await owner.page.getByLabel("Title", { exact: true }).fill(title);
+  await owner.page.getByLabel("Subject", { exact: true }).fill("Software testing");
+  await owner.page.getByLabel("Summary", { exact: true }).fill("A temporary end-to-end test of the learning workflow.");
+  for (let index = 0; index < 4; index++) {
+    const slide = owner.page.getByRole("group", { name: `Slide ${index + 1}`, exact: true });
+    await slide.getByLabel("title", { exact: true }).fill(`Testing step ${index + 1}`);
+    await slide.getByLabel("body", { exact: true }).fill("Arrange the inputs, act on the function, then assert the expected output.");
+    await slide.getByLabel("example", { exact: true }).fill("Arrange two numbers, add them, and check their sum.");
+  }
+  await owner.page.getByLabel("Prompt", { exact: true }).fill("Put the test steps in order.");
+  await owner.page.getByLabel("Steps in correct order, one per line", { exact: true }).fill("Arrange inputs\nAct on the function\nAssert the output");
+  for (let index = 0; index < 10; index++) {
+    const question = owner.page.locator("details").nth(index);
+    await question.locator("summary").click();
+    await question.getByLabel("Question", { exact: true }).fill(`Question ${index + 1}: what comes first?`);
+    for (const [option, text] of ["Arrange", "Assert", "Act", "Skip"].entries()) await question.getByLabel(`Option ${option + 1}`, { exact: true }).fill(text);
+    await question.getByLabel("Explanation", { exact: true }).fill(`Answer-key-only explanation ${runId}`);
+  }
+  await owner.page.getByRole("button", { name: "Save lesson", exact: true }).click();
+  await expect(owner.page.getByRole("status")).toContainText("Lesson created.");
+  const lessonUrl = await owner.page.getByRole("link", { name: "Open lesson", exact: true }).getAttribute("href");
+  const lessonId = lessonUrl.split("/").at(-1);
+  assert.equal(checked(await database.from("forge_lessons").select("visibility").eq("id", lessonId).single()).visibility, "private");
+
+  step("consecutive editor saves use the latest version");
+  await owner.page.goto(`${origin}/studio?edit=${lessonId}`);
+  for (const version of [2, 3]) {
+    await owner.page.getByLabel(/^Summary/).fill(`Temporary learning workflow fixture, revision ${version}.`);
+    await owner.page.getByRole("button", { name: "Save lesson", exact: true }).click();
+    await expect(owner.page.locator('input[name="version"]')).toHaveValue(String(version));
+  }
+
+  step("private isolation, including unsubmitted drafts from administrators");
+  for (const actor of [learner, admin]) {
+    await actor.page.goto(`${origin}${lessonUrl}`);
+    await expect(actor.page.getByRole("heading", { name: "Lesson or page unavailable." })).toBeVisible();
+    await actor.page.goto(`${origin}/studio?edit=${lessonId}`);
+    await expect(actor.page.getByRole("heading", { name: "Lesson or page unavailable." })).toBeVisible();
+  }
+  step("self-enrollment and bookmark persistence");
+  await owner.page.goto(`${origin}${lessonUrl}/lessons/1`);
+  await expect(owner.page).toHaveURL(`${origin}${lessonUrl}`);
+  await owner.page.getByRole("button", { name: "Save lesson", exact: true }).click();
+  await expect(owner.page.getByRole("button", { name: "Saved", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await owner.page.reload();
+  await expect(owner.page.getByRole("button", { name: "Saved", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await owner.page.getByRole("button", { name: "Enroll in lesson", exact: true }).click();
+  await owner.page.getByRole("link", { name: "Open lesson", exact: true }).first().click();
+  await expect(owner.page.locator(".slide-stage")).toBeVisible();
+  assert.equal((await owner.page.content()).includes(`Answer-key-only explanation ${runId}`), false);
+  step("desktop/mobile lesson framing and ordering activity");
+  await fits(owner.page, "lesson-desktop.png");
+  await owner.page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => owner.page.locator(".portal-sidebar").evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
+  await fits(owner.page, "lesson-mobile.png");
+  await owner.page.getByRole("button", { name: "Open navigation", exact: true }).click();
+  await expect(owner.page.locator(".portal-sidebar")).toHaveClass(/portal-sidebar-open/);
+  await owner.page.getByRole("button", { name: "Close navigation", exact: true }).click();
+  await expect.poll(() => owner.page.locator(".portal-sidebar").evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
+  await owner.page.getByRole("button", { name: "Practice", exact: true }).first().click();
+  await owner.page.getByRole("button", { name: "Move step 3 up", exact: true }).click();
+  await owner.page.getByRole("button", { name: "Move step 2 up", exact: true }).click();
+  await owner.page.getByRole("button", { name: "Move step 3 up", exact: true }).click();
+  await owner.page.getByRole("button", { name: "Check order", exact: true }).click();
+  await expect(owner.page.getByRole("status")).toHaveText("Correct order.");
+  step("attendance before submission and 5/10 failure followed by 6/10 pass");
+  await owner.page.getByRole("button", { name: "Final quiz", exact: true }).click();
+  await expect(owner.page.locator(".quiz-question")).toHaveCount(10);
+  assert.ok(checked(await database.from("forge_enrollments").select("attended_at").eq("user_id", owner.id).eq("lesson_id", lessonId).single()).attended_at);
+  assert.equal(checked(await database.from("forge_attempts").select("id").eq("user_id", owner.id)).length, 0);
+  await quiz(owner.page, 5);
+  await expect(owner.page.getByRole("link", { name: "Download certificate" })).toHaveCount(0);
+  await owner.page.getByRole("button", { name: "Retry quiz", exact: true }).click();
+  await quiz(owner.page, 6);
+  const certificateUrl = await owner.page.getByRole("link", { name: "Download certificate" }).getAttribute("href");
+  const privateCertificate = await owner.context.request.get(`${origin}${certificateUrl}`);
+  assert.equal(privateCertificate.status(), 200);
+  assert.ok((await privateCertificate.text()).includes("Private Self-Learning"));
+  assert.equal((await learner.context.request.get(`${origin}${certificateUrl}`)).status(), 404);
+
+  step("explicit review submission, administrator publication and snapshot preservation");
+  await owner.page.goto(`${origin}/studio?edit=${lessonId}`);
+  await owner.page.getByRole("button", { name: "Submit for publication review", exact: true }).click();
+  await expect(owner.page.getByRole("status")).toContainText("Submitted.");
+  await admin.page.goto(`${origin}/studio?edit=${lessonId}`);
+  await admin.page.getByRole("checkbox").check();
+  await admin.page.getByRole("button", { name: "Save lesson", exact: true }).click();
+  await expect.poll(async () => checked(await database.from("forge_lessons").select("visibility").eq("id", lessonId).single()).visibility).toBe("public");
+  assert.ok((await (await owner.context.request.get(`${origin}${certificateUrl}`)).text()).includes("Private Self-Learning"));
+  step("published enrollment, server grading and public certificate");
+  await learner.page.goto(`${origin}${lessonUrl}`);
+  await learner.page.getByRole("button", { name: "Enroll in lesson", exact: true }).click();
+  await learner.page.getByRole("link", { name: "Open lesson", exact: true }).first().click();
+  await learner.page.getByRole("button", { name: "Final quiz", exact: true }).click();
+  await quiz(learner.page, 10);
+  const publicUrl = await learner.page.getByRole("link", { name: "Download certificate" }).getAttribute("href");
+  assert.ok((await (await learner.context.request.get(`${origin}${publicUrl}`)).text()).includes("Public Published Lesson"));
+  step("stale quizzes cannot be graded against an updated lesson");
+  await learner.page.getByRole("button", { name: "Retry quiz", exact: true }).click();
+  checked(await database.from("forge_lessons").update({ version: 5 }).eq("id", lessonId).eq("owner_id", owner.id));
+  for (let index = 0; index < 10; index++) await learner.page.locator(`input[name="question-${index}"]`).first().check();
+  await learner.page.getByRole("button", { name: "Submit quiz", exact: true }).click();
+  await expect(learner.page.getByRole("alert").filter({ hasText: "This lesson has been updated." })).toBeVisible();
+  assert.equal(checked(await database.from("forge_attempts").select("id").eq("user_id", learner.id)).length, 1);
+  step("reviewer grant/revocation and exclusion of private attempts");
+  await learner.page.goto(`${origin}/reports`);
+  await expect(learner.page.getByText("No published lessons have been granted to your account for review.")).toBeVisible();
+  await admin.page.goto(`${origin}/admin`);
+  const review = admin.page.locator(".learning-list > div").filter({ has: admin.page.getByRole("heading", { name: title, exact: true }) });
+  await review.locator("summary").click();
+  await review.getByLabel("Registered reviewer user ID").fill(learner.id);
+  await review.getByRole("button", { name: "Add reviewer", exact: true }).click();
+  await expect(review.getByRole("button", { name: "Revoke access", exact: true })).toBeVisible();
+  await learner.page.reload();
+  await expect(learner.page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  await expect(learner.page.locator(".learning-section details")).toHaveCount(1);
+  await review.getByRole("button", { name: "Revoke access", exact: true }).click();
+  await expect(review.getByRole("button", { name: "Revoke access", exact: true })).toHaveCount(0);
+  await learner.page.reload();
+  await expect(learner.page.getByText("No published lessons have been granted to your account for review.")).toBeVisible();
+  step("account export contains only the requesting learner's attempts");
+  const exported = await learner.context.request.get(`${origin}/api/account/export`);
+  assert.equal(exported.status(), 200);
+  const records = (await exported.json()).records;
+  assert.equal(records.forge_attempts.length, 1);
+  assert.ok(records.forge_attempts.every(attempt => attempt.user_id === learner.id));
+
+  step("profile fields and validated image upload persist across reloads");
+  await learner.page.goto(`${origin}/profile`);
+  const image = await sharp({ create: { width: 320, height: 240, channels: 3, background: "#28795e" } }).png().toBuffer();
+  await learner.page.getByLabel("Display name", { exact: true }).fill("Test updated learner");
+  await learner.page.locator('select[name="level"]').selectOption("intermediate");
+  await learner.page.locator('input[name="subjects"]').fill("Testing, TypeScript");
+  await learner.page.locator('textarea[name="goals"]').fill("Practice reliable testing.");
+  await learner.page.locator('input[name="avatar"]').setInputFiles({ name: "test.png", mimeType: "image/png", buffer: image });
+  await learner.page.getByRole("button", { name: "Save profile", exact: true }).click();
+  await expect(learner.page.getByRole("status")).toContainText("Profile updated successfully.");
+  await learner.page.reload();
+  await expect(learner.page.getByLabel("Display name", { exact: true })).toHaveValue("Test updated learner");
+  const savedProfile = checked(await database.from("profiles").select("avatar_url,learning_level,preferred_subjects,learning_goals").eq("id", learner.id).single());
+  assert.equal(savedProfile.learning_level, "intermediate");
+  assert.deepEqual(savedProfile.preferred_subjects, ["Testing", "TypeScript"]);
+  assert.equal(savedProfile.learning_goals, "Practice reliable testing.");
+  const metadata = await sharp(Buffer.from(savedProfile.avatar_url.split(",")[1], "base64")).metadata();
+  assert.equal(metadata.format, "jpeg");
+  assert.equal(metadata.width, 160);
+  assert.equal(metadata.height, 160);
+  await expect(learner.page.getByAltText("Your profile")).toBeVisible();
+  assert.ok(await learner.page.getByAltText("Your profile").evaluate(element => element.complete && element.naturalWidth > 0));
+
+  step("invalid and oversized uploads preserve the saved profile");
+  for (const upload of [
+    { name: "invalid.png", mimeType: "image/png", buffer: Buffer.from("Not an image") },
+    { name: "oversized.png", mimeType: "image/png", buffer: Buffer.alloc(2 * 1024 * 1024 + 1) },
+  ]) {
+    await learner.page.getByLabel("Display name", { exact: true }).fill("Must not be saved");
+    await learner.page.locator('input[name="avatar"]').setInputFiles(upload);
+    await learner.page.getByRole("button", { name: "Save profile", exact: true }).click();
+    await expect(learner.page.getByRole("status")).toContainText("Choose a valid JPG or PNG");
+    const unchanged = checked(await database.from("profiles").select("display_name,avatar_url").eq("id", learner.id).single());
+    assert.equal(unchanged.display_name, "Test updated learner");
+    assert.equal(unchanged.avatar_url, savedProfile.avatar_url);
+  }
+  await learner.page.reload();
+  await learner.page.getByLabel("Remove picture", { exact: true }).check();
+  await learner.page.getByRole("button", { name: "Save profile", exact: true }).click();
+  await expect(learner.page.getByRole("status")).toContainText("Profile updated successfully.");
+  assert.equal(checked(await database.from("profiles").select("avatar_url").eq("id", learner.id).single()).avatar_url, null);
+  await expect(learner.page.getByAltText("Your profile")).toHaveCount(0);
+
+  step("wrong deletion password is rejected without deleting records");
+  await owner.page.goto(`${origin}/profile/delete`);
+  await owner.page.getByLabel("Current password", { exact: true }).fill("Incorrect9!Password");
+  await owner.page.locator('input[name="confirm"]').check();
+  await owner.page.getByRole("button", { name: "Delete account permanently", exact: true }).click();
+  await expect(owner.page.getByRole("alert").filter({ hasText: "The password could not be verified." })).toBeVisible();
+  assert.ok(checked(await database.auth.admin.getUserById(owner.id)).user);
+  assert.equal(checked(await database.from("forge_lessons").select("id").eq("id", lessonId)).length, 1);
+
+  step("author deletion clears session and retains another learner's certificate");
+  await owner.page.getByLabel("Current password", { exact: true }).fill(owner.password);
+  await owner.page.locator('input[name="confirm"]').check();
+  await owner.page.getByRole("button", { name: "Delete account permanently", exact: true }).click();
+  await owner.page.waitForURL("**/login?success=**");
+  assert.equal(checked(await database.from("profiles").select("id").eq("id", owner.id)).length, 0);
+  assert.equal(checked(await database.from("forge_attempts").select("id").eq("user_id", owner.id)).length, 0);
+  assert.equal(checked(await database.from("forge_lessons").select("id").eq("id", lessonId)).length, 0);
+  assert.equal((await owner.context.request.get(`${origin}/api/account/export`)).status(), 401);
+  users.splice(users.indexOf(owner.id), 1);
+  const retained = await learner.context.request.get(`${origin}${publicUrl}`);
+  assert.equal(retained.status(), 200);
+  assert.ok((await retained.text()).includes("Public Published Lesson"));
+
+  step("learner deletion removes their retained results and certificate access");
+  await learner.page.goto(`${origin}/profile/delete`);
+  await learner.page.getByLabel("Current password", { exact: true }).fill(learner.password);
+  await learner.page.locator('input[name="confirm"]').check();
+  await learner.page.getByRole("button", { name: "Delete account permanently", exact: true }).click();
+  await learner.page.waitForURL("**/login?success=**");
+  assert.equal(checked(await database.from("forge_attempts").select("id").eq("user_id", learner.id)).length, 0);
+  assert.equal((await learner.context.request.get(`${origin}${publicUrl}`)).status(), 401);
+  users.splice(users.indexOf(learner.id), 1);
+
+  step("invalid verification links and unauthenticated resets are rejected");
+  const authContext = await browser.newContext();
+  const authPage = await authContext.newPage();
+  authPage.setDefaultTimeout(20000);
+  for (const query of ["", "?type=unsupported&token_hash=synthetic", "?code=synthetic&token_hash=synthetic&type=recovery", "?code=synthetic"]) {
+    const response = await authContext.request.get(`${origin}/auth/confirm${query}`, { maxRedirects: 0 });
+    assert.equal(response.status(), 307);
+    const destination = new URL(response.headers().location);
+    assert.equal(destination.origin, origin);
+    assert.equal(destination.pathname, "/login");
+    assert.ok(destination.searchParams.has("error"));
+    assert.equal(response.headers()["cache-control"], "private, no-store");
+    assert.equal(response.headers()["referrer-policy"], "no-referrer");
+  }
+  await authPage.goto(`${origin}/auth/confirm?token_hash=invalid&type=recovery&next=/reset-password`);
+  await expect(authPage.getByRole("status")).toContainText("Verification link is invalid or expired.");
+  await authPage.goto(`${origin}/reset-password`);
+  await authPage.getByLabel("Password", { exact: true }).fill(`Reset9!${randomUUID()}`);
+  await authPage.getByRole("button", { name: "Update password", exact: true }).click();
+  await expect(authPage.getByRole("status")).toContainText("This reset link has expired.");
+
+  step("signup token confirmation, safe redirect and single-use verification");
+  const signupEmail = `forge-e2e-signup-${runId}@example.com`;
+  const signupPassword = `Signup9!${randomUUID()}`;
+  const signup = checked(await database.auth.admin.generateLink({
+    type: "signup", email: signupEmail, password: signupPassword,
+    options: { data: { display_name: "Test signup", age_range: "18-24" } },
+  }));
+  users.push(signup.user.id);
+  assert.equal(Boolean(signup.user.email_confirmed_at), false);
+  await authPage.goto(`${origin}/login`);
+  await authPage.getByLabel("Email address", { exact: true }).fill(signupEmail);
+  await authPage.getByLabel("Password", { exact: true }).fill(signupPassword);
+  await authPage.getByRole("button", { name: "Log in", exact: true }).click();
+  await expect(authPage.getByRole("status")).toContainText("email is not verified");
+  const signupUrl = new URL("/auth/confirm", origin);
+  signupUrl.searchParams.set("token_hash", signup.properties.hashed_token);
+  signupUrl.searchParams.set("type", "signup");
+  signupUrl.searchParams.set("next", "/\\example.org");
+  const confirmed = await authContext.request.get(signupUrl.toString(), { maxRedirects: 0 });
+  assert.equal(confirmed.status(), 307);
+  assert.equal(confirmed.headers()["cache-control"], "private, no-store");
+  assert.equal(confirmed.headers()["referrer-policy"], "no-referrer");
+  assert.ok(confirmed.headers().location === `${origin}/dashboard`, "Verification destination must stay on the app origin");
+  assert.ok(checked(await database.auth.admin.getUserById(signup.user.id)).user.email_confirmed_at);
+  await authPage.goto(`${origin}/dashboard`);
+  await expect(authPage.getByRole("heading", { name: "Welcome, Test signup." })).toBeVisible();
+  const reused = await authContext.request.get(signupUrl.toString(), { maxRedirects: 0 });
+  const reusedDestination = new URL(reused.headers().location);
+  assert.equal(reusedDestination.pathname, "/login");
+  assert.ok(reusedDestination.searchParams.has("error"));
+  await authPage.getByRole("button", { name: "Log out", exact: true }).click();
+  await authPage.waitForURL("**/login");
+
+  step("generated recovery link changes password through the real reset form");
+  const recovery = checked(await database.auth.admin.generateLink({ type: "recovery", email: admin.email }));
+  const recoveryUrl = new URL("/auth/confirm", origin);
+  recoveryUrl.searchParams.set("token_hash", recovery.properties.hashed_token);
+  recoveryUrl.searchParams.set("type", "recovery");
+  recoveryUrl.searchParams.set("next", "/reset-password");
+  const recoveryResponse = await authContext.request.get(recoveryUrl.toString(), { maxRedirects: 0 });
+  assert.equal(recoveryResponse.status(), 307);
+  assert.equal(recoveryResponse.headers()["cache-control"], "private, no-store");
+  assert.equal(recoveryResponse.headers()["referrer-policy"], "no-referrer");
+  assert.ok(recoveryResponse.headers().location === `${origin}/reset-password`, "Recovery must reach the reset form");
+  await authPage.goto(`${origin}/reset-password`);
+  await authPage.getByLabel("Password", { exact: true }).fill("weakpassword");
+  await authPage.getByRole("button", { name: "Update password", exact: true }).click();
+  await expect(authPage.getByRole("status")).toContainText("Add one uppercase letter.");
+  const replacementPassword = `Updated9!${randomUUID()}`;
+  await authPage.getByLabel("Password", { exact: true }).fill(replacementPassword);
+  await authPage.getByRole("button", { name: "Update password", exact: true }).click();
+  await expect(authPage.getByRole("status")).toContainText("Password updated.");
+  await authPage.goto(`${origin}/dashboard`);
+  await authPage.getByRole("button", { name: "Log out", exact: true }).click();
+  await authPage.waitForURL("**/login");
+  await authPage.getByLabel("Email address", { exact: true }).fill(admin.email);
+  await authPage.getByLabel("Password", { exact: true }).fill(admin.password);
+  await authPage.getByRole("button", { name: "Log in", exact: true }).click();
+  await expect(authPage.getByRole("status")).toContainText("The email or password is incorrect.");
+  await authPage.getByLabel("Email address", { exact: true }).fill(admin.email);
+  await authPage.getByLabel("Password", { exact: true }).fill(replacementPassword);
+  await authPage.getByRole("button", { name: "Log in", exact: true }).click();
+  await authPage.waitForURL("**/dashboard");
+  await expect(authPage.getByRole("heading", { name: "Welcome, Test admin." })).toBeVisible();
+  const recoveryReuse = await authContext.request.get(recoveryUrl.toString(), { maxRedirects: 0 });
+  assert.equal(new URL(recoveryReuse.headers().location).pathname, "/login");
+  await authContext.close();
+  console.log(`PASS authenticated workflow; screenshots: ${output}`);
+} catch (error) {
+  console.error(`FAIL ${stage} (${error.name}). Credentials and server responses are omitted.`);
+  if (stage.startsWith("profile fields") && profilePage) {
+    console.error(error.message);
+    await profilePage.screenshot({ path: join(output, "profile-failure.png"), fullPage: true });
+    console.log(`Profile diagnostic screenshot: ${join(output, "profile-failure.png")}`);
+  }
+  if (stage === "consecutive editor saves use the latest version" && editorPage) {
+    console.error(error.message);
+    await editorPage.screenshot({ path: join(output, "editor-failure.png"), fullPage: true });
+    console.log(`Editor diagnostic screenshot: ${join(output, "editor-failure.png")}`);
+  }
+  process.exitCode = 1;
+} finally {
+  if (browser) await browser.close();
+  for (const id of users.reverse()) {
+    try { checked(await database.auth.admin.deleteUser(id)); }
+    catch { console.error(`CLEANUP FAILED for temporary test account ${id}; remove it in Supabase Auth.`); process.exitCode = 1; }
+  }
+  console.log("Temporary-account cleanup completed; no existing accounts were modified.");
+}
