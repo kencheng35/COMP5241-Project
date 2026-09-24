@@ -17,7 +17,7 @@ test("rejects incomplete, oversized and forged answers", () => {
 });
 
 test("redirects remain on the application origin", () => {
-  for (const value of ["//example.org", "/\\example.org", "https://example.org", null]) {
+  for (const value of ["//example.org", "/\\example.org", "https://example.org", "/%5cexample.org", "/%2f%2fexample.org", "/%252f%252fexample.org", null]) {
     assert.equal(safeDestination(value, "https://forge.example"), "/dashboard");
   }
   assert.equal(safeDestination("/reset-password?source=email", "https://forge.example"), "/reset-password?source=email");
@@ -33,4 +33,6 @@ test("learning records are not truncated at the database row cap", async () => {
   assert.deepEqual(result, records);
   assert.equal(pages.length, 3);
   await assert.rejects(collectRows(async () => ({ data: null, error: "unavailable" })), /Could not load complete/);
+  await assert.rejects(collectRows(async (start) => start === 0 ? { data: records.slice(0, 500), error: null } : { data: null, error: null }), /Could not load complete/);
+  await assert.rejects(collectRows(async (start) => start === 0 ? { data: records.slice(0, 500), error: null } : { data: [], error: "database unavailable" }), /Could not load complete/);
 });

@@ -26,6 +26,8 @@ npm run dev
 
 Use Node.js 22.18+ (or Node.js 24 LTS). Configure the variables listed in [.env.example](.env.example) in your local environment. Never expose the service-role or OpenRouter keys through `NEXT_PUBLIC_` variables. The existing `OPEN_ROUTER_API_KEY` spelling is accepted as an alias for `OPENROUTER_API_KEY`.
 
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `NEXT_PUBLIC_SITE_URL` are required for authenticated access. Set the site URL to the canonical deployment origin (no path, query or credentials); use HTTPS except for local loopback development. Misconfigured protected pages return a retryable 503 screen, and APIs return a 503 JSON error. The setup diagnostic checks these settings without printing their values.
+
 In the Supabase SQL editor, apply these files in order:
 
 1. [supabase/schema.sql](supabase/schema.sql), only for a new database. Do not rerun it over an existing installation.
@@ -33,8 +35,10 @@ In the Supabase SQL editor, apply these files in order:
 3. [supabase/migrations/20260924_review_privacy.sql](supabase/migrations/20260924_review_privacy.sql).
 4. [supabase/migrations/20260925_coach.sql](supabase/migrations/20260925_coach.sql).
 5. [supabase/migrations/20260926_record_integrity.sql](supabase/migrations/20260926_record_integrity.sql).
+6. [supabase/migrations/20260927_resume.sql](supabase/migrations/20260927_resume.sql).
+7. [supabase/migrations/20260928_profile_limits.sql](supabase/migrations/20260928_profile_limits.sql).
 
-The connected development database now passes all required table/column checks, and the authenticated manual-learning workflow has passed browser testing against it. New installations must still apply the files above; source changes alone do not create tables. Old prototype records remain available in exports but are not converted to new lesson results or certificates.
+The resume migration must be applied to the connected development database before live resume and full export tests. Until then, lessons remain usable but show that progress cannot be saved, and exports fail closed rather than omit resume records. The profile-limit checks apply to new writes; they are `NOT VALID` to avoid blocking an upgrade with historical profile data. Review existing profiles before validating those constraints separately. New installations must apply the files above; source changes alone do not create tables. Old prototype records remain available in exports but are not converted to new lesson results or certificates.
 
 After applying the migrations, verify the configuration:
 
@@ -111,7 +115,9 @@ npm run test:e2e
 
 This opt-in command writes to the configured Supabase project: it creates three temporary, email-confirmed accounts (including one administrator), one initially unconfirmed signup account, and temporary lessons/results. It exercises real login and server actions, changes only a temporary account's password, and deletes its accounts and associated fixtures in cleanup. It never changes existing accounts. Use a development project, not a production database. Generated credentials and verification tokens remain in process memory and are omitted from test output; screenshots contain only test data and are written to a temporary directory printed on completion. Callback requests carry tokens in their query strings, so application/proxy access logs must be treated as sensitive and query values redacted in production. If cleanup fails, the command reports the temporary account ID for manual removal. `E2E_BASE_URL` can select another localhost port; non-loopback application URLs are rejected. The command is separate from `npm test` and makes no AI requests or email sends.
 
-Verified against the connected development project: manual creation, consecutive editor saves, private isolation (including administrators before review submission), self-enrollment, bookmark persistence, desktop/mobile lesson layout and navigation, ordering practice, attendance without submission, 5/10 failure, 6/10 pass and retries, private/public certificates, cross-account certificate denial, publication snapshot preservation, stale quiz rejection, reviewer grant/revocation, exclusion of private attempts from reports, and learner-scoped export. All temporary test accounts were removed.
+Before the resume migration is applied to the connected development database, use the migration-independent editor checks with `E2E_SCOPE=authoring` and `E2E_BASE_URL` set to the local app URL. In PowerShell: `$env:E2E_SCOPE='authoring'; $env:E2E_BASE_URL='http://localhost:3107'; npm run test:e2e`. Set `E2E_BROWSER` to `firefox` or `webkit` for those Playwright browsers (default: Chromium; install the browser with `npx playwright install firefox` or `webkit`). The full suite requires the resume migration.
+
+Verified against the connected development project before the resume migration: manual creation, consecutive editor saves, private isolation (including administrators before review submission), self-enrollment, bookmark persistence, desktop/mobile lesson layout and navigation, ordering practice, attendance without submission, 5/10 failure, 6/10 pass and retries, private/public certificates, cross-account certificate denial, publication snapshot preservation, stale quiz rejection, reviewer grant/revocation, exclusion of private attempts from reports, and learner-scoped export. All temporary test accounts were removed.
 
 Also verified through real forms: profile-field persistence, image upload and conversion to 160x160 JPEG, displayed image loading, rejection of invalid and oversized uploads without changing saved data, picture removal, wrong-password deletion rejection, successful password-confirmed author/learner deletion, session invalidation, and retention of another learner's certificate after author deletion. The test keeps generated passwords in memory and deletes only its own temporary accounts.
 

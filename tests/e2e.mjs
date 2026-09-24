@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import nextEnv from "@next/env";
 import { createClient } from "@supabase/supabase-js";
-import { chromium, expect } from "@playwright/test";
+import { chromium, firefox, webkit, expect } from "@playwright/test";
 import sharp from "sharp";
 
 nextEnv.loadEnvConfig(process.cwd(), true, { info() {}, error() {} });
@@ -50,7 +50,18 @@ async function fits(page, filename) {
 
 try {
   await mkdir(output, { recursive: true });
-  browser = await chromium.launch();
+  browser = await ({ firefox, webkit }[process.env.E2E_BROWSER] ?? chromium).launch();
+  step("anonymous and stale-session protected access");
+  const anonymous = await browser.newContext();
+  for (const cookie of [undefined, { name: "sb-stale-auth-token", value: "expired", domain: "localhost", path: "/" }]) {
+    if (cookie) await anonymous.addCookies([cookie]);
+    const pageResponse = await anonymous.request.get(`${origin}/dashboard`, { maxRedirects: 0 });
+    assert.equal(pageResponse.status(), 307);
+    assert.equal(new URL(pageResponse.headers().location, origin).pathname, "/login");
+    const apiResponse = await anonymous.request.get(`${origin}/api/account/export`, { maxRedirects: 0 });
+    assert.equal(apiResponse.status(), 401);
+  }
+  await anonymous.close();
   step("temporary learner, reviewer and administrator sign-in");
   const owner = await account("owner");
   editorPage = owner.page;
@@ -58,8 +69,47 @@ try {
   profilePage = learner.page;
   const admin = await account("admin");
   const title = `Test lesson ${runId}`;
+  step("auth validation and provider error focus");
+  const validationContext = await browser.newContext();
+  const validationPage = await validationContext.newPage();
+  await validationPage.goto(`${origin}/login`);
+  await validationPage.getByLabel("Email address", { exact: true }).evaluate(input => { input.type = "text"; });
+  await validationPage.getByLabel("Email address", { exact: true }).fill("invalid-email");
+  await validationPage.getByLabel("Password", { exact: true }).fill("Wrong9!Password");
+  await validationPage.getByRole("button", { name: "Log in", exact: true }).click();
+  await expect(validationPage.getByLabel("Email address", { exact: true })).toBeFocused();
+  await validationPage.getByLabel("Email address", { exact: true }).fill(owner.email);
+  await validationPage.getByLabel("Password", { exact: true }).fill("Wrong9!Password");
+  await validationPage.getByRole("button", { name: "Log in", exact: true }).click();
+  await expect(validationPage.locator('.form-notice[role="alert"]')).toContainText("The email or password is incorrect.");
+  await expect(validationPage.locator('.form-notice[role="alert"]')).toBeFocused();
+  await validationContext.close();
+  step("profile validation focuses the invalid field");
+  await owner.page.goto(`${origin}/profile`);
+  await expect(owner.page.locator(".settings-panel")).toHaveAttribute("data-profile-ready", "true");
+  const profileName = owner.page.locator('input[name="displayName"]');
+  await profileName.evaluate(input => { input.minLength = 0; });
+  await profileName.fill("X");
+  await owner.page.getByRole("button", { name: "Save profile" }).click();
+  await expect(profileName).toHaveAttribute("aria-invalid", "true");
+  await expect(profileName).toBeFocused();
+  step("catalog search keyboard access and active navigation");
+  await owner.page.goto(`${origin}/catalog`);
+  await expect(owner.page.getByRole("link", { name: "Course catalog" })).toHaveAttribute("aria-current", "page");
+  await expect(owner.page.locator('input[name="q"]')).toHaveAttribute("data-shortcut-ready", "true");
+  await owner.page.keyboard.press("/");
+  await expect(owner.page.locator('input[name="q"]')).toBeFocused();
+  await owner.page.keyboard.press("Escape");
+  await expect(owner.page.locator('input[name="q"]')).not.toBeFocused();
+  await owner.page.setViewportSize({ width: 390, height: 844 });
+  await owner.page.getByRole("button", { name: "Open navigation" }).click();
+  await expect(owner.page.getByRole("button", { name: "Close navigation", exact: true })).toBeFocused();
+  await owner.page.keyboard.press("Escape");
+  await expect(owner.page.getByRole("button", { name: "Open navigation" })).toBeFocused();
+  await owner.page.setViewportSize({ width: 1440, height: 1000 });
   step("manual private lesson authoring through the editor");
   await owner.page.goto(`${origin}/studio?manual=1`);
+  await expect(owner.page.locator('input[name="lessonId"]').first()).toHaveAttribute("data-editor-ready", "true");
   await owner.page.getByLabel("Title", { exact: true }).fill(title);
   await owner.page.getByLabel("Subject", { exact: true }).fill("Software testing");
   await owner.page.getByLabel("Summary", { exact: true }).fill("A temporary end-to-end test of the learning workflow.");
@@ -84,13 +134,139 @@ try {
   const lessonId = lessonUrl.split("/").at(-1);
   assert.equal(checked(await database.from("forge_lessons").select("visibility").eq("id", lessonId).single()).visibility, "private");
 
+  step("enrolled resume links lead to the lesson player");
+  await owner.page.goto(`${origin}/catalog`);
+  await expect(owner.page.locator(".catalog-card").filter({ hasText: title }).getByRole("link", { name: "View and enroll" })).toHaveAttribute("href", lessonUrl);
+  await owner.page.goto(`${origin}${lessonUrl}`);
+  await owner.page.getByRole("button", { name: "Enroll in lesson" }).click();
+  await expect(owner.page.getByRole("link", { name: "Open lesson" }).first()).toBeVisible();
+  await owner.page.goto(`${origin}/catalog`);
+  await expect(owner.page.locator(".catalog-card").filter({ hasText: title }).getByRole("link", { name: "Continue lesson" })).toHaveAttribute("href", `${lessonUrl}/lessons/1`);
+  await owner.page.goto(`${origin}/dashboard`);
+  await expect(owner.page.locator(".learning-list").getByRole("link", { name: new RegExp(title) })).toHaveAttribute("href", `${lessonUrl}/lessons/1`);
+  if (process.env.E2E_SCOPE === "authoring") {
+    step("lesson section and quiz result focus");
+    await owner.page.goto(`${origin}${lessonUrl}/lessons/1`);
+    await owner.page.setViewportSize({ width: 844, height: 390 });
+    assert.equal(await owner.page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "Lesson overflows mobile landscape width");
+    const coachQuestion = owner.page.getByLabel("Ask about this lesson");
+    await coachQuestion.scrollIntoViewIfNeeded();
+    await expect(coachQuestion).toBeInViewport();
+    await owner.page.setViewportSize({ width: 1440, height: 1000 });
+    await expect(owner.page.getByRole("heading", { name: "Testing step 1" })).toBeVisible();
+    await owner.page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(owner.page.getByRole("heading", { name: "Testing step 2" })).toBeFocused();
+    await owner.page.getByRole("button", { name: "Practice", exact: true }).first().click();
+    await expect(owner.page.getByRole("heading", { name: "Put the test steps in order." })).toBeFocused();
+    await owner.page.getByRole("button", { name: "Final quiz", exact: true }).click();
+    await expect(owner.page.getByRole("heading", { name: "Final quiz" })).toBeFocused();
+    for (let index = 0; index < 10; index++) await owner.page.locator(`input[name="question-${index}"]`).first().check();
+    await owner.page.getByRole("button", { name: "Submit quiz" }).click();
+    await expect(owner.page.getByRole("heading", { name: "10 / 10 (100%)" })).toBeFocused();
+    await owner.page.getByRole("button", { name: "Retry quiz" }).click();
+    await expect(owner.page.getByRole("heading", { name: "Final quiz" })).toBeFocused();
+  }
+
+  step("combined catalog filters, empty state and clear");
+  await owner.page.goto(`${origin}/catalog`);
+  await owner.page.locator('input[name="q"]').fill(title);
+  await owner.page.locator('select[name="subject"]').selectOption("Software testing");
+  await owner.page.locator('select[name="visibility"]').selectOption("private");
+  await owner.page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(owner.page.locator(".catalog-card")).toHaveCount(1);
+  await expect(owner.page.locator(".catalog-card")).toContainText(title);
+  await owner.page.locator('select[name="visibility"]').selectOption("public");
+  await owner.page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(owner.page.getByRole("heading", { name: "No matching lessons." })).toBeVisible();
+  await owner.page.getByRole("link", { name: "Clear", exact: true }).click();
+  await expect(owner.page.locator('input[name="q"]')).toHaveValue("");
+  await expect(owner.page.locator(".catalog-card").filter({ hasText: title })).toHaveCount(1);
+
   step("consecutive editor saves use the latest version");
   await owner.page.goto(`${origin}/studio?edit=${lessonId}`);
+  await expect(owner.page.locator('input[name="lessonId"]').first()).toHaveAttribute("data-editor-ready", "true");
+  await owner.page.setViewportSize({ width: 844, height: 390 });
+  assert.equal(await owner.page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "Editor overflows mobile landscape width");
+  await owner.page.getByRole("button", { name: "Preview lesson" }).click();
+  await expect(owner.page.getByRole("button", { name: "Close preview" })).toBeInViewport();
+  await owner.page.getByRole("button", { name: "Close preview" }).click();
+  await owner.page.setViewportSize({ width: 1440, height: 1000 });
+  await owner.page.getByLabel(/^Summary/).fill("Preview and navigation check before saving.");
+  await owner.page.getByRole("button", { name: "Preview lesson" }).click();
+  await expect(owner.page.getByRole("dialog", { name: "Learner-facing lesson preview" })).toContainText("Preview and navigation check before saving.");
+  await owner.page.getByRole("button", { name: "Close preview" }).click();
+  const cancelledLink = owner.page.getByRole("link", { name: "Course catalog" }).click();
+  await (await owner.page.waitForEvent("dialog")).dismiss();
+  await cancelledLink;
+  await expect(owner.page).toHaveURL(`${origin}/studio?edit=${lessonId}`);
+  await owner.page.goto(`${origin}/catalog`);
+  await owner.page.goto(`${origin}/studio?edit=${lessonId}`);
+  await expect(owner.page.locator('input[name="lessonId"]').first()).toHaveAttribute("data-editor-ready", "true");
+  await owner.page.getByLabel(/^Summary/).fill("Unsaved browser history edit.");
+  const dismissedBack = owner.page.waitForEvent("dialog");
+  await owner.page.evaluate(() => history.back());
+  await (await dismissedBack).dismiss();
+  await expect(owner.page).toHaveURL(`${origin}/studio?edit=${lessonId}`);
+  await expect(owner.page.getByLabel(/^Summary/)).toHaveValue("Unsaved browser history edit.");
   for (const version of [2, 3]) {
     await owner.page.getByLabel(/^Summary/).fill(`Temporary learning workflow fixture, revision ${version}.`);
     await owner.page.getByRole("button", { name: "Save lesson", exact: true }).click();
     await expect(owner.page.locator('input[name="version"]')).toHaveValue(String(version));
   }
+  step("failed editor save preserves unsaved changes");
+  checked(await database.from("forge_lessons").update({ version: 4 }).eq("id", lessonId).eq("version", 3).select("id").single());
+  await owner.page.getByLabel(/^Summary/).fill("Unsaved after a concurrent edit.");
+  await owner.page.getByRole("button", { name: "Save lesson", exact: true }).click();
+  await expect(owner.page.getByRole("alert").filter({ hasText: "changed in another session" })).toBeVisible();
+  const cancelledFailedSaveLink = owner.page.getByRole("link", { name: "Course catalog" }).click();
+  await (await owner.page.waitForEvent("dialog")).dismiss();
+  await cancelledFailedSaveLink;
+  await expect(owner.page).toHaveURL(`${origin}/studio?edit=${lessonId}`);
+  await expect(owner.page.getByLabel(/^Summary/)).toHaveValue("Unsaved after a concurrent edit.");
+  const acceptLink = dialog => { void dialog.accept().catch(() => {}); };
+  owner.page.on("dialog", acceptLink);
+  try {
+    await owner.page.getByRole("link", { name: "Course catalog" }).click();
+    await expect(owner.page).toHaveURL(`${origin}/catalog`);
+  } finally { owner.page.off("dialog", acceptLink); }
+  await owner.page.goto(`${origin}${lessonUrl}`);
+  await owner.page.getByRole("link", { name: "Edit lesson" }).click();
+  await expect(owner.page.locator('input[name="lessonId"]').first()).toHaveAttribute("data-editor-ready", "true");
+  await owner.page.getByLabel(/^Summary/).fill("Unsaved client-side history edit.");
+  const cancelledClientBack = owner.page.waitForEvent("dialog");
+  await owner.page.evaluate(() => history.back());
+  await (await cancelledClientBack).dismiss();
+  await expect(owner.page).toHaveURL(`${origin}/studio?edit=${lessonId}`);
+  await expect(owner.page.getByLabel(/^Summary/)).toHaveValue("Unsaved client-side history edit.");
+  const acceptBack = dialog => { void dialog.accept().catch(() => {}); };
+  owner.page.on("dialog", acceptBack);
+  try {
+    await owner.page.evaluate(() => history.back());
+    await expect(owner.page).toHaveURL(`${origin}${lessonUrl}`);
+  } finally { owner.page.off("dialog", acceptBack); }
+
+  if (process.env.E2E_SCOPE === "authoring") {
+    step("reviewer preview preserves draft isolation and published content");
+    await admin.page.goto(`${origin}/studio?edit=${lessonId}`);
+    await expect(admin.page.getByRole("heading", { name: "Lesson or page unavailable." })).toBeVisible();
+    await owner.page.goto(`${origin}/studio?edit=${lessonId}`);
+    await owner.page.getByRole("button", { name: "Submit for publication review" }).click();
+    await expect(owner.page.getByRole("status")).toContainText("Submitted.");
+    await admin.page.goto(`${origin}/studio?edit=${lessonId}`);
+    await admin.page.getByRole("button", { name: "Preview lesson" }).click();
+    const reviewPreview = admin.page.getByRole("dialog", { name: "Learner-facing lesson preview" });
+    await expect(reviewPreview).toContainText(title);
+    await expect(reviewPreview).not.toContainText(`Answer-key-only explanation ${runId}`);
+    await admin.page.getByRole("button", { name: "Close preview" }).click();
+    await admin.page.getByRole("checkbox", { name: "Review and publish this lesson" }).check();
+    await admin.page.getByRole("button", { name: "Save lesson", exact: true }).click();
+    await expect.poll(async () => checked(await database.from("forge_lessons").select("visibility").eq("id", lessonId).single()).visibility).toBe("public");
+    await admin.page.goto(`${origin}/studio?edit=${lessonId}`);
+    await admin.page.getByRole("button", { name: "Preview lesson" }).click();
+    await expect(admin.page.getByRole("dialog", { name: "Learner-facing lesson preview" })).toContainText(title);
+    await expect(admin.page.getByRole("dialog", { name: "Learner-facing lesson preview" })).not.toContainText(`Answer-key-only explanation ${runId}`);
+    console.log("PASS authoring workflow with temporary-account cleanup");
+  } else {
 
   step("private isolation, including unsubmitted drafts from administrators");
   for (const actor of [learner, admin]) {
@@ -100,13 +276,13 @@ try {
     await expect(actor.page.getByRole("heading", { name: "Lesson or page unavailable." })).toBeVisible();
   }
   step("self-enrollment and bookmark persistence");
-  await owner.page.goto(`${origin}${lessonUrl}/lessons/1`);
-  await expect(owner.page).toHaveURL(`${origin}${lessonUrl}`);
+  await learner.page.goto(`${origin}${lessonUrl}/lessons/1`);
+  await expect(learner.page.getByRole("heading", { name: "Lesson or page unavailable." })).toBeVisible();
+  await owner.page.goto(`${origin}${lessonUrl}`);
   await owner.page.getByRole("button", { name: "Save lesson", exact: true }).click();
   await expect(owner.page.getByRole("button", { name: "Saved", exact: true })).toHaveAttribute("aria-pressed", "true");
   await owner.page.reload();
   await expect(owner.page.getByRole("button", { name: "Saved", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await owner.page.getByRole("button", { name: "Enroll in lesson", exact: true }).click();
   await owner.page.getByRole("link", { name: "Open lesson", exact: true }).first().click();
   await expect(owner.page.locator(".slide-stage")).toBeVisible();
   assert.equal((await owner.page.content()).includes(`Answer-key-only explanation ${runId}`), false);
@@ -117,8 +293,9 @@ try {
   await fits(owner.page, "lesson-mobile.png");
   await owner.page.getByRole("button", { name: "Open navigation", exact: true }).click();
   await expect(owner.page.locator(".portal-sidebar")).toHaveClass(/portal-sidebar-open/);
-  await owner.page.getByRole("button", { name: "Close navigation", exact: true }).click();
+  await owner.page.keyboard.press("Escape");
   await expect.poll(() => owner.page.locator(".portal-sidebar").evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
+  await expect(owner.page.getByRole("button", { name: "Open navigation", exact: true })).toBeFocused();
   await owner.page.getByRole("button", { name: "Practice", exact: true }).first().click();
   await owner.page.getByRole("button", { name: "Move step 3 up", exact: true }).click();
   await owner.page.getByRole("button", { name: "Move step 2 up", exact: true }).click();
@@ -189,11 +366,23 @@ try {
 
   step("profile fields and validated image upload persist across reloads");
   await learner.page.goto(`${origin}/profile`);
+  await learner.page.route("**/api/account/export", route => route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"Unavailable"}' }));
+  await learner.page.getByRole("button", { name: "Download my data" }).click();
+  await expect(learner.page.getByRole("alert", { name: "" }).filter({ hasText: "Could not download your data." })).toBeVisible();
+  await learner.page.unroute("**/api/account/export");
+  const download = learner.page.waitForEvent("download");
+  await learner.page.getByRole("button", { name: "Retry data export" }).click();
+  assert.equal((await download).suggestedFilename(), "forge-learning-data.json");
+  await expect(learner.page.getByRole("alert").filter({ hasText: "Could not download your data." })).toHaveCount(0);
   const image = await sharp({ create: { width: 320, height: 240, channels: 3, background: "#28795e" } }).png().toBuffer();
   await learner.page.getByLabel("Display name", { exact: true }).fill("Test updated learner");
   await learner.page.locator('select[name="level"]').selectOption("intermediate");
   await learner.page.locator('input[name="subjects"]').fill("Testing, TypeScript");
   await learner.page.locator('textarea[name="goals"]').fill("Practice reliable testing.");
+  await learner.page.locator('input[name="avatar"]').setInputFiles({ name: "test.png", mimeType: "image/png", buffer: image });
+  await expect(learner.page.getByAltText("Selected profile picture preview")).toBeVisible();
+  await learner.page.getByRole("button", { name: "Cancel picture change" }).click();
+  await expect(learner.page.getByAltText("Selected profile picture preview")).toHaveCount(0);
   await learner.page.locator('input[name="avatar"]').setInputFiles({ name: "test.png", mimeType: "image/png", buffer: image });
   await learner.page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(learner.page.getByRole("status")).toContainText("Profile updated successfully.");
@@ -278,11 +467,11 @@ try {
     assert.equal(response.headers()["referrer-policy"], "no-referrer");
   }
   await authPage.goto(`${origin}/auth/confirm?token_hash=invalid&type=recovery&next=/reset-password`);
-  await expect(authPage.getByRole("status")).toContainText("Verification link is invalid or expired.");
+  await expect(authPage.locator(".form-notice[role=alert]")).toContainText("Verification link is invalid or expired.");
   await authPage.goto(`${origin}/reset-password`);
   await authPage.getByLabel("Password", { exact: true }).fill(`Reset9!${randomUUID()}`);
   await authPage.getByRole("button", { name: "Update password", exact: true }).click();
-  await expect(authPage.getByRole("status")).toContainText("This reset link has expired.");
+  await expect(authPage.locator(".form-notice[role=alert]")).toContainText("Request a new link or try again later.");
 
   step("signup token confirmation, safe redirect and single-use verification");
   const signupEmail = `forge-e2e-signup-${runId}@example.com`;
@@ -297,7 +486,7 @@ try {
   await authPage.getByLabel("Email address", { exact: true }).fill(signupEmail);
   await authPage.getByLabel("Password", { exact: true }).fill(signupPassword);
   await authPage.getByRole("button", { name: "Log in", exact: true }).click();
-  await expect(authPage.getByRole("status")).toContainText("email is not verified");
+  await expect(authPage.locator(".form-notice[role=alert]")).toContainText("email is not verified");
   const signupUrl = new URL("/auth/confirm", origin);
   signupUrl.searchParams.set("token_hash", signup.properties.hashed_token);
   signupUrl.searchParams.set("type", "signup");
@@ -331,7 +520,7 @@ try {
   await authPage.goto(`${origin}/reset-password`);
   await authPage.getByLabel("Password", { exact: true }).fill("weakpassword");
   await authPage.getByRole("button", { name: "Update password", exact: true }).click();
-  await expect(authPage.getByRole("status")).toContainText("Add one uppercase letter.");
+  await expect(authPage.locator(".form-notice[role=alert]")).toContainText("Add one uppercase letter.");
   const replacementPassword = `Updated9!${randomUUID()}`;
   await authPage.getByLabel("Password", { exact: true }).fill(replacementPassword);
   await authPage.getByRole("button", { name: "Update password", exact: true }).click();
@@ -342,7 +531,7 @@ try {
   await authPage.getByLabel("Email address", { exact: true }).fill(admin.email);
   await authPage.getByLabel("Password", { exact: true }).fill(admin.password);
   await authPage.getByRole("button", { name: "Log in", exact: true }).click();
-  await expect(authPage.getByRole("status")).toContainText("The email or password is incorrect.");
+  await expect(authPage.locator(".form-notice[role=alert]")).toContainText("The email or password is incorrect.");
   await authPage.getByLabel("Email address", { exact: true }).fill(admin.email);
   await authPage.getByLabel("Password", { exact: true }).fill(replacementPassword);
   await authPage.getByRole("button", { name: "Log in", exact: true }).click();
@@ -352,8 +541,10 @@ try {
   assert.equal(new URL(recoveryReuse.headers().location).pathname, "/login");
   await authContext.close();
   console.log(`PASS authenticated workflow; screenshots: ${output}`);
+  }
 } catch (error) {
   console.error(`FAIL ${stage} (${error.name}). Credentials and server responses are omitted.`);
+  if (["catalog search keyboard access and active navigation", "anonymous and stale-session protected access", "manual private lesson authoring through the editor", "enrolled resume links lead to the lesson player", "profile validation focuses the invalid field", "failed editor save preserves unsaved changes"].includes(stage)) console.error(error.message);
   if (stage.startsWith("profile fields") && profilePage) {
     console.error(error.message);
     await profilePage.screenshot({ path: join(output, "profile-failure.png"), fullPage: true });

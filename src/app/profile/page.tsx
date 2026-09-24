@@ -1,11 +1,12 @@
 import Link from "next/link";
-import Image from "next/image";
 import { redirect } from "next/navigation";
-import { Download, ShieldCheck, Trash2 } from "lucide-react";
+import { ShieldCheck, Trash2 } from "lucide-react";
 import { LearnerShell } from "@/components/learner-shell";
 import { createClient } from "@/lib/supabase/server";
-import { changeEmail, updateProfile } from "./actions";
+import { changeEmail } from "./actions";
 import { SubmitButton } from "@/components/submit-button";
+import { ProfileForm } from "@/components/profile-form";
+import { ExportButton } from "@/components/export-button";
 import { isAdmin } from "@/lib/learning-server";
 
 type ProfileRow = {
@@ -65,38 +66,14 @@ export default async function Profile({
             <p>Keep your learning personal and your data under your control.</p>
           </div>
         </header>
-        {notice && (
-          <div className={`form-notice ${notice.isError ? "notice-error" : "notice-success"}`} role="status">
-            {notice.message}
-          </div>
-        )}
         <section className="settings-layout">
-          <form action={updateProfile} className="settings-panel">
-            <div className="profile-photo-row">
-              <span className="large-avatar">{profile?.avatar_url?.startsWith("data:image/jpeg;base64,") ? <Image src={profile.avatar_url} alt="Your profile" width={70} height={70} unoptimized /> : initials}</span>
-              <div>
-                <strong>Profile picture</strong>
-                <p>Optional. JPG or PNG, up to 2 MB.</p>
-                <label>Choose image<input type="file" name="avatar" accept="image/jpeg,image/png" /></label>
-                {profile?.avatar_url && <label><input type="checkbox" name="removeAvatar" /> Remove picture</label>}
-              </div>
-            </div>
-            <div className="settings-fields">
-              <label>Display name<input name="displayName" defaultValue={displayName} required /></label>
-              <label>Email address<input value={user.email ?? ""} readOnly aria-describedby="email-help" /><small id="email-help">Email changes require verification.</small></label>
-              <label>Age range<select name="ageRange" defaultValue={ageRange}><option value="under-13">Under 13</option><option value="13-17">13–17</option><option value="18-24">18–24</option><option value="25-34">25–34</option><option value="35-plus">35 or above</option></select></label>
-              <label>Learning level<select name="level" defaultValue={learningLevel}><option value="new">New to the subject</option><option value="foundation">Foundation</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option></select></label>
-              <label className="full-field">Preferred subjects<input name="subjects" defaultValue={preferredSubjects} /><small>Separate subjects with commas.</small></label>
-              <label className="full-field">Learning goals<textarea name="goals" defaultValue={learningGoals} /></label>
-            </div>
-            <SubmitButton className="auth-submit save-profile">Save profile</SubmitButton>
-          </form>
+          <ProfileForm initial={{ displayName, email: user.email ?? "", ageRange, level: learningLevel, subjects: preferredSubjects, goals: learningGoals, avatar: profile?.avatar_url ?? null, initials }} notice={notice} />
           <aside className="privacy-panel">
             <ShieldCheck size={24} />
             <h2>Privacy controls</h2>
             <p>Your profile and private lessons stay private. Authorized instructors can review your participation and quiz answers for published lessons, but never your coach conversations.</p>
             <form action={changeEmail} className="learning-form"><label>New email address<input name="email" type="email" required /></label><SubmitButton>Request email change</SubmitButton></form>
-            <Link href="/api/account/export" className="data-action"><Download size={17} /><span><strong>Download my data</strong><small>Export a JSON copy</small></span></Link>
+            <ExportButton />
             <Link href="/profile/delete" className="data-action danger"><Trash2 size={17} /><span><strong>Delete my account</strong><small>Permanently remove your data</small></span></Link>
             <small className="privacy-fineprint">Forge never asks for your address, phone number, exact birth date, government ID, or financial details.</small>
           </aside>

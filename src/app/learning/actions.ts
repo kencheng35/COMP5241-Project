@@ -5,6 +5,7 @@ import { z } from "zod";
 import { accessibleLesson, currentUser, database, enrolledLesson, isAdmin } from "@/lib/learning-server";
 import { coachReply, generateLesson } from "@/lib/openrouter";
 import { gradeQuiz, lessonSchema } from "@/lib/learning";
+import { resumeSchema, type ResumeState } from "@/lib/resume";
 
 export type ActionState = { error?: string; success?: string; lessonId?: string; attemptId?: string; score?: number; feedback?: { prompt: string; correct: string; explanation: string }[] };
 
@@ -166,4 +167,29 @@ export async function askCoach(id: string, history: unknown): Promise<{ reply?: 
     if (!allowed) throw new Error("Your daily coach quota has been reached. Lessons and quizzes remain available.");
     return { reply: await coachReply(lesson.content.slides, messages) };
   } catch (error) { return failure(error); }
+}
+
+export async function saveResume(id: string, version: number, revision: number, state: ResumeState): Promise<{ revision?: number; error?: string; conflict?: boolean }> {
+  try {
+    const user = await currentUser();
+    const lesson = await enrolledLesson(z.uuid().parse(id), user);
+    if (lesson.version !== version) return { error: "This lesson changed. Reload to start at the updated version.", conflict: true };
+    z.number().int().min(0).parse(revision);
+    const progress = resumeSchema.parse(state);
+    if (progress.slide >= lesson.content.slides.length || progress.ordering.length !== lesson.content.activity.steps.length || new Set(progress.ordering).size !== progress.ordering.length || progress.ordering.some(index => index >= progress.ordering.length)) throw new Error("Invalid lesson position.");
+    const client = database();
+    const values = { lesson_version: version, stage: progress.stage, slide: progress.slide, ordering: progress.ordering, answers: progress.answers, updated_at: new Date().toISOString() };
+    if (revision === 0) {
+      const { data, error } = await client.from("forge_resume").insert({ user_id: user.id, lesson_id: id, ...values }).select("revision").single();
+      if (error?.code === "23505") return { error: "Progress changed on another device. Reload before continuing.", conflict: true };
+      if (error || !data) throw new Error("Could not save progress.");
+      return { revision: data.revision };
+    }
+    const { data, error } = await client.from("forge_resume").update({ ...values, revision: revision + 1 }).eq("user_id", user.id).eq("lesson_id", id).eq("revision", revision).select("revision").maybeSingle();
+    if (error) throw new Error("Could not save progress.");
+    if (!data) return { error: "Progress changed on another device. Reload before continuing.", conflict: true };
+    return { revision: data.revision };
+  } catch {
+    return { error: "Could not save progress. Try again when your connection is restored." };
+  }
 }

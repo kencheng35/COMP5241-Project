@@ -1,5 +1,6 @@
 import nextEnv from "@next/env";
 import { createClient } from "@supabase/supabase-js";
+import { publicConfig } from "../src/lib/public-config.ts";
 
 nextEnv.loadEnvConfig(process.cwd(), true, { info() {}, error() {} });
 
@@ -12,8 +13,10 @@ function report(label, ready, detail = "") {
 async function checkDatabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    report("Database configuration", false, "Supabase URL and service-role key are required.");
+  const publicReady = Boolean(publicConfig(process.env));
+  report("Public application configuration", publicReady, publicReady ? "Supabase endpoint, anon key and site origin are valid." : "Check Supabase endpoint, anon key and canonical site origin.");
+  if (!publicReady || !key) {
+    report("Database configuration", false, "Valid public Supabase URL, anon key, site origin and service-role key are required.");
     return;
   }
   const client = createClient(url, key, {
@@ -28,6 +31,7 @@ async function checkDatabase() {
     ["forge_bookmarks", "user_id,lesson_id,created_at", "learning migration"],
     ["forge_requests", "user_id,day,count,coach_count", "learning and coach migrations"],
     ["forge_reviewers", "user_id,lesson_id", "learning migration"],
+    ["forge_resume", "user_id,lesson_id,lesson_version,revision,stage,slide,ordering,answers", "resume migration"],
   ];
   for (const [table, columns, migration] of tables) {
     const { data, error } = await client.from(table).select(columns).limit(0);

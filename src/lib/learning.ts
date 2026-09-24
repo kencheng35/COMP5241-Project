@@ -41,7 +41,7 @@ export function gradeQuiz(questions: LessonContent["questions"], answers: unknow
 }
 
 export function safeDestination(value: string | null, origin: string) {
-  if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/dashboard";
+  if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\") || /%(?:2f|5c|25)/i.test(value.split("?")[0])) return "/dashboard";
   try {
     const destination = new URL(value, origin);
     return destination.origin === new URL(origin).origin ? destination.pathname + destination.search : "/dashboard";

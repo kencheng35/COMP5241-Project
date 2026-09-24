@@ -1,16 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { publicConfig } from "../public-config";
 
 export async function createClient() {
   const cookieStore = await cookies();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const settings = publicConfig(process.env);
 
-  if (!url || !key) {
-    throw new Error("Supabase is not configured. Add the public URL and anon key to .env.local.");
+  if (!settings) {
+    throw new Error("Learning service configuration is unavailable. Check the public Supabase URL, anon key and site origin.");
   }
 
-  return createServerClient(url, key, {
+  return createServerClient(settings.supabaseUrl, settings.anonKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (items) => {

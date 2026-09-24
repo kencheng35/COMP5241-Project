@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LearnerShell } from "@/components/learner-shell";
 import { ActionForm } from "@/components/learning-controls";
@@ -15,7 +14,7 @@ export default async function Admin() {
     <div className="portal-page"><span className="eyebrow">ADMINISTRATOR</span><h1>Review & publish.</h1>
       <div className="learning-list">{data?.map(lesson => <div key={lesson.id}>
         <h2>{lesson.title}</h2><p>{lesson.visibility} · Version {lesson.version}</p>
-        <Link className="text-link" href={`/studio?edit=${lesson.id}`}>Review content and answer key</Link>
+        <a className="text-link" href={`/studio?edit=${lesson.id}`}>Review content and answer key</a>
         {lesson.visibility === "public" && <details><summary>Manage quiz-report access</summary>
           <ActionForm action={addReviewer} label="Add reviewer"><input type="hidden" name="lessonId" value={lesson.id} /><label>Registered reviewer user ID<input name="reviewerId" required /></label></ActionForm>
           {reviewers?.filter(reviewer => reviewer.lesson_id === lesson.id).map(reviewer => <ActionForm key={reviewer.user_id} action={removeReviewer} label="Revoke access"><p>{reviewer.user_id}</p><input type="hidden" name="lessonId" value={lesson.id} /><input type="hidden" name="reviewerId" value={reviewer.user_id} /></ActionForm>)}

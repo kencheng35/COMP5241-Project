@@ -6,6 +6,11 @@
 .learning-form .checkbox-field { display: flex; align-items: start; }
 .learning-form > p { margin-top: 18px; }
 .studio-editor { max-width: 850px !important; }
+.lesson-preview { width: min(760px, calc(100vw - 32px)); max-height: min(85vh, 900px); overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 24px; background: var(--surface); color: var(--ink); }
+.lesson-preview::backdrop { background: #17201dbb; }
+.lesson-preview header { display: flex; justify-content: space-between; align-items: center; }
+.lesson-preview section { padding-block: 22px; border-top: 1px solid var(--line); }
+.lesson-preview blockquote { padding: 16px; margin-inline: 0; border-left: 3px solid var(--coral); background: var(--paper); }
 .learning-form fieldset fieldset { border-block-start: 1px solid #bdc8c2; padding-block: 20px; }
 .learning-form legend { padding-block: 10px; font-weight: 700; }
 .catalog-filters { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
@@ -272,6 +277,8 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
 .auth-fields label, .settings-fields label { display: grid; gap: 7px; font-size: 11px; font-weight: 800; }
 .auth-fields input:not([type="checkbox"]), .auth-fields select, .settings-fields input, .settings-fields select, .settings-fields textarea { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid #cdd1ca; border-radius: 4px; outline: none; background: white; font-size: 12px; font-weight: 400; }
 .auth-fields input:focus, .auth-fields select:focus, .settings-fields input:focus, .settings-fields select:focus, .settings-fields textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px #1f6b5215; }
+.auth-fields [aria-invalid="true"] { border-color: #b14529 !important; }
+.field-error { color: #9e321c; font-size: 11px; font-weight: 600; }
 .consent-field { grid-template-columns: 18px 1fr; align-items: start; color: var(--muted); font-weight: 400 !important; line-height: 1.45; }
 .consent-field input { margin-top: 2px; accent-color: var(--green); }
 .text-link, .auth-swap a { color: var(--green); font-weight: 800; }
