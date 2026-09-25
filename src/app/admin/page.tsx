@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { LearnerShell } from "@/components/learner-shell";
 import { ActionForm } from "@/components/learning-controls";
 import { addReviewer, removeReviewer } from "@/app/learning/actions";
-import { database, displayName, isAdmin, requireUser } from "@/lib/learning-server";
+import { isInstructor, database, displayName, isAdmin, requireUser } from "@/lib/learning-server";
 import { collectRows } from "@/lib/learning";
 
 export default async function Admin() {
@@ -10,7 +10,7 @@ export default async function Admin() {
   if (!isAdmin(user)) notFound();
   const data = await collectRows((start, end) => database().from("forge_lessons").select("id,title,visibility,version").or(`visibility.eq.public,review_requested.eq.true,owner_id.eq.${user.id}`).order("created_at", { ascending: false }).order("id").range(start, end));
   const reviewers = await collectRows((start, end) => database().from("forge_reviewers").select("user_id,lesson_id").order("lesson_id").order("user_id").range(start, end));
-  return <LearnerShell active="/admin" name={await displayName(user)} admin>
+  return <LearnerShell active="/admin" name={await displayName(user)} admin instructor={isInstructor(user)}>
     <div className="portal-page"><span className="eyebrow">ADMINISTRATOR</span><h1>Review & publish.</h1>
       <div className="learning-list">{data?.map(lesson => <div key={lesson.id}>
         <h2>{lesson.title}</h2><p>{lesson.visibility} · Version {lesson.version}</p>

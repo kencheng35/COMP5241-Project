@@ -50,7 +50,9 @@ export function LessonPlayer({ id, version, content, saved, revision, resumeAvai
       while (waiting.current && !blocked.current) {
         const next = waiting.current;
         waiting.current = null;
-        const outcome = await saveResume(id, version, revisionRef.current, next);
+        let outcome: Awaited<ReturnType<typeof saveResume>>;
+        try { outcome = await saveResume(id, version, revisionRef.current, next); }
+        catch { outcome = { error: "Could not save progress. Try again when your connection is restored." }; }
         if (outcome.error) {
           setResumeError(outcome.error);
           if (outcome.conflict) { blocked.current = true; setResumeConflict(true); }
@@ -65,12 +67,14 @@ export function LessonPlayer({ id, version, content, saved, revision, resumeAvai
   }, [id, version]);
   useEffect(() => {
     const state: ResumeState = { stage, slide, ordering: order, answers };
-    if (!resumeAvailable || blocked.current || JSON.stringify(state) === lastSaved.current) return;
-    const timer = setTimeout(() => {
-      waiting.current = state;
-      void flush();
-    }, 600);
-    return () => clearTimeout(timer);
+    if (!resumeAvailable || blocked.current) return;
+    if (!saving.current && JSON.stringify(state) === lastSaved.current) {
+      waiting.current = null;
+      setResumeError("");
+      return;
+    }
+    waiting.current = state;
+    void flush();
   }, [stage, slide, order, answers, resumeAvailable, flush]);
   useEffect(() => {
     if (firstStage.current) { firstStage.current = false; return; }

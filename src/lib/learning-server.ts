@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { collectRows, lessonSchema, type LessonContent } from "@/lib/learning";
 import { z } from "zod";
+import { isAdmin } from "@/lib/permissions";
+export { isAdmin, isInstructor, canPublishLessons, canEditLesson, canManageEnrollment } from "@/lib/permissions";
 
 export type LessonRow = {
   id: string; owner_id: string; title: string; subject: string; summary: string;
@@ -35,8 +37,6 @@ export async function requireUser() {
   if (!user) redirect("/login");
   return user;
 }
-
-export function isAdmin(user: User) { return user.app_metadata?.role === "admin"; }
 
 export async function displayName(user: User) {
   const { data } = await database().from("profiles").select("display_name").eq("id", user.id).maybeSingle();

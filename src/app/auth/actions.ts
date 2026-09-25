@@ -4,13 +4,14 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { publicConfig } from "@/lib/public-config";
+import { ageRangeFor, isDemoAge } from "@/lib/eligibility";
 
 const password = z.string().min(8, "Use at least 8 characters.").regex(/[A-Z]/, "Add one uppercase letter.").regex(/[0-9]/, "Add one number.");
 const email = z.string().email("Enter a valid email address.");
 
 export type CredentialState = {
   error?: string;
-  fields?: { name: string; email: string; ageRange: string; consent: boolean };
+  fields?: { name: string; email: string; age: string };
   fieldErrors?: Record<string, string>;
   verification?: boolean;
 };
@@ -19,8 +20,7 @@ function formFields(formData: FormData) {
   return {
     name: String(formData.get("name") ?? "").slice(0, 100),
     email: String(formData.get("email") ?? "").slice(0, 320),
-    ageRange: String(formData.get("ageRange") ?? ""),
-    consent: formData.get("consent") === "on",
+    age: String(formData.get("age") ?? ""),
   };
 }
 
@@ -42,11 +42,8 @@ export async function signUp(_previous: CredentialState, formData: FormData): Pr
   const schema = z.object({
     name: z.string().trim().min(2, "Enter your display name.").max(100, "Use at most 100 characters."),
     email,
-    ageRange: z.enum(["under-13", "13-17", "18-24", "25-34", "35-plus"]),
+    age: z.coerce.number().refine(isDemoAge, "Enter a whole-number age from 13 to 120."),
     password,
-    consent: z.string().optional(),
-  }).refine((data) => data.ageRange !== "under-13" || data.consent === "on", {
-    message: "A parent or guardian must consent for learners under 13.",
   });
   const fields = formFields(formData);
   const result = schema.safeParse(Object.fromEntries(formData));
@@ -59,7 +56,7 @@ export async function signUp(_previous: CredentialState, formData: FormData): Pr
       password: result.data.password,
       options: {
         emailRedirectTo: authCallback("/dashboard"),
-        data: { display_name: result.data.name, age_range: result.data.ageRange, guardian_consent_self_attested: result.data.ageRange === "under-13" && result.data.consent === "on", consent_recorded_at: new Date().toISOString() },
+        data: { display_name: result.data.name, age: result.data.age, age_range: ageRangeFor(result.data.age) },
       },
     });
     if (error) return { fields, error: "Could not create the account. Please try again later." };

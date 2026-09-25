@@ -6,7 +6,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const settings = publicConfig(process.env);
   const pathname = request.nextUrl.pathname;
-  const privatePath = pathname === "/" || ["/dashboard", "/profile", "/progress", "/catalog", "/courses", "/studio", "/reports", "/admin", "/api"].some(path => pathname === path || pathname.startsWith(`${path}/`));
+  const privatePath = pathname === "/" || ["/dashboard", "/profile", "/progress", "/catalog", "/courses", "/studio", "/reports", "/paths", "/teaching", "/admin", "/api"].some(path => pathname === path || pathname.startsWith(`${path}/`));
   if (!settings) {
     if (!privatePath) return response;
     if (pathname === "/api" || pathname.startsWith("/api/")) {
@@ -32,9 +32,7 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (privatePath && !user) {
     if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    loginUrl.search = "";
+    const loginUrl = new URL("/login", settings.siteOrigin);
     loginUrl.searchParams.set("message", "Please log in to view your private learning space.");
     const denied = NextResponse.redirect(loginUrl);
     response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));

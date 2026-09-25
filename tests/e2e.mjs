@@ -9,8 +9,9 @@ import { chromium, firefox, webkit, expect } from "@playwright/test";
 import sharp from "sharp";
 
 nextEnv.loadEnvConfig(process.cwd(), true, { info() {}, error() {} });
-const origin = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+const origin = process.env.E2E_BASE_URL ?? process.env.NEXT_PUBLIC_SITE_URL;
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(origin).hostname), "Browser tests require a local application server.");
+assert.equal(origin, process.env.NEXT_PUBLIC_SITE_URL, "E2E_BASE_URL must match NEXT_PUBLIC_SITE_URL for auth redirects.");
 const database = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 const users = [];
 const runId = randomUUID();
@@ -25,7 +26,7 @@ function checked(result) { if (result.error) throw new Error("Fixture operation 
 async function account(role) {
   const email = `forge-e2e-${role}-${runId}@example.com`;
   const password = `Test9!${randomUUID()}`;
-  const data = checked(await database.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: `Test ${role}`, age_range: "18-24" }, app_metadata: role === "admin" ? { role: "admin" } : {} }));
+  const data = checked(await database.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: `Test ${role}`, age: 22, age_range: "18-24" }, app_metadata: role === "admin" ? { role: "admin" } : {} }));
   users.push(data.user.id);
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
@@ -49,11 +50,23 @@ async function fits(page, filename) {
 }
 
 try {
+  if (process.env.E2E_SCOPE !== "authoring") {
+    step("full-suite schema preflight");
+    for (const [table, columns, requirement] of [
+      ["profiles", "age", "profiles.age (20260929_age_eligibility.sql)"],
+      ["forge_resume", "*", "forge_resume and service-role access (20260927_resume.sql and 20260930_resume_grant.sql)"],
+    ]) {
+      try { checked(await database.from(table).select(columns).limit(0)); }
+      catch { throw new Error(`Full E2E requires readable ${requirement}. Have the owner apply outstanding README migrations in order on the approved disposable database, then rerun. No fixtures created; provider details omitted.`); }
+    }
+  } else {
+    console.log("Authoring scope fills synthetic age 22 for invalid-field validation only; it does not verify profile persistence or full-suite schema readiness.");
+  }
   await mkdir(output, { recursive: true });
   browser = await ({ firefox, webkit }[process.env.E2E_BROWSER] ?? chromium).launch();
   step("anonymous and stale-session protected access");
   const anonymous = await browser.newContext();
-  for (const cookie of [undefined, { name: "sb-stale-auth-token", value: "expired", domain: "localhost", path: "/" }]) {
+  for (const cookie of [undefined, { name: "sb-stale-auth-token", value: "expired", domain: new URL(origin).hostname, path: "/" }]) {
     if (cookie) await anonymous.addCookies([cookie]);
     const pageResponse = await anonymous.request.get(`${origin}/dashboard`, { maxRedirects: 0 });
     assert.equal(pageResponse.status(), 307);
@@ -90,6 +103,7 @@ try {
   const profileName = owner.page.locator('input[name="displayName"]');
   await profileName.evaluate(input => { input.minLength = 0; });
   await profileName.fill("X");
+  await owner.page.locator('input[name="age"]').fill("22");
   await owner.page.getByRole("button", { name: "Save profile" }).click();
   await expect(profileName).toHaveAttribute("aria-invalid", "true");
   await expect(profileName).toBeFocused();
@@ -376,6 +390,7 @@ try {
   await expect(learner.page.getByRole("alert").filter({ hasText: "Could not download your data." })).toHaveCount(0);
   const image = await sharp({ create: { width: 320, height: 240, channels: 3, background: "#28795e" } }).png().toBuffer();
   await learner.page.getByLabel("Display name", { exact: true }).fill("Test updated learner");
+  await learner.page.locator('input[name="age"]').fill("22");
   await learner.page.locator('select[name="level"]').selectOption("intermediate");
   await learner.page.locator('input[name="subjects"]').fill("Testing, TypeScript");
   await learner.page.locator('textarea[name="goals"]').fill("Practice reliable testing.");
@@ -388,7 +403,10 @@ try {
   await expect(learner.page.getByRole("status")).toContainText("Profile updated successfully.");
   await learner.page.reload();
   await expect(learner.page.getByLabel("Display name", { exact: true })).toHaveValue("Test updated learner");
-  const savedProfile = checked(await database.from("profiles").select("avatar_url,learning_level,preferred_subjects,learning_goals").eq("id", learner.id).single());
+  await expect(learner.page.locator('input[name="age"]')).toHaveValue("22");
+  const savedProfile = checked(await database.from("profiles").select("age,display_name,avatar_url,learning_level,preferred_subjects,learning_goals").eq("id", learner.id).single());
+  assert.equal(savedProfile.age, 22);
+  assert.equal(savedProfile.display_name, "Test updated learner");
   assert.equal(savedProfile.learning_level, "intermediate");
   assert.deepEqual(savedProfile.preferred_subjects, ["Testing", "TypeScript"]);
   assert.equal(savedProfile.learning_goals, "Practice reliable testing.");
@@ -478,7 +496,7 @@ try {
   const signupPassword = `Signup9!${randomUUID()}`;
   const signup = checked(await database.auth.admin.generateLink({
     type: "signup", email: signupEmail, password: signupPassword,
-    options: { data: { display_name: "Test signup", age_range: "18-24" } },
+    options: { data: { display_name: "Test signup", age: 22, age_range: "18-24" } },
   }));
   users.push(signup.user.id);
   assert.equal(Boolean(signup.user.email_confirmed_at), false);
@@ -544,6 +562,7 @@ try {
   }
 } catch (error) {
   console.error(`FAIL ${stage} (${error.name}). Credentials and server responses are omitted.`);
+  if (stage === "full-suite schema preflight") console.error(error.message);
   if (["catalog search keyboard access and active navigation", "anonymous and stale-session protected access", "manual private lesson authoring through the editor", "enrolled resume links lead to the lesson player", "profile validation focuses the invalid field", "failed editor save preserves unsaved changes"].includes(stage)) console.error(error.message);
   if (stage.startsWith("profile fields") && profilePage) {
     console.error(error.message);

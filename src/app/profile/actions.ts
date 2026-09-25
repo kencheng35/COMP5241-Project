@@ -6,22 +6,23 @@ import { createClient } from "@/lib/supabase/server";
 import sharp from "sharp";
 import { revalidatePath } from "next/cache";
 import { publicConfig } from "@/lib/public-config";
+import { ageRangeFor, isDemoAge } from "@/lib/eligibility";
 
 export type ProfileState = {
   error?: string;
-  fields?: { displayName: string; ageRange: string; level: string; subjects: string; goals: string };
+  fields?: { displayName: string; age: string; level: string; subjects: string; goals: string };
   fieldErrors?: Record<string, string>;
 };
 
 export async function updateProfile(_previous: ProfileState, formData: FormData): Promise<ProfileState> {
   const fields = {
     displayName: String(formData.get("displayName") ?? "").slice(0, 100),
-    ageRange: String(formData.get("ageRange") ?? ""),
+    age: String(formData.get("age") ?? ""),
     level: String(formData.get("level") ?? ""),
     subjects: String(formData.get("subjects") ?? "").slice(0, 300),
     goals: String(formData.get("goals") ?? "").slice(0, 800),
   };
-  const result = z.object({ displayName: z.string().trim().min(2).max(100), ageRange: z.enum(["under-13", "13-17", "18-24", "25-34", "35-plus"]), level: z.enum(["new", "foundation", "intermediate", "advanced"]), subjects: z.string().max(300), goals: z.string().max(800) }).safeParse(Object.fromEntries(formData));
+  const result = z.object({ displayName: z.string().trim().min(2).max(100), age: z.coerce.number().refine(isDemoAge, "Enter a whole-number age from 13 to 120."), level: z.enum(["new", "foundation", "intermediate", "advanced"]), subjects: z.string().max(300), goals: z.string().max(800) }).safeParse(Object.fromEntries(formData));
   if (!result.success) return { fields, fieldErrors: Object.fromEntries(result.error.issues.map(issue => [String(issue.path[0]), issue.message])), error: "Please check the highlighted profile fields." };
   let avatar: string | null | undefined;
   const image = formData.get("avatar");
@@ -40,7 +41,12 @@ export async function updateProfile(_previous: ProfileState, formData: FormData)
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { fields, error: "Your session has expired. Log in again before saving." };
-    const { error } = await supabase.from("profiles").upsert({ id: user.id, display_name: result.data.displayName, age_range: result.data.ageRange, learning_level: result.data.level, preferred_subjects: result.data.subjects.split(",").map(item => item.trim()).filter(Boolean), learning_goals: result.data.goals, ...(avatar !== undefined ? { avatar_url: avatar } : {}), updated_at: new Date().toISOString() });
+    const { data: existing, error: profileError } = await supabase.from("profiles").select("age, age_range").eq("id", user.id).maybeSingle();
+    if (profileError) return { fields, error: "Could not verify your profile. Please try again later." };
+    if (existing?.age_range === "under-13" || (typeof existing?.age === "number" && existing.age < 13)) {
+      return { fields, error: "This account needs administrator review under the 13+ supervised demo policy. Account export and deletion remain available." };
+    }
+    const { error } = await supabase.from("profiles").upsert({ id: user.id, display_name: result.data.displayName, age: result.data.age, age_range: ageRangeFor(result.data.age), learning_level: result.data.level, preferred_subjects: result.data.subjects.split(",").map(item => item.trim()).filter(Boolean), learning_goals: result.data.goals, ...(avatar !== undefined ? { avatar_url: avatar } : {}), updated_at: new Date().toISOString() });
     if (error) return { fields, error: "Could not save your profile. Please try again." };
   } catch {
     return { fields, error: "Could not save your profile. Please try again." };

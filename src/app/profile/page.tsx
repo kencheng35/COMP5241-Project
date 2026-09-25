@@ -7,12 +7,13 @@ import { changeEmail } from "./actions";
 import { SubmitButton } from "@/components/submit-button";
 import { ProfileForm } from "@/components/profile-form";
 import { ExportButton } from "@/components/export-button";
-import { isAdmin } from "@/lib/learning-server";
+import { isInstructor, isAdmin } from "@/lib/learning-server";
 
 type ProfileRow = {
   avatar_url: string | null;
   display_name: string;
   age_range: string;
+  age: number | null;
   learning_level: string | null;
   preferred_subjects: string[] | null;
   learning_goals: string | null;
@@ -33,7 +34,7 @@ export default async function Profile({
 
   const { data, error: profileError } = await supabase
     .from("profiles")
-    .select("display_name, age_range, learning_level, preferred_subjects, learning_goals, avatar_url")
+    .select("*")
     .eq("id", user.id)
     .maybeSingle();
   const profile = data as ProfileRow | null;
@@ -53,11 +54,11 @@ export default async function Profile({
     : params.success
       ? { message: params.success, isError: false }
       : profileError
-        ? { message: `Could not load your saved profile: ${profileError.message}`, isError: true }
+        ? { message: "Could not load your saved profile. Please try again later.", isError: true }
         : null;
 
   return (
-    <LearnerShell active="/profile" name={displayName} admin={isAdmin(user)}>
+    <LearnerShell active="/profile" name={displayName} admin={isAdmin(user)} instructor={isInstructor(user)}>
       <div className="portal-page profile-page">
         <header className="portal-heading">
           <div>
@@ -67,7 +68,7 @@ export default async function Profile({
           </div>
         </header>
         <section className="settings-layout">
-          <ProfileForm initial={{ displayName, email: user.email ?? "", ageRange, level: learningLevel, subjects: preferredSubjects, goals: learningGoals, avatar: profile?.avatar_url ?? null, initials }} notice={notice} />
+          <ProfileForm initial={{ displayName, email: user.email ?? "", age: profile?.age ?? null, ageRange, level: learningLevel, subjects: preferredSubjects, goals: learningGoals, avatar: profile?.avatar_url ?? null, initials }} notice={notice} />
           <aside className="privacy-panel">
             <ShieldCheck size={24} />
             <h2>Privacy controls</h2>

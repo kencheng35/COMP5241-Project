@@ -329,3 +329,15 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
 @media (max-width: 620px) {
   .auth-main { align-items: start; padding: 25px 18px; }.auth-title h1 { font-size: 32px; }.portal-topbar { height: 60px; padding: 0 16px; }.portal-page { padding: 31px 16px 55px; }.portal-heading { align-items: start; flex-direction: column; }.portal-heading h1 { font-size: 36px; }.catalog-grid, .progress-columns { grid-template-columns: 1fr; }.catalog-image { height: 200px; }.course-banner { grid-template-columns: 1fr; padding: 28px 22px; }.course-progress-ring { display: none; }.course-facts { flex-wrap: wrap; }.lesson-page { padding: 20px 12px 50px; }.lesson-article { padding: 37px 20px; }.lesson-article h1 { font-size: 39px; }.stat-grid { grid-template-columns: 1fr 1fr; }.settings-panel, .privacy-panel { padding: 20px; }.settings-fields { grid-template-columns: 1fr; }.full-field { grid-column: auto; }.danger-page > section { padding: 25px 20px; }
 }
+
+.portal-sidebar { overflow-y: auto; }
+.portal-sidebar > * { flex-shrink: 0; }
+.portal-nav a { overflow-wrap: anywhere; }
+.portal-nav a svg { flex-shrink: 0; }
+.portal-workspace { min-width: 0; }
+.portal-page .account-email { display: block; min-width: 0; overflow-wrap: anywhere; }
+.portal-page .learning-form { min-width: 0; max-width: 100%; }
+.portal-page .learning-form :is(fieldset, label, input, select, textarea, button) { min-width: 0; max-width: 100%; }
+.portal-page .account-row label:has(> input[type="checkbox"]), .portal-page .learning-form .learner-choice { display: flex; align-items: flex-start; gap: 10px; }
+.portal-page .learner-choice > span { min-width: 0; overflow-wrap: anywhere; }
+.portal-page :is(.learner-choice, .account-row) input[type="checkbox"] { width: 18px; height: 18px; min-width: 18px; flex: 0 0 18px; margin: 2px 0 0; }

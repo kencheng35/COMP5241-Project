@@ -1,8 +1,32 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { collectRows, gradeQuiz, safeDestination } from "../src/lib/learning.ts";
+import { canEditLesson, canManageEnrollment, canPublishLessons, isAdmin, isInstructor } from "../src/lib/permissions.ts";
 
 const questions = Array.from({ length: 10 }, () => ({ correct: 0 }));
+
+test("instructor permissions are trusted, owner-scoped and preserve private drafts", () => {
+  const learner = { id: "owner", app_metadata: {}, user_metadata: { role: "admin" } };
+  const instructor = { id: "owner", app_metadata: { role: "instructor" } };
+  const admin = { id: "admin", app_metadata: { role: "admin" } };
+  const published = { owner_id: "owner", visibility: "public" };
+  const privateLesson = { ...published, visibility: "private" };
+  assert.equal(isAdmin(learner), false);
+  assert.equal(isInstructor(learner), false);
+  assert.equal(canPublishLessons(learner), false);
+  assert.equal(canPublishLessons(instructor), true);
+  assert.equal(canEditLesson(learner, published), false);
+  assert.equal(canEditLesson(learner, privateLesson), true);
+  assert.equal(canEditLesson(instructor, published), true);
+  assert.equal(canEditLesson(instructor, { ...published, owner_id: "someone-else" }), false);
+  assert.equal(canEditLesson(admin, privateLesson), false);
+  assert.equal(canEditLesson(admin, { ...privateLesson, review_requested: true }), true);
+  assert.equal(canManageEnrollment(instructor, published), true);
+  assert.equal(canManageEnrollment(instructor, { ...published, owner_id: "someone-else" }), false);
+  assert.equal(canManageEnrollment(learner, published), false);
+  assert.equal(canManageEnrollment(admin, privateLesson), false);
+  assert.equal(canManageEnrollment(admin, published), true);
+});
 
 test("six out of ten passes, five fails, and retries remain independent", () => {
   assert.equal(gradeQuiz(questions, [0, 0, 0, 0, 0, 1, 1, 1, 1, 1]).passed, false);

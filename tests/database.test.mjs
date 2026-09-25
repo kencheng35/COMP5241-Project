@@ -16,7 +16,7 @@ test("migrations enforce private storage, quotas and durable certificate snapsho
     }
     const author = "00000000-0000-4000-8000-000000000001";
     const learner = "00000000-0000-4000-8000-000000000002";
-    await database.query("insert into auth.users(id) values ($1),($2)", [author, learner]);
+    await database.query("insert into auth.users(id,raw_user_meta_data) values ($1,'{\"age\":22,\"age_range\":\"18-24\"}'),($2,'{\"age\":22,\"age_range\":\"18-24\"}')", [author, learner]);
     for (const [column, value] of [
       ["display_name", "X".repeat(101)],
       ["learning_level", "unsupported"],
@@ -43,7 +43,9 @@ test("migrations enforce private storage, quotas and durable certificate snapsho
     await database.exec("set role authenticated");
     await assert.rejects(database.query("select * from forge_resume"), /permission denied/);
     await database.exec("reset role");
+    await database.exec("set role service_role");
     await database.query("insert into forge_resume(user_id,lesson_id,lesson_version,stage,slide,ordering,answers) values($1,$2,1,'slides',0,$3,$4)", [learner, lesson, [2, 1, 0], Array(10).fill(-1)]);
+    await database.exec("reset role");
     assert.equal((await database.query("select revision from forge_resume where user_id=$1", [learner])).rows[0].revision, 1);
     const firstSave = await database.query("update forge_resume set revision=2,slide=1 where user_id=$1 and lesson_id=$2 and revision=1 returning revision", [learner, lesson]);
     assert.equal(firstSave.rows[0].revision, 2);

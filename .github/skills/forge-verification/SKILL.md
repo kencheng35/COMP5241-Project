@@ -1,0 +1,7 @@
+---
+name: forge-verification
+description: "Use for focused implementation checks, regression testing, Playwright workflows and reproducible delivery evidence."
+---
+Inspect package.json and nearby tests before choosing commands. Run the narrowest relevant check immediately after an edit; fix local failures before expanding scope. Use npm test, npm run typecheck, npm run lint and npm run build as applicable release gates. Follow Windows PowerShell conventions; preserve unrelated working-tree changes.
+Classify side effects first: local tests/builds, remote setup reads, database-writing browser suites, or quota-consuming AI probes. Before test:e2e or test:instructors, confirm the disposable Supabase target and local application origin; create unique fixtures, clean them in finally, and report cleanup failures. Localhost does not make the database disposable.
+For UI changes, verify meaningful flows, keyboard focus, responsive layouts and screenshots. For AI, prefer mocked contract tests before authorized synthetic probes. Never print secrets, tokens or real learner data. Record command, environment, scope, actual result and limitations; historical passes are not current evidence. Do not install packages, alter schemas or access production beyond the task's authorization.

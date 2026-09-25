@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { accessibleLesson, currentUser, database, enrolledLesson, isAdmin } from "@/lib/learning-server";
+import { accessibleLesson, currentUser, database, enrolledLesson, isAdmin, canEditLesson, canPublishLessons } from "@/lib/learning-server";
 import { coachReply, generateLesson } from "@/lib/openrouter";
 import { gradeQuiz, lessonSchema } from "@/lib/learning";
 import { resumeSchema, type ResumeState } from "@/lib/resume";
+import { requireAiAccess } from "@/lib/ai-eligibility-server";
+import { isSdlcSubject } from "@/lib/recommendations";
 
 export type ActionState = { error?: string; success?: string; lessonId?: string; attemptId?: string; score?: number; feedback?: { prompt: string; correct: string; explanation: string }[] };
 
@@ -18,6 +20,7 @@ function failure(error: unknown): ActionState {
 export async function createLesson(_previous: ActionState, form: FormData): Promise<ActionState> {
   try {
     const user = await currentUser();
+    await requireAiAccess(user);
     const topic = z.string().trim().min(5, "Describe a topic in at least five characters.").max(500).parse(form.get("topic"));
     const { data: allowed, error } = await database().rpc("forge_claim_request", { request_user: user.id });
     if (error) throw new Error("Generation is unavailable. Check the learning database migration.");
@@ -91,11 +94,12 @@ export async function updateLesson(_previous: ActionState, form: FormData): Prom
     const user = await currentUser();
     const id = z.uuid().parse(form.get("lessonId"));
     const lesson = await accessibleLesson(id, user, true);
-    if (!lesson || (!isAdmin(user) && (lesson.owner_id !== user.id || lesson.visibility === "public"))) throw new Error("Only the administrator can edit published lessons.");
+    if (!lesson || !canEditLesson(user, lesson)) throw new Error("You cannot edit this lesson.");
     const content = lessonSchema.parse(JSON.parse(String(form.get("content"))));
+    if (!isSdlcSubject(content.subject)) return { error: "Choose an SDLC subject, such as Software testing or Software design." };
     const expectedVersion = z.coerce.number().int().positive().parse(form.get("version"));
     const publish = form.get("publish") === "on";
-    if (publish && !isAdmin(user)) throw new Error("Only an administrator can publish lessons.");
+    if (publish && !canPublishLessons(user)) throw new Error("Instructor access is required to publish lessons.");
     const { data, error } = await database().from("forge_lessons").update({ title: content.title, subject: content.subject, summary: content.summary, content, version: expectedVersion + 1, visibility: publish ? "public" : lesson.visibility, ...(publish ? { published_at: new Date().toISOString() } : {}) }).eq("id", id).eq("version", expectedVersion).select("id").maybeSingle();
     if (error) throw new Error("Could not save this lesson.");
     if (!data) throw new Error("This lesson changed in another session. Reload before editing.");
@@ -147,8 +151,9 @@ export async function createManualLesson(_previous: ActionState, form: FormData)
   try {
     const user = await currentUser();
     const content = lessonSchema.parse(JSON.parse(String(form.get("content"))));
+    if (!isSdlcSubject(content.subject)) return { error: "Choose an SDLC subject, such as Software testing or Software design." };
     const publish = form.get("publish") === "on";
-    if (publish && !isAdmin(user)) throw new Error("Administrator access required to publish.");
+    if (publish && !canPublishLessons(user)) throw new Error("Instructor access required to publish.");
     const { data, error } = await database().from("forge_lessons").insert({ owner_id: user.id, title: content.title, subject: content.subject, summary: content.summary, content, visibility: publish ? "public" : "private", published_at: publish ? new Date().toISOString() : null }).select("id").single();
     if (error) throw new Error("Could not create this lesson. Check the database migration.");
     revalidatePath("/catalog"); revalidatePath("/dashboard");
@@ -159,6 +164,7 @@ export async function createManualLesson(_previous: ActionState, form: FormData)
 export async function askCoach(id: string, history: unknown): Promise<{ reply?: string; error?: string }> {
   try {
     const user = await currentUser();
+    await requireAiAccess(user);
     const lesson = await enrolledLesson(z.uuid().parse(id), user);
     const messages = z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1200) })).min(1).max(12).parse(history);
     if (messages.at(-1)?.role !== "user") throw new Error("Enter a question for your coach.");
