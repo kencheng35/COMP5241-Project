@@ -78,6 +78,8 @@ In **Supabase → Authentication → URL Configuration**:
 
 After signup, verify the email before logging in. If login reports an unverified email, use **Resend verification**. Existing accounts can also use **Forgot password** without registering again.
 
+Successful password reset requests global sign-out before returning to login. Ordinary **Log out** also uses global scope, revoking refresh sessions across devices rather than only this browser. Already issued access tokens can remain valid until their configured expiry; this is not an immediate access-token revocation guarantee. Provider or cookie-cleanup failures show retry guidance, and a confirmed password update followed by failed logout is reported separately so users know to use the new password. Live multi-session revocation and browser-cookie behavior still require verification on the approved disposable target.
+
 Keep email confirmations and secure email-change confirmation enabled in Supabase. Configure production SMTP. Signup requires a whole-number age of at least 13; under-13 guardian self-attestation has been removed. Profile ages remain self-reported, and minors cannot access external AI under the current demo policy.
 
 ## Administrator setup
@@ -122,6 +124,10 @@ npm run build
 ```
 
 Unit/database tests cover pass thresholds, malformed submissions, safe redirects, complete pagination, migration execution in isolated PostgreSQL-compatible PGlite, direct-access denial, request quotas and certificate retention.
+
+The focused auth checks run with `node --experimental-strip-types --test tests/auth.test.mjs`. They cover reset/global-logout ordering, returned/thrown provider failures, strict cookie cleanup, read-only cookie tolerance, recovery focus/pending/retry, conflicting query notices and responsive error layouts. They mock provider calls and mount the real form in network-blocked Chromium; screenshots contain synthetic data and go to an OS temporary directory printed by the test. They do not establish live session revocation or email delivery.
+
+9 October local auth continuation: 90 total tests and typecheck passed. A React prop-immutability lint issue was repaired, lint then passed, the final 20 focused auth checks passed again, and the production build passed including TypeScript. The full 90 were not rerun after that small lint repair. These Windows/Node.js 25.2.1 results are separate from hosted CI, independent QA and connected browser acceptance.
 
 GitHub Actions runs these tests, lint, type checking and a production build on pushes and pull requests using Node.js 24 LTS. The workflow requires no application secrets and does not run live database checks, AI probes or the database-writing browser suite.
 

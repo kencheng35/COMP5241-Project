@@ -9,14 +9,14 @@ import { logIn, requestReset, resendVerification, resetPassword, signUp, type Cr
 
 type Mode = "login" | "signup" | "forgot" | "reset";
 
-export function AuthForm({ mode, error, success, message, email, verification }: { mode: Mode; error?: string; success?: string; message?: string; email?: string; verification?: string }) {
+export function AuthForm({ mode, error: rawError, success: rawSuccess, message: rawMessage, email: rawEmail, verification: rawVerification }: { mode: Mode; error?: string; success?: string; message?: string; email?: string; verification?: string }) {
   const [credentialState, credentialAction] = useActionState(mode === "signup" ? signUp : logIn, {} as CredentialState);
   const [recoveryState, recoveryAction] = useActionState(requestReset, {} as CredentialState);
-  error = typeof error === "string" ? error : undefined;
-  success = typeof success === "string" ? success : undefined;
-  message = typeof message === "string" ? message : undefined;
-  email = typeof email === "string" ? email : undefined;
-  verification = typeof verification === "string" ? verification : undefined;
+  const error = typeof rawError === "string" ? rawError : undefined;
+  const success = typeof rawSuccess === "string" ? rawSuccess : undefined;
+  const message = typeof rawMessage === "string" ? rawMessage : undefined;
+  const email = typeof rawEmail === "string" ? rawEmail : undefined;
+  const verification = typeof rawVerification === "string" ? rawVerification : undefined;
   const content = {
     login: ["Welcome back.", "Continue where you left off.", "Log in"],
     signup: ["Make learning yours.", "Create a private learning profile in under a minute.", "Create account"],
@@ -30,10 +30,10 @@ export function AuthForm({ mode, error, success, message, email, verification }:
   const formRef = useRef<HTMLFormElement>(null);
   const noticeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!state.error) return;
+    if (!state.error && !error) return;
     const invalid = formRef.current?.querySelector<HTMLInputElement | HTMLSelectElement>('[aria-invalid="true"]');
     (invalid ?? noticeRef.current)?.focus();
-  }, [state]);
+  }, [state, error]);
 
   return <main className="auth-page">
     <section className="auth-aside">
@@ -45,7 +45,7 @@ export function AuthForm({ mode, error, success, message, email, verification }:
       <div className="auth-card">
         <Brand />
         <div className="auth-title"><h1>{content[0]}</h1><p>{content[1]}</p></div>
-        {notice && <div ref={noticeRef} tabIndex={-1} role={state.error || error ? "alert" : "status"} className={`form-notice ${state.error || error ? "notice-error" : "notice-success"}`}>{success && !state.error && <CheckCircle2 size={17} />}{notice}</div>}
+        {notice && <div ref={noticeRef} tabIndex={-1} role={state.error || error ? "alert" : "status"} className={`form-notice ${state.error || error ? "notice-error" : "notice-success"}`}>{success && !state.error && !error && <CheckCircle2 size={17} />}{notice}</div>}
         <form ref={formRef} action={mode === "login" || mode === "signup" ? credentialAction : mode === "forgot" ? recoveryAction : resetPassword} className="auth-fields">
           {mode === "signup" && <label>Display name<input name="name" autoComplete="name" required minLength={2} maxLength={100} placeholder="How should we call you?" defaultValue={credentialState.fields?.name} aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? "name-error" : undefined} />{fieldErrors.name && <span id="name-error" className="field-error">{fieldErrors.name}</span>}</label>}
           {mode !== "reset" && <label>Email address<input name="email" type="email" autoComplete="email" required placeholder="you@example.com" defaultValue={retainedEmail} aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? "email-error" : undefined} />{fieldErrors.email && <span id="email-error" className="field-error">{fieldErrors.email}</span>}</label>}

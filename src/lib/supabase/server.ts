@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { publicConfig } from "../public-config";
 
-export async function createClient() {
+export async function createClient({ requireCookieWrites = false } = {}) {
   const cookieStore = await cookies();
   const settings = publicConfig(process.env);
 
@@ -16,7 +16,8 @@ export async function createClient() {
       setAll: (items) => {
         try {
           items.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
-        } catch {
+        } catch (error) {
+          if (requireCookieWrites) throw error;
           // Server Components cannot write cookies; middleware refreshes the session.
         }
       },

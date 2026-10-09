@@ -1,6 +1,25 @@
 # Implementation Tracker
 
-Last reviewed: 2026-09-25
+Last reviewed: 2026-10-09
+
+## Continuation - 9 October 2026
+
+Completed local assignment: 02/20 authentication failure handling, owned and verified locally by the current implementation agent. The 25 September approved scope remains binding. No remote writes, schema applications, provider probes or deployment were performed; no new migration-readiness claim or independent Forge QA sign-off is made.
+
+| Process | Status | Deliverable / acceptance | Evidence / remaining gate |
+| --- | --- | --- | --- |
+| 02 reset/logout session behavior | Local action checks passed | Explicit global logout; successful reset followed by logout; truthful partial-success guidance; mocked returned/thrown provider and configuration failures | `node --experimental-strip-types --test tests/auth.test.mjs`: 10 passed. No live session invalidation or mail delivery established. |
+| 02 cookie-cleanup failure handling | Local checks passed | Reset/logout require cookie-write errors to propagate; read-only Server Components retain existing tolerance; failed/partial cleanup cannot report logout success | `node --experimental-strip-types --test tests/auth.test.mjs`: 14 passed, including failed first/later cookie writes and actual adapter-to-action integration with mocked SDK. Real browser cookies/provider invalidation remain external gates. |
+| 02/20 notice accessibility | Local interaction checks passed | Redirect errors now focus their alert; invalid fields keep precedence; error/success query conflicts do not show a success icon; recovery retains email and supports pending/failure/retry | Initial focused auth suite: 19 passed, including four offline mounted Chromium subtests; final suite below adds responsive coverage. No network requests; real mail delivery and assistive-technology audit not established. |
+| 02/20 responsive checks | Local checks passed | Real stylesheet/brand/icon layout checks at 1440x900, 390x844, 320x740 and 844x390; synthetic screenshots | Final focused auth suite: 20 passed; no horizontal overflow, notice clipping or form overlap, and login control reachable. Desktop and narrow-mobile screenshots visually inspected. Final screenshots in OS temp `forge-auth-VZ1G1d`; earlier inspected set `forge-auth-FSxvuG`. |
+| 02/20 regression and lint repair | Local gates passed | Full offline regression; immutable query normalization required by React effect dependency; final focused rerun and production compile | Windows, Node.js 25.2.1: `npm test` 90 passed; `npm run typecheck` passed; lint initially found prop reassignment, repaired to local constants, then `npm run lint` passed; final focused auth rerun 20 passed; `npm run build` passed including TypeScript. Full 90 not rerun after the small lint repair. Hosted Node.js 24 CI and live E2E not run. |
+| Local preview and handover | Ready | Local dev server at `http://127.0.0.1:3133` with matching process-only `NEXT_PUBLIC_SITE_URL`; no environment file changes | Next.js reported Ready; final edited-file diagnostics clear. No live login, database-writing browser fixtures, migration application or AI calls were run. |
+
+Reproduce the focused checks with `node --experimental-strip-types --test tests/auth.test.mjs`. These use synthetic data, mocked auth/cookie adapters, and network-blocked Chromium; screenshots are created in the OS temporary directory, not the repository. Non-blocking diagnostics: existing Node module-type warnings and Next.js ignoring an ancestor lockfile outside this repository. No dependency, migration, eligibility or AI-privacy change was made.
+
+Next available local assignment remains packet 6: broader account/profile/export/deletion failure injection and accessibility review. Connected profile/resume/export checks remain gated by reconfirmed disposable target/local origin and age/grant readiness; the September schema absence has not been freshly probed in this continuation. Keep tasks 02/20 Open until their remaining external and full-workflow checks pass.
+
+The dated September evidence below is historical; references to "this turn" in those sections refer to the recorded September work, not this continuation.
 
 ## Current approved scope - 25 September 2026
 
@@ -60,7 +79,7 @@ Statuses: **Open** (implementation or tests remain), **Verification** (review/ex
 | ID | Priority | Status | Next gate / verified scope |
 | --- | --- | --- | --- |
 | 01 | P0 | Open | Unavailable screen and config checks implemented; test real expiry, partial config and staging origin |
-| 02 | P0 | Open | Form recovery/resend/provider notices implemented; session/failure checks, controlled inbox and PKCE remain |
+| 02 | P0 | Open | Reset/global-logout, cookie-failure actions and offline recovery focus/retry locally tested on 9 October; live sessions, controlled inbox and PKCE remain |
 | 03 | P1 | Open/Blocked | Local numeric-age harness ready; fresh QA confirms profiles.age absent (42703); live persistence blocked by migrations/access, legacy review and failure tests pending |
 | 04 | P0 before minors | Blocked | 13+ supervised HK policy chosen; local age/adult-grant controls recorded; live migration, legal/consent/retention gates pending |
 | 05 | P0 | Open | Export retry and checked pagination implemented; endpoint-scale/failure tests and retention review remain |
@@ -78,8 +97,8 @@ Statuses: **Open** (implementation or tests remain), **Verification** (review/ex
 | 17 | P1 | Partial | Email-selection imports complete in recorded tests; roster files, cohorts, invitations and notifications Deferred |
 | 18 | P1 | Blocked | Optional local recommendations implemented/tested; session-only AI paths await live endpoint and eligibility verification |
 | 19 | P1 required import | Open/Blocked | PDF/PPTX extraction verified locally; required legacy binary PPT unsupported; safe conversion and end-to-end AI checks pending |
-| 20 | P1 | Open | Focus, navigation and landscape checks partially pass; full accessibility/failure-state audit remains |
-| 21 | P0 | Verification | CI Chromium prerequisite configured and ordering checked; local harness ready; hosted Node.js 24 CI, clean setup, staging and deployment rehearsal unverified |
+| 20 | P1 | Open | October auth error-focus, pending/retry and responsive checks pass locally; full accessibility/failure-state audit remains |
+| 21 | P0 | Verification | October local tests/lint/typecheck/build recorded; hosted Node.js 24 CI, clean setup, staging and deployment rehearsal unverified |
 
 ## Current delegated work log
 
@@ -128,13 +147,17 @@ Acceptance: configuration failures are explicit and recoverable; no protected op
 
 Implemented: signup/login/recovery forms retain nonsecret values and focus validation errors; provider failures show generic notices, and resend retains retry context. Token-hash confirmation/recovery, single-use links, invalid-code rejection, safe callbacks and protective redirect headers passed the earlier authenticated browser suite. The signup loading-fallback investigation is paused after two sessions; the focused suite does not establish reliable automated signup-form coverage.
 
+9 October local continuation: reset now requests global sign-out after the provider confirms the password update; ordinary logout retains its global scope explicitly. Reset/logout propagate cookie-write failures instead of silently reporting success; read-only Server Components retain their prior cookie tolerance. A saved password followed by failed logout has distinct recovery guidance, and uncertain updates do not claim the password was unchanged. Fourteen offline action/adapter tests pass; actual provider revocation and browser-cookie behavior remain unverified. Global sign-out requests refresh-session revocation, not immediate invalidation of already issued access tokens.
+
 Current harness evidence: numeric age 22 is supplied before early invalid-name validation and profile save, with persistence assertions and sanitized full-suite schema preflight. Syntax, mocked preflight and offline DOM checks passed locally; the current full live suite, actual mail delivery and successful PKCE remain unverified.
 
 - [x] Preserve nonsecret form inputs after validation/provider errors and show field-level feedback (signup/login and recovery email; reset contains only a password, which is cleared).
 - [x] Preserve resend context and keep retry available after resend success or failure.
 - [x] Consistently handle thrown auth-provider failures without leaking internal details.
-- [ ] Define and test password-reset and logout session behavior, including logout failures.
+- [x] Define reset/global-logout behavior and verify returned/thrown provider, configuration and cookie-cleanup failures locally (9 October: 14 focused offline tests).
+- [ ] Verify reset/logout against real recovery and concurrent sessions, including browser-cookie cleanup, expired sessions and access-token expiry; local mocks do not establish provider revocation.
 - [ ] Test tampered query parameters and recovery under slow/offline requests.
+- [x] Verify local redirect-error focus, ambiguous/non-string query notices, pending recovery, email retention and keyboard retry in offline Chromium (9 October focused auth suite: 19 passed). Real transport interruption and the wider query/auth matrix remain open above.
 - [ ] Verify signup, resend and recovery email delivery using a controlled inbox.
 - [ ] Verify successful PKCE code exchange; invalid-code rejection is already tested.
 - [ ] Review Supabase rate limits and abuse controls for deployment.
@@ -235,6 +258,8 @@ Acceptance: authors can inspect learner-facing content and cannot accidentally l
 
 Implemented and tested locally: catalog search keyboard focus, mobile navigation Escape and focus restoration, active primary links, editor/preview and lesson/coach reachability at 844x390, and auth/profile/lesson/quiz focus changes. This is not a completed accessibility audit.
 
+9 October: auth redirect errors now receive focus as well as action-state errors; error notices no longer show a success icon when query parameters conflict. Offline mounted Chromium checks cover error-to-input keyboard navigation, generic recovery failure/retry, retained email, validation focus and success status semantics. These are focused component checks, not screen-reader or full application acceptance.
+
 - [ ] Audit keyboard navigation and screen-reader announcements across the main workflows.
 - [ ] Add navigation Escape handling, appropriate focus management/restoration and active-link semantics (mobile sidebar focus/restore and primary links done; other navigation still needs audit).
 - [ ] Check mobile landscape, long labels/content and coach panel sizing (editor, preview, lesson width and inline coach-input reachability pass at 844x390; long labels/content still need checks; legacy fixed coach-panel CSS is unused).
@@ -274,6 +299,7 @@ Decision record: complete on 25 September; status Verification for remaining own
 
 ### 21 - Delivery and operational readiness
 
+- [x] Record 9 October local auth continuation: 90 total tests passed, typecheck passed, lint repaired and passed, final 20 auth checks rerun, and local production build passed on Windows/Node.js 25.2.1. No independent QA, hosted CI, remote fixtures or deployment claimed.
 - [x] Add migrations and isolated database integrity/policy tests.
 - [x] Add setup diagnostics that avoid printing secrets or learner records.
 - [x] Add a secret-free GitHub Actions workflow for tests, lint, type checking and build.
@@ -292,7 +318,7 @@ Decision record: complete on 25 September; status Verification for remaining own
 - [ ] Complete owner-reviewed report, video, manuals, slides, contribution and stakeholder evidence by 31 October 2026.
 - [ ] Obtain independent Forge QA review and Coordinator+Owner acceptance; obtain separate deployment approval before any staging/production rollout.
 
-Acceptance: staging/deployment setup is reproducible and does not depend on undocumented local state. CI configuration is ready, but hosted Node.js 24 execution remains unverified. Historical build success is not a fresh production build; local results do not authorize deployment or certify release readiness.
+Acceptance: staging/deployment setup is reproducible and does not depend on undocumented local state. CI configuration is ready, but hosted Node.js 24 execution remains unverified. The 9 October build is fresh local compilation evidence, not a deployment rehearsal; local results do not authorize deployment or certify release readiness.
 
 ## Current AI, imports and optional work
 

@@ -119,20 +119,27 @@ export async function requestReset(_previous: CredentialState, formData: FormDat
 export async function resetPassword(formData: FormData) {
   const result = password.safeParse(formData.get("password"));
   if (!result.success) redirect(destination("/reset-password", "error", result.error.issues[0].message));
+  let supabase;
   try {
-    const supabase = await createClient();
+    supabase = await createClient({ requireCookieWrites: true });
     const { error } = await supabase.auth.updateUser({ password: result.data });
     if (error) throw error;
   } catch {
-    redirect(destination("/reset-password", "error", "Could not update the password. Request a new link or try again later."));
+    redirect(destination("/reset-password", "error", "Could not confirm the password update. Request a new link or try again later."));
+  }
+  try {
+    const { error } = await supabase.auth.signOut({ scope: "global" });
+    if (error) throw error;
+  } catch {
+    redirect(destination("/login", "error", "Your password was updated, but we could not confirm logout. Log in with your new password if asked, then try Log out again."));
   }
   redirect(destination("/login", "success", "Password updated. You can log in now."));
 }
 
 export async function logOut() {
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.signOut();
+    const supabase = await createClient({ requireCookieWrites: true });
+    const { error } = await supabase.auth.signOut({ scope: "global" });
     if (error) throw error;
   } catch {
     redirect(destination("/profile", "error", "Could not log out. Please try again."));
