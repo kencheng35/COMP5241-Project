@@ -57,28 +57,63 @@ export async function updateProfile(_previous: ProfileState, formData: FormData)
 
 export async function deleteAccount(formData: FormData) {
   if (formData.get("confirm") !== "on") redirect("/profile/delete?error=Confirm%20that%20you%20understand%20this%20action.");
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
   const password = z.string().min(1).safeParse(formData.get("password"));
-  if (!password.success || !user.email) redirect("/profile/delete?error=Enter%20your%20current%20password.");
-  const { error: passwordError } = await supabase.auth.signInWithPassword({ email: user.email, password: password.data });
-  if (passwordError) redirect("/profile/delete?error=The%20password%20could%20not%20be%20verified.");
+  if (!password.success) redirect("/profile/delete?error=Enter%20your%20current%20password.");
+  const authFailure = `/profile/delete?error=${encodeURIComponent("Could not verify your account. Please try again later.")}`;
+  let supabase;
+  let authentication;
+  try {
+    supabase = await createClient({ requireCookieWrites: true });
+    authentication = await supabase.auth.getUser();
+    if (!authentication?.data || authentication.error === undefined) throw new Error();
+  } catch {
+    redirect(authFailure);
+  }
+  const { data: { user }, error: authError } = authentication;
+  if (authError) {
+    const unavailable = authError.status === 429 || (authError.status ?? 0) >= 500;
+    if (!unavailable && (authError.status === 401 || authError.name === "AuthSessionMissingError" ||
+      ["session_not_found", "refresh_token_not_found", "refresh_token_already_used", "user_not_found", "bad_jwt"].includes(authError.code ?? ""))) redirect("/login");
+    redirect(authFailure);
+  }
+  if (!user?.id) redirect("/login");
+  if (!user.email) redirect(`/profile/delete?error=${encodeURIComponent("Could not verify this account for password-confirmed deletion. Contact support.")}`);
+  const passwordFailure = `/profile/delete?error=${encodeURIComponent("Could not verify your password. Please try again later.")}`;
+  let reauthentication;
+  try {
+    reauthentication = await supabase.auth.signInWithPassword({ email: user.email, password: password.data });
+    if (!reauthentication?.data || reauthentication.error === undefined) throw new Error();
+  } catch {
+    redirect(passwordFailure);
+  }
+  const { data: { user: verifiedUser }, error: passwordError } = reauthentication;
+  if (passwordError) {
+    if (passwordError.code === "invalid_credentials" && passwordError.status !== 429 && (passwordError.status ?? 0) < 500) {
+      redirect("/profile/delete?error=The%20password%20could%20not%20be%20verified.");
+    }
+    redirect(passwordFailure);
+  }
+  if (!verifiedUser?.id || verifiedUser.id !== user.id) redirect(`/login?error=${encodeURIComponent("Could not verify the same account. Log in again before requesting deletion.")}`);
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) redirect("/profile/delete?error=Account%20deletion%20is%20not%20configured%20yet.");
+  let admin;
   try {
-    const admin = createSupabaseClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    admin = createSupabaseClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  } catch {
+    redirect(`/profile/delete?error=${encodeURIComponent("Account deletion is temporarily unavailable. Please try again later.")}`);
+  }
+  try {
     const { error } = await admin.auth.admin.deleteUser(user.id);
-    if (error) throw error;
+    if (error !== null) throw error;
   } catch {
     redirect("/profile/delete?error=Could%20not%20confirm%20account%20deletion.%20Check%20whether%20you%20can%20still%20log%20in%20before%20retrying%2C%20or%20contact%20support.");
   }
   try {
     const { error } = await supabase.auth.signOut({ scope: "local" });
-    if (error) throw error;
+    if (error !== null) throw error;
   } catch {
-    redirect("/login?error=Your%20account%20was%20deleted%2C%20but%20this%20browser%20session%20could%20not%20be%20cleared.%20Clear%20site%20cookies%20before%20using%20this%20device%20again.");
+    redirect(`/login?error=${encodeURIComponent("Your account was deleted, but we could not confirm browser-session cleanup. Clear site cookies before using this device again.")}`);
   }
   redirect("/login?success=Your%20account%20and%20learning%20data%20were%20deleted.");
 }
