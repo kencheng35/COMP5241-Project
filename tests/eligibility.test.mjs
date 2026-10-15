@@ -181,7 +181,7 @@ test("age migration rejects invalid direct signups and new profile writes while 
     const candidate = "00000000-0000-4000-8000-000000000003";
     await database.query("insert into auth.users(id,raw_user_meta_data) values($1,$2)", [legacy, JSON.stringify({ age_range: "under-13" })]);
     await database.query("insert into auth.users(id) values($1)", [adultLegacy]);
-    await database.exec(await readFile(new URL("../supabase/migrations/20260929_age_eligibility.sql", import.meta.url), "utf8"));
+    await database.exec(await readFile(new URL("../supabase/migrations/20260929_age_eligibility_ran.sql", import.meta.url), "utf8"));
     const legacyProfiles = (await database.query("select age from profiles where id in ($1,$2)", [legacy, adultLegacy])).rows;
     assert.equal(legacyProfiles.length, 2);
     assert.ok(legacyProfiles.every(profile => profile.age === null));
