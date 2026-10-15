@@ -170,7 +170,7 @@ export async function askCoach(id: string, history: unknown): Promise<{ reply?: 
     if (messages.at(-1)?.role !== "user") throw new Error("Enter a question for your coach.");
     const { data: allowed, error } = await database().rpc("forge_claim_coach_request", { request_user: user.id });
     if (error) throw new Error("Coach service unavailable. Check the database migration.");
-    if (!allowed) throw new Error("Your daily coach quota has been reached. Lessons and quizzes remain available.");
+    if (!allowed) throw new Error("Your shared 15/day text-AI quota (coach and interviews) has been reached. Lessons and quizzes remain available.");
     return { reply: await coachReply(lesson.content.slides, messages) };
   } catch (error) { return failure(error); }
 }

@@ -9,7 +9,7 @@ export async function GET() {
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !user) return NextResponse.json({ error: "Not authenticated" }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
     const client = database();
-    const tables = [["profiles", "id", "id"], ["enrollments", "user_id", "id"], ["lesson_progress", "user_id", "id"], ["quiz_results", "user_id", "id"], ["bookmarks", "user_id", "id"], ["achievements", "user_id", "id"], ["forge_lessons", "owner_id", "id"], ["forge_enrollments", "user_id", "lesson_id"], ["forge_attempts", "user_id", "id"], ["forge_bookmarks", "user_id", "lesson_id"], ["forge_resume", "user_id", "lesson_id"], ["forge_requests", "user_id", "day"], ["forge_reviewers", "user_id", "lesson_id"]];
+    const tables = [["profiles", "id", "id"], ["enrollments", "user_id", "id"], ["lesson_progress", "user_id", "id"], ["quiz_results", "user_id", "id"], ["bookmarks", "user_id", "id"], ["achievements", "user_id", "id"], ["forge_lessons", "owner_id", "id"], ["forge_enrollments", "user_id", "lesson_id"], ["forge_attempts", "user_id", "id"], ["forge_bookmarks", "user_id", "lesson_id"], ["forge_resume", "user_id", "lesson_id"], ["forge_requests", "user_id", "day"], ["forge_reviewers", "user_id", "lesson_id"], ["forge_interviews", "owner_id", "id"]];
     const records: Record<string, unknown[]> = {};
     for (const [table, ownerColumn, orderColumn] of tables) {
       records[table] = await collectRows(async (start, end) => {

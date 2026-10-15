@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Award, BarChart3, BookOpen, GraduationCap, LayoutDashboard, Library, LogOut, Menu, Route, Settings, ShieldCheck, Users, X, Zap } from "lucide-react";
+import { Award, BarChart3, BookOpen, GraduationCap, LayoutDashboard, Library, LogOut, Menu, MessageSquare, Route, Settings, ShieldCheck, Users, X, Zap } from "lucide-react";
 import { logOut } from "@/app/auth/actions";
 
 const links = [
   ["Dashboard", "/dashboard", LayoutDashboard],
   ["Course catalog", "/catalog", Library],
   ["Learning paths", "/paths", Route],
+  ["Interview practice", "/interviews", MessageSquare],
   ["Create lesson", "/studio", BookOpen],
   ["Progress", "/progress", Award],
   ["Profile & settings", "/profile", Settings],

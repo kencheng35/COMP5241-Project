@@ -73,6 +73,7 @@ export default async function Profile({
             <ShieldCheck size={24} />
             <h2>Privacy controls</h2>
             <p>Your profile and private lessons stay private. Authorized instructors can review your participation and quiz answers for published lessons, but never your coach conversations.</p>
+            <p>Interview transcripts are saved privately until you delete the interview or your account, and included in your export. They are not automatically shared with instructors, administrators, reviewers or peers. Relevant text is sent to the external AI service; avoid personal or confidential information. Generic coach chat remains unsaved.</p>
             <form action={changeEmail} className="learning-form"><label>New email address<input name="email" type="email" required /></label><SubmitButton>Request email change</SubmitButton></form>
             <ExportButton />
             <Link href="/profile/delete" className="data-action danger"><Trash2 size={17} /><span><strong>Delete my account</strong><small>Permanently remove your data</small></span></Link>

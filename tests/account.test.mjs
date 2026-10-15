@@ -26,6 +26,7 @@ const tables = [
   ["forge_attempts", "user_id", "id"], ["forge_bookmarks", "user_id", "lesson_id"],
   ["forge_resume", "user_id", "lesson_id"], ["forge_requests", "user_id", "day"],
   ["forge_reviewers", "user_id", "lesson_id"],
+  ["forge_interviews", "owner_id", "id"],
 ];
 
 function ownerRows(table, count = 1, owner = user.id) {
@@ -124,13 +125,14 @@ test("export GET returns every table and >1000 rows in stable owner-scoped pages
 
 test("export GET handles empty tables and an exact-page boundary without truncation", async () => {
   for (const count of [0, 1000]) {
-    const rows = Object.fromEntries(tables.map(([table]) => [table, ownerRows(table, table === "forge_resume" ? count : 0)]));
+    const rows = Object.fromEntries(tables.map(([table]) => [table, ownerRows(table, ["forge_resume", "forge_interviews"].includes(table) ? count : 0)]));
     const fixture = loadExport({ rows });
     const response = await fixture.GET();
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "private, no-store");
     assert.deepEqual((await response.json()).records, rows);
     assert.deepEqual(fixture.queries.filter(query => query.table === "forge_resume").map(query => query.start), count ? [0, 500, 1000] : [0]);
+    assert.deepEqual(fixture.queries.filter(query => query.table === "forge_interviews").map(query => query.start), count ? [0, 500, 1000] : [0]);
   }
 });
 
@@ -149,7 +151,7 @@ const pageFailures = [
 
 for (const [label, fail] of pageFailures) {
   test(`export GET ${label} on later pages never leaks partial data or errors`, async () => {
-    for (const failedTable of ["forge_attempts", "forge_resume"]) {
+    for (const failedTable of ["forge_attempts", "forge_resume", "forge_interviews"]) {
       for (const failedStart of [500, 1000]) {
         const rows = Object.fromEntries(tables.map(([table]) => [table, ownerRows(table, table === failedTable ? 1050 : 1)]));
         const fixture = loadExport({ rows, readPage(query, records) {
@@ -172,6 +174,15 @@ const authFailures = [
   ["null auth result", () => null, 503],
   ["missing auth data", () => ({ error: new Error("Private auth detail") }), 503],
 ];
+
+test("missing interview migration fails the entire export rather than omitting private transcripts", async () => {
+  const fixture = loadExport({ readPage(query, records) {
+    if (query.table === "forge_interviews") return { data: null, error: { message: "relation does not exist" } };
+    return { data: records[query.table].slice(query.start, query.end + 1), error: null };
+  } });
+  await assertFailure(await fixture.GET(), 503);
+  assert.equal(fixture.queries.at(-1).table, "forge_interviews");
+});
 
 for (const [label, getUser, status] of authFailures) {
   test(`export GET ${label} never creates a privileged client`, async () => {

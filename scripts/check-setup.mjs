@@ -32,6 +32,7 @@ async function checkDatabase() {
     ["forge_requests", "user_id,day,count,coach_count", "learning and coach migrations"],
     ["forge_reviewers", "user_id,lesson_id", "learning migration"],
     ["forge_resume", "user_id,lesson_id,lesson_version,revision,stage,slide,ordering,answers", "resume migration"],
+    ["forge_interviews", "id,owner_id,schema_version,topic,level,state,revision,created_at,updated_at,completed_at", "20261015_interviews.sql (apply before feature/export queries)"],
   ];
   for (const [table, columns, migration] of tables) {
     const { data, error } = await client.from(table).select(columns).limit(0);

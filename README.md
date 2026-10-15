@@ -4,23 +4,41 @@ A Next.js 16 / React 19 learning application for COMP5241, using Supabase Auth/P
 
 Track remaining work, blockers, acceptance criteria and verification updates in [IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md).
 
-## Approved delivery scope (25 September 2026)
+## Approved delivery scope (15 October 2026)
 
-Target: 31 October 2026. This is a supervised Hong Kong course demonstration for ages 13+, not an approved public launch. The project owner performs final review and owns the course submission. Local edits, dependencies, disposable-development fixtures and API checks are authorized; production changes and deployment still require approval.
+Target: 31 October 2026, focused on university learners and instructors. This remains a supervised Hong Kong course demonstration with the existing 13+ signup policy, not an approved public launch. The project owner performs final review and owns the course submission. The 15 October owner-confirmed scope supersedes conflicting September SDLC-only limits and deferrals, not the existing safeguards.
+
+### Approved target — bounded implementation status
+
+- Role-appropriate first-login background/goals onboarding; self-report never grants instructor rights. A separate diagnostic explains its suggested level and allows optional override/retake.
+- Explicit lesson audience, difficulty, outcomes and prerequisites with filtering; broader curriculum covering SDLC, AI coding-agent skills and software-development soft/product skills; reviewed learning/tool resources.
+- Genuinely tailored explanations, examples and practice, not merely reordered recommendations. AI-assisted targeted instructor revisions require preview, accept/reject and versioning.
+- Clear reviewed vs attended vs passed progress states; activities and reflections applying AI fluency 4D: Delegation, Description, Discernment and Diligence; daily reflections.
+- A **private project planner** (goals → suggested stack/structure → editable milestones/tasks/progress) and a **student slide assistant** (authorized course material or personal uploads → source-referenced summary, key terms, glossary and beginner explanations; private by default).
+- **Embedded coding (24):** beginner-friendly, initially **JavaScript and Python**, as confirmed on **15 October 2026 at 11:20 HK**; TypeScript/other languages are not required. Runtime/execution isolation and resource controls still need design/feasibility before implementation. Outbound links do not replace embedded coding.
+- **Real-time interviews (25): LIVE TEXT only**, with no voice/video requirement. Persistence was approved in principle at 11:20 HK; the **15 October 11:26 HK decision approved private owner history, deletion, export/account cascade and retention until deletion**. Bounded local implementation is now present at `/interviews`; migration application and connected acceptance remain open. Generic lesson-coach chat remains session-only with no persisted history.
+
+**Interview transcript policy — APPROVED, 15 October 11:26 HK:** private learner-owner history/list/reopen/continue, explicit finish and individual deletion; retain until interview or account deletion; include transcripts in account export and Auth-user FK cascade. No automatic administrator, instructor, reviewer or peer access. History/read/finish/delete/export require authentication and ownership, not an active AI grant. Each new inference/retry additionally uses the existing adult/trusted-grant gate and unchanged free-only strict-privacy AI client. This approval does not certify live persistence, provider retention or deployment readiness.
+
+Retained structure: **one standalone lesson per mini-course; no multi-lesson containers**. No community is required: no peer showcases/sharing, human Q&A, instructor news/community feed, comments or community notifications. Campus retrieval, lecture-video ingestion/alignment, rich advanced media/real-time voice/video, and broader games/simulations are not newly approved; basic tailored practice and 4D activities are core.
+
+Beyond the approved private interview transcript policy, this scope decision does not authorize other conversation/recording storage, new services, public hosting/deployment, paid endpoints, privacy-filter relaxation or third-party analytics/training use. Free-only AI, privacy filters, minor/unknown-age external-AI denial, administrator-approved recorded-adult AI access, admin-granted instructor rights, owner-scoped publishing/reporting, explicit enrollment, optional paths, quiz/certificate rules and no persisted coach history/original upload retention all remain. Required legacy PPT import is still open. See the [current scope record](IMPLEMENTATION_TRACKER.md#current-approved-scope---15-october-2026), [current overview](IMPLEMENTATION_TRACKER.md#current-overview) and tasks 03/08/09/12/14–16/18/19/22–25 for owners, acceptance and dependencies. Approval is not feature completion or live verification.
+
+### Existing implementation and limits
 
 - Administrators use `/admin/accounts` to search accounts by email, grant/revoke instructor rights, and approve/revoke external AI access for recorded adults. Administrator accounts cannot be demoted by this interface.
 - Instructors use `/teaching` to create, publish and edit their own lessons, select existing verified learners by email filter for enrollment, and view only their own published-lesson reports. Administrators retain global public-lesson control. Existing self-enrollment and private-draft isolation remain.
 - `/paths` provides optional, explainable local SDLC recommendations and an explicit AI path action. Paths never enroll learners, and generated paths are session-only. Only coarse learning preferences and course metadata are sent to AI, not account identifiers, raw profile goals, grades or answer keys.
-- Teaching uploads generate an editable private draft and quiz. Searchable PDF and PPTX text extraction is implemented; originals are not saved. Limits: 4 MiB, 60 pages/slides, and 20,000 extracted characters for generation. Scanned/image-only PDFs require OCR outside this workflow. Legacy binary `.ppt` remains an unmet requirement and is rejected explicitly; no supported serverless conversion dependency has been verified.
-- Generation, coaching and path generation are limited to SDLC. Manual authoring validates an approved SDLC subject; prompts and subject/stage labels do not prove the semantic correctness of arbitrary content. The project owner remains responsible for demonstration content review.
+- Teaching imports target an editable private draft and quiz; successful end-to-end AI generation remains unverified. Searchable PDF and PPTX text extraction is implemented; originals are not saved. Limits: 4 MiB, 60 pages/slides, and 20,000 extracted characters for generation. Scanned/image-only PDFs require OCR outside this workflow. Legacy binary `.ppt` remains an unmet requirement and is rejected explicitly; no supported serverless conversion dependency has been verified.
+- Existing code remains SDLC-only for generation, coaching and path generation until changed for the approved broader curriculum. Manual authoring still validates an SDLC subject; prompts and subject/stage labels do not prove the semantic correctness of arbitrary content. The project owner remains responsible for demonstration content review.
 - External AI is denied to minors and unknown-age accounts. Recorded adults additionally require a trusted administrator AI-access grant. This is a technical gate, not independent age verification or proof of legal consent.
 
-Current blockers: the connected database lacks `profiles.age`; apply the age migration before profile saves and adult AI approval. The resume table is now present (empty-read check passed), but service-role grants and full resume behavior still need live verification. No SQL connection or Supabase management token is configured in this workspace, so new migrations have not been applied by the agent. Live free-model probes returned 429 and 404 under the unchanged privacy restrictions; successful generation remains unverified. Production encryption-at-rest configuration, backups, retention and Hong Kong/provider eligibility have not been certified.
+Previously recorded blockers (not rechecked on 15 October): the connected database lacked `profiles.age`; apply the age migration before profile saves and adult AI approval. The resume table passed an empty-read check, but service-role grants and full resume behavior still need live verification. No SQL connection or Supabase management token was configured in this workspace, so new migrations had not been applied by the agent. Live free-model probes returned 429 and 404 under the unchanged privacy restrictions; successful generation remains unverified. Production encryption-at-rest configuration, backups, retention and Hong Kong/provider eligibility have not been certified.
 
-## Learning workflows
+## Existing learning workflows
 
 - Authenticated catalog search, explicit self-enrollment, saved lessons and real progress records. No assigned learners or invented progress.
-- Private AI-generated or manually authored lessons, with 4-6 short slides, an ordering activity and exactly 10 four-option quiz questions.
+- Standalone private AI-generated or manually authored lessons (one lesson per mini-course), with 4-6 short slides, an ordering activity and exactly 10 four-option quiz questions; live AI success remains blocked as noted above.
 - Server-side grading: 6/10 passes; retries are unlimited. Attendance records reaching the final quiz, independently of submission or passing.
 - Downloadable, printable HTML certificates for every passing attempt. Private Self-Learning and Public Published Lesson certificates retain the lesson version and visibility at achievement time.
 - Structured editing and optimistic version checks. Learners edit their own private lessons; instructors publish/edit their own public lessons and administrators manage public lessons globally.
@@ -44,14 +62,17 @@ Use Node.js 22.18+ (or Node.js 24 LTS). Configure the variables listed in [.env.
 In the Supabase SQL editor, apply these files in order:
 
 1. [supabase/schema.sql](supabase/schema.sql), only for a new database. Do not rerun it over an existing installation.
-2. [supabase/migrations/20260923_learning.sql](supabase/migrations/20260923_learning.sql).
-3. [supabase/migrations/20260924_review_privacy.sql](supabase/migrations/20260924_review_privacy.sql).
-4. [supabase/migrations/20260925_coach.sql](supabase/migrations/20260925_coach.sql).
-5. [supabase/migrations/20260926_record_integrity.sql](supabase/migrations/20260926_record_integrity.sql).
-6. [supabase/migrations/20260927_resume.sql](supabase/migrations/20260927_resume.sql).
-7. [supabase/migrations/20260928_profile_limits.sql](supabase/migrations/20260928_profile_limits.sql).
-8. [supabase/migrations/20260929_age_eligibility.sql](supabase/migrations/20260929_age_eligibility.sql).
-9. [supabase/migrations/20260930_resume_grant.sql](supabase/migrations/20260930_resume_grant.sql).
+2. [supabase/migrations/20260923_learning_ran.sql](supabase/migrations/20260923_learning_ran.sql).
+3. [supabase/migrations/20260924_review_privacy_ran.sql](supabase/migrations/20260924_review_privacy_ran.sql).
+4. [supabase/migrations/20260925_coach_ran.sql](supabase/migrations/20260925_coach_ran.sql).
+5. [supabase/migrations/20260926_record_integrity_ran.sql](supabase/migrations/20260926_record_integrity_ran.sql).
+6. [supabase/migrations/20260927_resume_ran.sql](supabase/migrations/20260927_resume_ran.sql).
+7. [supabase/migrations/20260928_profile_limits_ran.sql](supabase/migrations/20260928_profile_limits_ran.sql).
+8. [supabase/migrations/20260929_age_eligibility_ran.sql](supabase/migrations/20260929_age_eligibility_ran.sql).
+9. [supabase/migrations/20260930_resume_grant_ran.sql](supabase/migrations/20260930_resume_grant_ran.sql).
+10. [supabase/migrations/20261015_interviews.sql](supabase/migrations/20261015_interviews.sql).
+
+These are the verified current filenames; `_ran` is a filename suffix, **not evidence of applied status**. No migration was renamed or remotely applied in the Task25 packet. Apply the interview migration before enabling interview pages/actions **or account exports**, which now require the 14th table `forge_interviews`. Missing migration/access fails the entire export rather than silently omitting transcripts. Setup diagnostics use an empty metadata-column read, not transcript inspection; they do not prove RPC permissions or transactional behavior.
 
 Apply all outstanding migrations in order. Never rerun the base schema on an existing database. The resume table is present in the development project as of 25 September; its explicit service-role grant migration still needs application and verification. Age/profile checks use `NOT VALID` to preserve historical rows during upgrades, but apply to new writes. Existing ages are deliberately left unknown, not inferred from an age range; review legacy profiles and record their ages before validating constraints. Numeric age 13-120 is required for new signup/profile writes. Source changes alone do not create tables. Old prototype records remain available in exports but are not converted to new lesson results or certificates.
 
@@ -102,17 +123,74 @@ The supplied key authenticated successfully. Synthetic inference probes did **no
 
 With reasoning disabled, the latest Qwen probe still returned HTTP 429, and a temporary `liquid/lfm-2.5-2.6b:free` probe returned HTTP 404 under the same required settings. The temporary probe did not change the configured model. These statuses alone do not identify the exact quota or provider restriction.
 
-Application limits are 5 generation attempts (including material imports and AI paths) and 15 coach requests per account per UTC database day. Failed provider calls consume a request to prevent repeated abuse. Quiz retries are never rate-limited by these counters. Provider-wide free quotas may be lower than aggregate user demand.
+Application limits are 5 generation attempts (including material imports and AI paths) and **15 shared text-AI requests (coach plus interviews)** per account per UTC database day. Failed provider calls consume a request to prevent repeated abuse. Quiz retries are never rate-limited by these counters. Provider-wide free quotas may be lower than aggregate user demand.
 
 **Deployment gate:** before exposing AI to minors or deploying in any target region, review OpenRouter account eligibility, the selected upstream provider's age/region terms, consent requirements and data-processing arrangements. A safe-language prompt and a checkbox do not establish legal eligibility. Do not weaken the privacy policy or switch to a paid endpoint without approval. No production eligibility review has been completed.
 
-The provider receives a chosen topic, consented extracted teaching text, or lesson slides and recent coach exchanges. AI paths send only derived coarse preferences and course metadata. Account identifiers, raw profile fields, grades and quiz answer keys are not sent. Users must not enter personal data in free text or uploads. Provider retention must be independently confirmed; the app does not persist chat history or original uploaded teaching files. Rate counters contain no prompt text and old counters are removed on the next AI request.
+For existing workflows, the provider receives a chosen topic, consented extracted teaching text, or lesson slides and recent coach exchanges. AI paths send only derived coarse preferences and course metadata. Account identifiers, raw profile fields, grades and quiz answer keys are not sent. Users must not enter personal data in free text or uploads. Provider retention must be independently confirmed; the app does not persist lesson-coach history or original uploaded teaching files. Interview persistence is locally implemented under the approved 11:26 policy. Interview context uses only a reviewed topic description, chosen level, phase/answer count and bounded canonical saved text; no account/interview/request IDs, raw profiles, grades or answer keys are added. Rate counters contain no prompt text and old counters are removed on the next AI request.
 
 New learning tables deny direct `anon` and `authenticated` access. All reads and writes use authenticated server operations with explicit ownership/reviewer checks; the service key is server-only. The answer key is omitted from the lesson player's initial props. Review feedback is revealed only after a saved submission.
 
-Learning records remain until account deletion. Deleting an author removes their lessons and enrollment links, but other learners retain certificate/result snapshots. Deleting a learner removes their own records. Database backups and hosting/provider operational logs require separate retention configuration; the application cannot promise immediate erasure from those systems. Avatars are decoded and resized to 160px JPEGs in the private profile row, without a public storage bucket.
+Existing learning records remain until account deletion. Approved private interview transcripts remain until individual interview or account deletion. Deleting an author removes their lessons and enrollment links, but other learners retain certificate/result snapshots. Deleting a learner removes their own records. Database backups and hosting/provider operational logs require separate retention configuration; the application cannot promise immediate erasure from those systems. Avatars are decoded and resized to 160px JPEGs in the private profile row, without a public storage bucket.
 
 ## Verification
+
+### T25-QA-01 local repair — 15 October 2026
+
+**Task25 remains Open. Independent QA has not rerun this repair; the initial QA failure below is preserved.** Changed only `src/components/interview-history.tsx`, narrowly extended `tests/interviews-ui.test.mjs`, and added README/tracker evidence. No action/helper/schema/provider changes; QA's server tests and original pagination regression assertions remain intact.
+
+Confirmed creation now fetches the canonical latest metadata page through the existing list action and replaces rows, continuation cursor and latest/older selection together. It no longer prepends/truncates against an old cursor. The UI explains that creation returns to latest history. If that refresh returns an error or loses transport, the previous page/cursor remain unchanged, **Open new interview** remains available, and the notice explicitly distinguishes confirmed creation from failed history refresh. A synchronous in-flight guard prevents duplicate submits and overlapping create/history requests. Lost creation acknowledgements still require explicit reload; creation is never automatically replayed.
+
+Actual local repair checks (Windows / Node.js v25.2.1; synthetic offline fixtures):
+
+| Command | Result |
+| --- | --- |
+| `node --experimental-strip-types --test tests/interviews-ui.test.mjs tests/interviews.test.mjs` | Final **36 passed, 0 failed/skipped**: 19 UI and 17 server tests, including parent tests |
+| `node node_modules/eslint/bin/eslint.js src/components/interview-history.tsx tests/interviews-ui.test.mjs` | Passed, exit 0 |
+| `node node_modules/typescript/bin/tsc --noEmit --incremental false` | Passed, exit 0; no Next type generation/environment loading |
+
+Added **10 UI subtests**: latest-page creation with 18/20/41 retained rows (including 20→21 and three-page traversal); creation on older short/full/intermediate pages with 21/40/41 retained rows; returned/thrown post-create refresh failure preserving the prior page/boundary and open link; deferred create-refresh/older-load overlap and same-tick duplicate submits; returned/thrown lost creation acknowledgement with explicit recovery and no replay. The original 21→22 regression is unchanged. Traversals compare every saved ID exactly once, enforce the page cap and reject invented short-page continuation.
+
+Baseline reproduced **24 passed / 2 failed** (one product defect plus parent); the component-only repair passed **26/26**. An added race test initially selected the shell logout form (**34 passed / 2 failed**); correcting only its form selector produced the final **36/36**. Existing Node module-type warnings are non-fatal. Final Chromium reported **0 network attempts / 0 page errors**; overflow checks passed at 1440×900, 390×844, 320×844 and 844×390. Retained **28 synthetic screenshots** at `C:\Users\SOLUSER\AppData\Local\Temp\forge-task25-qa-o0VBhA`; the implementer inspected success and refresh-failure history at desktop/320px (four images), not an independent visual acceptance. Only this repair's three intermediate capture directories were removed; original QA evidence was preserved.
+
+**Handoff:** request independent QA to rerun local gates and the retained/extended regressions. Full suite, Next typegen/build and connected checks were not rerun in this repair. No agents, installs, environment-file reads, services, remote operations, migrations, commits or deployment. Existing connected routing/auth transport, Postgres concurrency/grants, export/cascade and provider/privacy gates remain open.
+
+### Independent Task25 QA — 15 October 2026
+
+**Task25 remains Open; local acceptance is not certified.** Independent QA reproduced a history-pagination defect in `src/components/interview-history.tsx:43`: with 21 retained interviews, create another on the first page, then select **Older interviews**. Prepending/truncating the displayed rows leaves the old cursor, skipping the displaced record (21 of 22 reachable). **Reload latest history** recovers it; storage was not deleted. A failing actual-component regression is retained in `tests/interviews-ui.test.mjs`. Implementer repair requested: reconcile the displayed page and cursor together after confirmed creation, including creation on older/full pages, without automatically replaying creation.
+
+Actual Windows / Node.js **v25.2.1**, npm **11.19.1** QA results:
+
+| Command / scope | Result |
+| --- | --- |
+| `node --experimental-strip-types --test tests/interviews.test.mjs` | **17 passed, 0 failed/skipped**; strengthened all-six-action auth-failure coverage |
+| `node --experimental-strip-types --test tests/interviews-ui.test.mjs` | Final **7 passed, 2 failed, 0 skipped**; pagination subtest plus its parent are the two failures |
+| `npm test` | Final **156 passed, 2 failed, 0 skipped** / 158 total; same single product defect |
+| `npm run lint` | Passed, including final test-only changes |
+| `npm run typecheck`, then `npm run build` | Both passed in a secret-free temporary source/config copy using existing dependencies; default Next.js **16.3.5 Turbopack**, TypeScript and **21/21 static-generation work items** completed |
+
+QA changed only the two interview test files and this README/tracker evidence, not application code, migrations or manifests. Existing auth/deletion, 14-table paginated export (including interview later-page failures), private-owner/role denial, eligibility, quota/replay/race/recovery and privacy-client regressions passed locally. Protected routes and setup diagnostics were source-reviewed, not connected-tested.
+
+Network-blocked actual-component Chromium **153.0.8010.12** recorded **0 network attempts and 0 page errors**. QA independently inspected **24 screenshots**: history, pending, failed/retry, connection loss, finished and deletion confirmation at **1440×900, 390×844, 320×844 and 844×390**. Notices, transcripts and controls wrapped without horizontal overflow; focus indicators were visible. Long selected topic text clips within native narrow selects (non-blocking visual limitation). Keyboard recovery retained the unsaved draft; retry, finish, delete/cancel and mobile navigation focus checks passed. Evidence: `C:\Users\SOLUSER\AppData\Local\Temp\forge-task25-qa-Lvz9Jt` (`<state>-<width>x<height>.png`).
+
+Temporary build copy/wrapper and intermediate/duplicate screenshots were removed; test browser contexts and in-memory databases closed. No installs, workspace environment-file reads/edits, remote Supabase/AI/mail operations, server deployment or migration application. Git was unavailable: no diff/commit verification claim. Real routing/action transport, multi-session Postgres locking, migration/grants/RPCs, connected cascade/export, provider feedback and retention remain open; prior age/grant/free-provider blockers were not re-probed. Task24 and broader Group A scope are not completed by this QA. See the tracker for detailed repair and verification boundaries. The implementer's earlier evidence below is preserved as history.
+
+### Task25 local implementation evidence — 15 October 2026
+
+Dedicated `/interviews` history/create and `/interviews/[id]` reopen/continue/finish/delete are implemented locally. Each interview is one bounded typed row. A transaction saves learner text and claims the existing shared quota before inference; expected revisions, request replay checks, a database-time 75-second lease and per-attempt token guard conditional finalization (never an upsert). Explicit retry preserves the saved answer. Finish/delete invalidate pending replies. Creation is empty and is never automatically retried after an uncertain acknowledgement. Notices distinguish failed reservation, saved request without reply, unconfirmed final save, and connection loss; only confirmed canonical text is displayed, without HTML/Markdown execution.
+
+Limits: 8 learner answers plus one opening; 1–1,200 learner characters; 1–1,600 reply characters; 128 KiB transcript JSON; 12,000 total provider-message characters; existing 600-token text ceiling; at most 3 explicit attempts per turn; one pending turn per owner; 100 retained interviews; stable metadata-only history pages of 20. Delete an old interview to free capacity—there is no automatic transcript expiry. An expired pending interview must be explicitly retried, finished or deleted before starting another. Successful eighth-answer feedback completes practice; early finish makes no extra AI request and retains existing feedback without inventing a summary or awarding a grade/certificate/hiring decision.
+
+Implementer checks on Windows / Node.js **v25.2.1**:
+
+```powershell
+node --experimental-strip-types --test tests/interviews.test.mjs tests/interviews-ui.test.mjs tests/account.test.mjs tests/database.test.mjs tests/eligibility.test.mjs tests/openrouter.test.mjs
+node node_modules/typescript/bin/tsc --noEmit --incremental false
+```
+
+Combined result: **87 passed, 0 failed, 0 skipped**. Scoped ESLint also passed; the exact file-scoped command is recorded in the tracker. Tests execute actual actions/helpers with mocked auth/provider, PGlite migrations/permissions/state constraints, owner and cross-role denials, revoked/minor/unknown eligibility, quota/replay/concurrency/expiry, rollback and uncertain-save paths, finish/delete/account-cascade races, context caps, and 14-table all-or-nothing paginated export including later-page and missing-migration failures. Network-blocked mounted Chromium at 390×844 covers create/history/reopen/continue/retry/finish/delete, pending/save-notice focus, mobile navigation and keyboard newline behavior, text-only rendering and late responses. Zero network attempts/page errors; a synthetic screenshot was captured in memory, **not independently visually reviewed**. Earlier failed fixture/constraint/UI-harness checks were repaired and rerun; Node's existing module-type warning remains non-fatal.
+
+**Open gates:** Task25 stays **Open** for independent QA and connected acceptance. This was one local writer, no agents, environment-file loading, installs, server, remote schema changes, provider/inbox calls, E2E fixtures, commit or deployment. Git was unavailable. Direct `tsc` deliberately avoided the `npm run typecheck` wrapper's Next environment-loading type generation; full suite/build/type generation and independent visual review were not run in this packet. PGlite contention tests are serialized by its local engine; real multi-session Postgres locking, PostgREST/RPC/grants, hosting timeout behavior, real account cascade/export, and an eligible free-provider interview remain unverified. Migration not applied; existing connected blockers were not rechecked. Request independent QA to run local gates serialized, then separately authorize a disposable connected target. Task24 has an isolated guest/WASM runtime direction only; no JavaScript/Python runner capability was implemented or verified. Other Group A scope remains pending.
 
 `npm test` includes offline component tests mounted in real Chromium. Install the Playwright browser beforehand with `npx playwright install chromium` (Linux CI uses `npx playwright install --with-deps chromium`); a missing browser fails the tests rather than skipping them. These synthetic fixtures need no Supabase configuration or AI access. The opt-in authenticated browser suites below remain separate and write to the configured Supabase project.
 
@@ -161,3 +239,27 @@ Before deployment, verify with separate learner, reviewer and administrator acco
 ## Deploy to Vercel
 
 Import the repository using the Next.js defaults, configure all environment variables, apply migrations, and set the deployed origin in Supabase Authentication URL Configuration. Teaching extraction plus inference declares a 90-second route budget; confirm the selected Vercel plan/runtime supports it. PDF.js is externalized and its worker included in tracing, but deployed parsing and function memory limits still require staging verification. Complete provider eligibility, restricted-demo access, data protection and end-to-end gates before inviting learners. Deployment is not authorized by the current implementation approval.
+
+## Final independent T25-QA-01 verification — 15 October 2026
+
+**Governing QA reconciliation: T25-QA-01 is fixed and independently verified; bounded LOCAL acceptance passes. Task25 remains Open for connected/release gates.** This final follow-up supersedes the earlier statements that independent QA has not rerun the repair or that local acceptance is blocked/not certified. Those dated initial-failure and implementer-handoff entries remain historical evidence, not the current QA disposition.
+
+Sole test/build runner; no subagents. Windows, Node.js **v25.2.1**, npm **11.19.1**, Chromium **153.0.8010.12**. Inspected the changed component/assertions and test/script side effects. All commands below ran serially in a secret-free temporary copy: named source/config/test/schema files only, existing dependencies hardlinked, OS-variable allowlist, telemetry disabled. No environment-file reads/copies/edits, installs, manifest changes, dev server or connected commands. Next-generated files stayed in the copy.
+
+| Executed command | Final result |
+| --- | --- |
+| `node --experimental-strip-types --test tests/interviews-ui.test.mjs tests/interviews.test.mjs` | **36 passed, 0 failed/skipped**, exit 0; 19 UI + 17 server, including parents |
+| `npm test` | **168 passed, 0 failed/skipped**, exit 0 |
+| `npm run lint` | Passed, exit 0 |
+| `npm run typecheck` | Next route type generation and `tsc --noEmit --incremental false` passed, exit 0 |
+| `npm run build` | Default Next.js **16.3.5 Turbopack**, compilation and TypeScript passed; **21/21** static-generation work items, exit 0; both interview routes dynamic |
+
+Exact-once reachability passed for latest-page creation with 18/20/21/41 retained rows and older-page creation with 21/40/41. Deferred requests preserve the old page until canonical rows/cursor/mode move together; duplicate submits and overlapping history requests are excluded. Returned/thrown refresh failures retain the old page/boundary and keyboard-openable **Open new interview**, with truthful confirmed-save versus refresh-failure status. Returned/thrown lost creation acknowledgements stay uncertain until explicit reload, without automatic replay or a false unsaved claim. Original pending/retry/transport recovery/finish/delete regressions and negative owner/role/auth/eligibility, local grants, export/cascade and privacy-client tests passed.
+
+A temporary, external in-memory extension of the unchanged UI harness added independent Tab/Enter/Space, status focus, explicit recovery and link-opening assertions at **1440×900 and 320×844**: **20 passed, 0 failed/skipped** including the retained UI tests and parent. Initial supplemental launch failed before mounting because the temporary runner passed a Windows path to `--import`; converting only that runner argument to a `file://` URL fixed the invocation. No application or repository-test repair was needed. Focused, full-suite and supplemental interview runs each recorded **0 network attempts / 0 page errors**.
+
+**Fresh visual inspection:** all **12** `independent-*.png` images were opened and inspected in `C:\Users\SOLUSER\AppData\Local\Temp\forge-task25-qa-zWczdA`: create success, pending history refresh, returned/thrown refresh failure and returned/thrown uncertain creation, each at desktop/320px. Notices, page labels, new-interview links and focus outlines wrap without overlapping controls; overflow assertions passed. The directory retains **40 synthetic images** total; the other 28 were captured, not newly claimed as visually inspected. Original four-size keyboard/overflow assertions also reran. The earlier **24-image** independent review at `forge-task25-qa-Lvz9Jt` remains preserved historical evidence, not a fresh inspection claim.
+
+Only README/tracker QA evidence was appended in the repository. A SHA-256 snapshot of **102 source/config/test/schema/script files** was unchanged across both isolated executions; no Git diff claim. Both owned temporary copies and two QA scripts were removed with absence verified; duplicate current-run interview/auth capture directories were removed, retained evidence and prior work preserved. Browser contexts and in-memory databases closed through harness cleanup; no remote fixtures or cleanup failures.
+
+**Untested/open, not passes:** the new migration is unapplied; connected grants/RPC/PostgREST, real multi-session concurrency, authenticated routing/action transport/live rights, owner export/account cascade, live eligible free-provider behavior, provider/backup/log retention and deployment/privacy acceptance. No setup/AI probes, E2E/instructor suites, Supabase/mail calls, migration applies, commits or deployment ran. Task24 coding runtime and broader Group A requirements remain open, not implemented by this repair or QA.
