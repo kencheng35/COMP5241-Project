@@ -1,0 +1,21 @@
+.setup { max-width: 780px; min-width: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.setup p { margin: 14px 0; }
+.fields, .choices { min-width: 0; border: 1px solid var(--line, #cbd1cc); border-radius: 8px; padding: 20px; margin: 18px 0; }
+.fields { display: grid; gap: 18px; }
+.fields > label { display: grid; gap: 8px; font-weight: 600; }
+.fields select { width: 100%; min-width: 0; min-height: 44px; background: white; color: #17201d; border: 1px solid #737e76; border-radius: 4px; padding: 10px; font: inherit; }
+.fields legend, .choices legend { font-weight: 700; padding: 0 6px; max-width: 100%; }
+.choices { display: grid; gap: 8px; }
+.choices label { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; cursor: pointer; }
+.choices input { flex-shrink: 0; margin-top: 6px; width: 18px; height: 18px; accent-color: #173d2f; }
+.setup button { min-height: 44px; white-space: normal; }
+.setup :disabled { opacity: .65; cursor: not-allowed; }
+.setup :focus-visible { outline: 3px solid #a43d23; outline-offset: 4px; }
+.summary { background: #f3f5ef; border-left: 4px solid #48785d; padding: 20px; margin: 20px 0; border-radius: 4px; }
+.summary h2 { margin-top: 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin: 24px 0; }
+.review, .fields small { color: #47564b; font-size: .9rem; font-weight: 400; }
+@media (max-width: 600px) {
+  .fields, .choices, .summary { padding: 12px; }
+  .actions { align-items: stretch; flex-direction: column; }
+}

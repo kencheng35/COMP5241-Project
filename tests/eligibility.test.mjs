@@ -124,8 +124,12 @@ test("signup validates numeric age and never writes a trusted AI grant or guardi
 });
 
 test("profile saves enforce age and cannot grant AI access or silently promote known underage accounts", async () => {
+  const userId = "synthetic-user";
+  const setupRevision = 7;
   let saved;
-  let existing = { age: null, age_range: "18-24" };
+  let savedId = userId;
+  const writes = [];
+  let existing = { age: null, age_range: "18-24", learning_setup_revision: setupRevision };
   let profileError = null;
   const { updateProfile } = await loadServerModule("../src/app/profile/actions.ts", {
     "next/navigation": { redirect() { throw new Error("Synthetic redirect"); } },
@@ -133,16 +137,34 @@ test("profile saves enforce age and cannot grant AI access or silently promote k
     zod: { z }, sharp: {}, "@supabase/supabase-js": {}, "@/lib/public-config": {},
     "@/lib/eligibility": { isDemoAge, ageRangeFor },
     "@/lib/supabase/server": { async createClient() { return {
-      auth: { async getUser() { return { data: { user: { id: "synthetic-user" } } }; } },
-      from() { return {
-        select() { return { eq() { return { async maybeSingle() { return { data: existing, error: profileError }; } }; } }; },
-        async upsert(value) { saved = value; return { error: null }; },
-      }; },
+      auth: { async getUser() { return { data: { user: { id: userId } }, error: null }; } },
+      from(table) {
+        assert.equal(table, "profiles");
+        const filters = [];
+        let columns, patch;
+        return {
+          select(value) { columns = value; return this; },
+          eq(column, value) { filters.push([column, value]); return this; },
+          update(value) { patch = value; return this; },
+          async maybeSingle() {
+            if (patch) {
+              assert.equal(columns, "id");
+              assert.deepEqual(filters, [["id", userId], ["learning_setup_revision", setupRevision]]);
+              saved = patch;
+              writes.push({ filters, savedId });
+              return { data: { id: savedId }, error: null };
+            }
+            assert.equal(columns, "age, age_range, learning_setup_revision");
+            assert.deepEqual(filters, [["id", userId]]);
+            return { data: existing, error: profileError };
+          },
+        };
+      },
     }; } },
   });
   function profileForm(age) {
     const form = new FormData();
-    for (const [name, value] of Object.entries({ displayName: "Demo Learner", level: "foundation", subjects: "", goals: "", ai_access: "true" })) form.set(name, value);
+    for (const [name, value] of Object.entries({ displayName: "Demo Learner", level: "foundation", subjects: "", goals: "", ai_access: "true", setupRevision: String(setupRevision) })) form.set(name, value);
     if (age !== undefined) form.set("age", age);
     return form;
   }
@@ -151,11 +173,11 @@ test("profile saves enforce age and cannot grant AI access or silently promote k
     assert.equal(saved, undefined);
   }
   for (const legacy of [{ age: null, age_range: "under-13" }, { age: 12, age_range: "18-24" }]) {
-    existing = legacy;
+    existing = { ...legacy, learning_setup_revision: setupRevision };
     assert.match((await updateProfile({}, profileForm("18"))).error, /administrator review/);
     assert.equal(saved, undefined);
   }
-  existing = { age: 17, age_range: "13-17" };
+  existing = { age: 17, age_range: "13-17", learning_setup_revision: setupRevision };
   profileError = new Error("Synthetic lookup failure");
   assert.match((await updateProfile({}, profileForm("18"))).error, /Could not verify/);
   assert.equal(saved, undefined);
@@ -166,7 +188,11 @@ test("profile saves enforce age and cannot grant AI access or silently promote k
     assert.equal(saved.age_range, ageRangeFor(age));
     assert.equal(saved.ai_access, undefined);
     assert.equal(saved.app_metadata, undefined);
+    assert.deepEqual(writes.at(-1).filters, [["id", userId], ["learning_setup_revision", setupRevision]]);
+    assert.equal(writes.at(-1).savedId, userId);
   }
+  savedId = "another-user";
+  assert.match((await updateProfile({}, profileForm("18"))).error, /Could not confirm/);
 });
 
 test("age migration rejects invalid direct signups and new profile writes while preserving legacy rows for review", async () => {

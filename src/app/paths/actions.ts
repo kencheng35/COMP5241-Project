@@ -23,7 +23,7 @@ export async function generateLearningPath(_previous: PathState, form: FormData)
   try {
     const topic = z.enum(["profile", ...TOPICS]).parse(form.get("topic"));
     const goal = z.enum(["profile", ...GOALS]).parse(form.get("goal"));
-    if (form.get("shareCourseContent") !== "on") return { error: "Confirm sharing course titles and coarse SDLC preferences before generating a path." };
+    if (form.get("shareCourseContent") !== "on") return { error: "Confirm sharing course titles, audience/difficulty metadata and coarse curriculum preferences before generating a path." };
     const client = database();
     const [profileResult, catalog, completedIds] = await Promise.all([
       client.from("profiles").select("learning_level,preferred_subjects,learning_goals").eq("id", user.id).maybeSingle(),
@@ -42,8 +42,8 @@ export async function generateLearningPath(_previous: PathState, form: FormData)
     const path = validatePathResponse(text, request.candidates, currentCatalog, currentCompletedIds);
     return { path, selectionKey: `${topic}:${goal}` };
   } catch (error) {
-    if (error instanceof z.ZodError) return { error: "Choose a listed SDLC topic and learning goal." };
+    if (error instanceof z.ZodError) return { error: "Choose a listed curriculum topic and learning goal." };
     if (error instanceof OpenRouterError) return { error: error.message };
-    return { error: "No AI path was accepted. Lessons may be unavailable, completed, or outside SDLC, or the response could not be validated. Local recommendations remain available." };
+    return { error: "No AI path was accepted. Lessons may be unavailable, completed, or outside the curriculum, or the response could not be validated. Local recommendations remain available." };
   }
 }

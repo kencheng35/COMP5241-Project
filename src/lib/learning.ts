@@ -4,6 +4,7 @@ export const lessonSchema = z.object({
   title: z.string().trim().min(3).max(120),
   subject: z.string().trim().min(2).max(60),
   summary: z.string().trim().min(10).max(300),
+  metadata: z.unknown().optional(),
   slides: z.array(z.object({
     title: z.string().min(1).max(100),
     body: z.string().min(1).max(400),

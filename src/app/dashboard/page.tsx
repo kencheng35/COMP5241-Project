@@ -1,10 +1,20 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { BookOpen, Plus } from "lucide-react";
 import { LearnerShell } from "@/components/learner-shell";
-import { isInstructor, displayName, isAdmin, requireUser, userRecords, visibleLessons } from "@/lib/learning-server";
+import { isInstructor, displayName, isAdmin, userRecords, visibleLessons } from "@/lib/learning-server";
+import { loadSetup } from "@/lib/onboarding-server";
 
 export default async function Dashboard() {
-  const user = await requireUser();
+  const setup = await loadSetup();
+  if (setup.code !== "ok") return <LearnerShell active="/dashboard"><div className="portal-page">
+    <h1>Learning setup unavailable.</h1><p role="alert" className="form-notice notice-error">{setup.message}</p>
+    <p><a className="text-link" href="/dashboard">Try loading again</a></p>
+    <p><Link className="text-link" href="/profile">Profile, export & deletion</Link></p>
+    <p><Link className="text-link" href="/login">Log in / account recovery</Link></p>
+  </div></LearnerShell>;
+  if (!setup.profile.onboarding_completed_at) redirect("/onboarding");
+  const user = setup.user;
   const [name, lessons, records] = await Promise.all([displayName(user), visibleLessons(user), userRecords(user)]);
   const enrolled = lessons.filter(lesson => records.enrollments.some(record => record.lesson_id === lesson.id));
   const passedCount = new Set(records.attempts.filter(attempt => attempt.score >= 6).map(attempt => attempt.original_lesson_id)).size;

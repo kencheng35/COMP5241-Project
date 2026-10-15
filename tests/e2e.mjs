@@ -7,6 +7,7 @@ import nextEnv from "@next/env";
 import { createClient } from "@supabase/supabase-js";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
 import sharp from "sharp";
+import { FAMILIES, curriculumSelectionSchema, subjectSelection } from "../src/lib/curriculum.ts";
 
 nextEnv.loadEnvConfig(process.cwd(), true, { info() {}, error() {} });
 const origin = process.env.E2E_BASE_URL ?? process.env.NEXT_PUBLIC_SITE_URL;
@@ -23,6 +24,44 @@ let stage = "initialize";
 
 function step(name) { stage = name; console.log(`CHECK ${name}`); }
 function checked(result) { if (result.error) throw new Error("Fixture operation failed"); return result.data; }
+function fixtureCurriculum() {
+  const selection = subjectSelection("Software testing");
+  assert.ok(selection, "The existing testing fixture must resolve through the curriculum registry.");
+  return curriculumSelectionSchema.parse({
+    subject: FAMILIES[selection.family],
+    metadata: { version: 1, topic: selection.topic, audience: "learners", difficulty: "foundation",
+      outcomes: ["Plan a reproducible test from a software requirement."],
+      prerequisites: ["Read a short software requirement."] },
+  });
+}
+async function fillCurriculumMetadata(page, selection = fixtureCurriculum()) {
+  await page.locator('select[name="subject"]').selectOption(selection.subject);
+  await page.locator('select[name="curriculumTopic"]').selectOption(selection.metadata.topic);
+  await page.locator('select[name="audience"]').selectOption(selection.metadata.audience);
+  await page.locator('select[name="difficulty"]').selectOption(selection.metadata.difficulty);
+  await page.locator('textarea[name="outcomes"]').fill(selection.metadata.outcomes.join("\n"));
+  await page.locator('textarea[name="prerequisites"]').fill(selection.metadata.prerequisites.join("\n"));
+}
+async function completeOnboarding(page, trustedRole) {
+  const instructor = trustedRole === "admin" || trustedRole === "instructor";
+  await page.waitForURL("**/onboarding");
+  await expect(page.getByRole("group", { name: instructor ? "Instructor background and teaching goals" : "Learner background and learning goals", exact: true })).toBeVisible();
+  await page.getByLabel("Background", { exact: true }).selectOption(instructor ? "teaching" : "coursework");
+  await page.getByRole("form", { name: "Background and goals" }).getByRole("checkbox").first().check();
+  await page.getByLabel("Your chosen learning level", { exact: true }).selectOption("foundation");
+  await page.getByRole("button", { name: /^Save (and complete onboarding|background changes)$/ }).click();
+  await expect(page.getByRole("status")).toContainText("Background, goals and your chosen level are saved.");
+  await page.getByRole("link", { name: "Continue to dashboard", exact: true }).click();
+  await page.waitForURL("**/dashboard");
+}
+async function assertProfileRevision(page, id) {
+  const profile = checked(await database.from("profiles").select("age,learning_setup_revision,onboarding_completed_at,onboarding_background,diagnostic_summary").eq("id", id).single());
+  assert.equal(profile.age, 22);
+  assert.ok(profile.onboarding_completed_at, "Onboarding must be saved through its real UI.");
+  assert.ok(Number.isInteger(profile.learning_setup_revision) && profile.learning_setup_revision > 0);
+  await expect(page.locator('input[name="setupRevision"]')).toHaveValue(String(profile.learning_setup_revision));
+  return profile.learning_setup_revision;
+}
 async function account(role) {
   const email = `forge-e2e-${role}-${runId}@example.com`;
   const password = `Test9!${randomUUID()}`;
@@ -35,7 +74,7 @@ async function account(role) {
   await page.getByLabel("Email address", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Log in", exact: true }).click();
-  await page.waitForURL("**/dashboard");
+  await completeOnboarding(page, data.user.app_metadata?.role);
   await expect(page.getByRole("heading", { name: `Welcome, Test ${role}.` })).toBeVisible();
   return { id: data.user.id, page, context, password, email };
 }
@@ -50,17 +89,19 @@ async function fits(page, filename) {
 }
 
 try {
+  step("onboarding/profile schema preflight");
+  try { checked(await database.from("profiles").select("age,learning_setup_revision,onboarding_completed_at,onboarding_background,diagnostic_summary").limit(0)); }
+  catch { throw new Error("Both E2E scopes require the age-eligibility and 20261015_onboarding_diagnostic.sql migrations for onboarding/profile editing. Have the owner verify them on the approved disposable database before rerunning. No fixtures created; provider details omitted."); }
   if (process.env.E2E_SCOPE !== "authoring") {
     step("full-suite schema preflight");
     for (const [table, columns, requirement] of [
-      ["profiles", "age", "profiles.age (20260929_age_eligibility.sql)"],
-      ["forge_resume", "*", "forge_resume and service-role access (20260927_resume.sql and 20260930_resume_grant.sql)"],
+      ["forge_resume", "*", "forge_resume and service-role access (20260927_resume_ran.sql and 20260930_resume_grant_ran.sql)"],
     ]) {
       try { checked(await database.from(table).select(columns).limit(0)); }
       catch { throw new Error(`Full E2E requires readable ${requirement}. Have the owner apply outstanding README migrations in order on the approved disposable database, then rerun. No fixtures created; provider details omitted.`); }
     }
   } else {
-    console.log("Authoring scope fills synthetic age 22 for invalid-field validation only; it does not verify profile persistence or full-suite schema readiness.");
+    console.log("Authoring scope requires real onboarding and profile schema readiness; it does not verify full profile persistence or resume readiness.");
   }
   await mkdir(output, { recursive: true });
   browser = await ({ firefox, webkit }[process.env.E2E_BROWSER] ?? chromium).launch();
@@ -68,9 +109,11 @@ try {
   const anonymous = await browser.newContext();
   for (const cookie of [undefined, { name: "sb-stale-auth-token", value: "expired", domain: new URL(origin).hostname, path: "/" }]) {
     if (cookie) await anonymous.addCookies([cookie]);
-    const pageResponse = await anonymous.request.get(`${origin}/dashboard`, { maxRedirects: 0 });
-    assert.equal(pageResponse.status(), 307);
-    assert.equal(new URL(pageResponse.headers().location, origin).pathname, "/login");
+    for (const path of ["/dashboard", "/onboarding", "/diagnostic"]) {
+      const pageResponse = await anonymous.request.get(`${origin}${path}`, { maxRedirects: 0 });
+      assert.equal(pageResponse.status(), 307);
+      assert.equal(new URL(pageResponse.headers().location, origin).pathname, "/login");
+    }
     const apiResponse = await anonymous.request.get(`${origin}/api/account/export`, { maxRedirects: 0 });
     assert.equal(apiResponse.status(), 401);
   }
@@ -100,6 +143,7 @@ try {
   step("profile validation focuses the invalid field");
   await owner.page.goto(`${origin}/profile`);
   await expect(owner.page.locator(".settings-panel")).toHaveAttribute("data-profile-ready", "true");
+  await assertProfileRevision(owner.page, owner.id);
   const profileName = owner.page.locator('input[name="displayName"]');
   await profileName.evaluate(input => { input.minLength = 0; });
   await profileName.fill("X");
@@ -125,7 +169,7 @@ try {
   await owner.page.goto(`${origin}/studio?manual=1`);
   await expect(owner.page.locator('input[name="lessonId"]').first()).toHaveAttribute("data-editor-ready", "true");
   await owner.page.getByLabel("Title", { exact: true }).fill(title);
-  await owner.page.getByLabel("Subject", { exact: true }).fill("Software testing");
+  await fillCurriculumMetadata(owner.page);
   await owner.page.getByLabel("Summary", { exact: true }).fill("A temporary end-to-end test of the learning workflow.");
   for (let index = 0; index < 4; index++) {
     const slide = owner.page.getByRole("group", { name: `Slide ${index + 1}`, exact: true });
@@ -146,7 +190,10 @@ try {
   await expect(owner.page.getByRole("status")).toContainText("Lesson created.");
   const lessonUrl = await owner.page.getByRole("link", { name: "Open lesson", exact: true }).getAttribute("href");
   const lessonId = lessonUrl.split("/").at(-1);
-  assert.equal(checked(await database.from("forge_lessons").select("visibility").eq("id", lessonId).single()).visibility, "private");
+  const createdLesson = checked(await database.from("forge_lessons").select("visibility,subject,content").eq("id", lessonId).single());
+  assert.equal(createdLesson.visibility, "private");
+  assert.equal(createdLesson.subject, fixtureCurriculum().subject);
+  assert.deepEqual(createdLesson.content.metadata, fixtureCurriculum().metadata);
 
   step("enrolled resume links lead to the lesson player");
   await owner.page.goto(`${origin}/catalog`);
@@ -184,7 +231,9 @@ try {
   step("combined catalog filters, empty state and clear");
   await owner.page.goto(`${origin}/catalog`);
   await owner.page.locator('input[name="q"]').fill(title);
-  await owner.page.locator('select[name="subject"]').selectOption("Software testing");
+  await owner.page.locator('select[name="subject"]').selectOption(fixtureCurriculum().subject);
+  await owner.page.locator('select[name="audience"]').selectOption(fixtureCurriculum().metadata.audience);
+  await owner.page.locator('select[name="difficulty"]').selectOption(fixtureCurriculum().metadata.difficulty);
   await owner.page.locator('select[name="visibility"]').selectOption("private");
   await owner.page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(owner.page.locator(".catalog-card")).toHaveCount(1);
@@ -194,6 +243,8 @@ try {
   await expect(owner.page.getByRole("heading", { name: "No matching lessons." })).toBeVisible();
   await owner.page.getByRole("link", { name: "Clear", exact: true }).click();
   await expect(owner.page.locator('input[name="q"]')).toHaveValue("");
+  await expect(owner.page.locator('select[name="audience"]')).toHaveValue("");
+  await expect(owner.page.locator('select[name="difficulty"]')).toHaveValue("");
   await expect(owner.page.locator(".catalog-card").filter({ hasText: title })).toHaveCount(1);
 
   step("consecutive editor saves use the latest version");
@@ -380,6 +431,7 @@ try {
 
   step("profile fields and validated image upload persist across reloads");
   await learner.page.goto(`${origin}/profile`);
+  const profileRevision = await assertProfileRevision(learner.page, learner.id);
   await learner.page.route("**/api/account/export", route => route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"Unavailable"}' }));
   await learner.page.getByRole("button", { name: "Download my data" }).click();
   await expect(learner.page.getByRole("alert", { name: "" }).filter({ hasText: "Could not download your data." })).toBeVisible();
@@ -404,12 +456,14 @@ try {
   await learner.page.reload();
   await expect(learner.page.getByLabel("Display name", { exact: true })).toHaveValue("Test updated learner");
   await expect(learner.page.locator('input[name="age"]')).toHaveValue("22");
-  const savedProfile = checked(await database.from("profiles").select("age,display_name,avatar_url,learning_level,preferred_subjects,learning_goals").eq("id", learner.id).single());
+  const savedProfile = checked(await database.from("profiles").select("age,display_name,avatar_url,learning_level,preferred_subjects,learning_goals,learning_setup_revision").eq("id", learner.id).single());
   assert.equal(savedProfile.age, 22);
   assert.equal(savedProfile.display_name, "Test updated learner");
   assert.equal(savedProfile.learning_level, "intermediate");
   assert.deepEqual(savedProfile.preferred_subjects, ["Testing", "TypeScript"]);
   assert.equal(savedProfile.learning_goals, "Practice reliable testing.");
+  assert.equal(savedProfile.learning_setup_revision, profileRevision + 1);
+  await expect(learner.page.locator('input[name="setupRevision"]')).toHaveValue(String(savedProfile.learning_setup_revision));
   const metadata = await sharp(Buffer.from(savedProfile.avatar_url.split(",")[1], "base64")).metadata();
   assert.equal(metadata.format, "jpeg");
   assert.equal(metadata.width, 160);
@@ -431,6 +485,7 @@ try {
     assert.equal(unchanged.avatar_url, savedProfile.avatar_url);
   }
   await learner.page.reload();
+  await assertProfileRevision(learner.page, learner.id);
   await learner.page.getByLabel("Remove picture", { exact: true }).check();
   await learner.page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(learner.page.getByRole("status")).toContainText("Profile updated successfully.");
@@ -516,6 +571,7 @@ try {
   assert.ok(confirmed.headers().location === `${origin}/dashboard`, "Verification destination must stay on the app origin");
   assert.ok(checked(await database.auth.admin.getUserById(signup.user.id)).user.email_confirmed_at);
   await authPage.goto(`${origin}/dashboard`);
+  await completeOnboarding(authPage, signup.user.app_metadata?.role);
   await expect(authPage.getByRole("heading", { name: "Welcome, Test signup." })).toBeVisible();
   const reused = await authContext.request.get(signupUrl.toString(), { maxRedirects: 0 });
   const reusedDestination = new URL(reused.headers().location);
@@ -562,7 +618,7 @@ try {
   }
 } catch (error) {
   console.error(`FAIL ${stage} (${error.name}). Credentials and server responses are omitted.`);
-  if (stage === "full-suite schema preflight") console.error(error.message);
+  if (stage === "full-suite schema preflight" || stage === "onboarding/profile schema preflight") console.error(error.message);
   if (["catalog search keyboard access and active navigation", "anonymous and stale-session protected access", "manual private lesson authoring through the editor", "enrolled resume links lead to the lesson player", "profile validation focuses the invalid field", "failed editor save preserves unsaved changes"].includes(stage)) console.error(error.message);
   if (stage.startsWith("profile fields") && profilePage) {
     console.error(error.message);

@@ -22,7 +22,7 @@ export async function updateProfile(_previous: ProfileState, formData: FormData)
     subjects: String(formData.get("subjects") ?? "").slice(0, 300),
     goals: String(formData.get("goals") ?? "").slice(0, 800),
   };
-  const result = z.object({ displayName: z.string().trim().min(2).max(100), age: z.coerce.number().refine(isDemoAge, "Enter a whole-number age from 13 to 120."), level: z.enum(["new", "foundation", "intermediate", "advanced"]), subjects: z.string().max(300), goals: z.string().max(800) }).safeParse(Object.fromEntries(formData));
+  const result = z.object({ displayName: z.string().trim().min(2).max(100), age: z.coerce.number().refine(isDemoAge, "Enter a whole-number age from 13 to 120."), level: z.enum(["new", "foundation", "intermediate", "advanced"]), subjects: z.string().max(300), goals: z.string().max(800), setupRevision: z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(0).max(2147483646)) }).safeParse(Object.fromEntries(formData));
   if (!result.success) return { fields, fieldErrors: Object.fromEntries(result.error.issues.map(issue => [String(issue.path[0]), issue.message])), error: "Please check the highlighted profile fields." };
   let avatar: string | null | undefined;
   const image = formData.get("avatar");
@@ -39,17 +39,22 @@ export async function updateProfile(_previous: ProfileState, formData: FormData)
   }
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { fields, error: "Your session has expired. Log in again before saving." };
-    const { data: existing, error: profileError } = await supabase.from("profiles").select("age, age_range").eq("id", user.id).maybeSingle();
-    if (profileError) return { fields, error: "Could not verify your profile. Please try again later." };
+    const authentication = await supabase.auth.getUser();
+    if (authentication?.error !== null || !authentication?.data?.user?.id) return { fields, error: "Your session could not be verified. Log in again before saving." };
+    const user = authentication.data.user;
+    const { data: existing, error: profileError } = await supabase.from("profiles").select("age, age_range, learning_setup_revision").eq("id", user.id).maybeSingle();
+    if (profileError !== null) return { fields, error: "Could not verify your profile. Please try again later." };
+    if (!existing) return { fields, error: "Your profile is missing. Contact support before saving. Account export and deletion remain available." };
+    if (existing.learning_setup_revision !== result.data.setupRevision) return { fields, error: "A newer profile or diagnostic change was found. Reload your saved profile and compare before saving. Your draft is still here." };
     if (existing?.age_range === "under-13" || (typeof existing?.age === "number" && existing.age < 13)) {
       return { fields, error: "This account needs administrator review under the 13+ supervised demo policy. Account export and deletion remain available." };
     }
-    const { error } = await supabase.from("profiles").upsert({ id: user.id, display_name: result.data.displayName, age: result.data.age, age_range: ageRangeFor(result.data.age), learning_level: result.data.level, preferred_subjects: result.data.subjects.split(",").map(item => item.trim()).filter(Boolean), learning_goals: result.data.goals, ...(avatar !== undefined ? { avatar_url: avatar } : {}), updated_at: new Date().toISOString() });
-    if (error) return { fields, error: "Could not save your profile. Please try again." };
+    const { data: saved, error } = await supabase.from("profiles").update({ display_name: result.data.displayName, age: result.data.age, age_range: ageRangeFor(result.data.age), learning_level: result.data.level, preferred_subjects: result.data.subjects.split(",").map(item => item.trim()).filter(Boolean), learning_goals: result.data.goals, ...(avatar !== undefined ? { avatar_url: avatar } : {}), updated_at: new Date().toISOString() }).eq("id", user.id).eq("learning_setup_revision", result.data.setupRevision).select("id").maybeSingle();
+    if (error !== null) return { fields, error: "Could not confirm that your profile was saved. Reload your saved profile and compare before retrying." };
+    if (!saved) return { fields, error: "A newer profile or diagnostic change was found. Reload your saved profile and compare before saving. Your draft is still here." };
+    if (saved.id !== user.id) return { fields, error: "Could not confirm that your profile was saved. Reload your saved profile and compare before retrying." };
   } catch {
-    return { fields, error: "Could not save your profile. Please try again." };
+    return { fields, error: "Could not confirm that your profile was saved. Reload your saved profile and compare before retrying." };
   }
   revalidatePath("/profile");
   redirect("/profile?success=Profile%20updated%20successfully.");
@@ -118,15 +123,40 @@ export async function deleteAccount(formData: FormData) {
   redirect("/login?success=Your%20account%20and%20learning%20data%20were%20deleted.");
 }
 
-export async function changeEmail(formData: FormData) {
+export type EmailChangeState = {
+  email: string;
+  code: "invalid" | "auth" | "unavailable" | "rejected" | "unknown" | "sent";
+  message: string;
+};
+
+export async function changeEmail(_previous: EmailChangeState | null, formData: FormData): Promise<EmailChangeState> {
+  const email = String(formData.get("email") ?? "").slice(0, 254);
+  const reply = (code: EmailChangeState["code"], message: string): EmailChangeState => ({ email, code, message });
   const result = z.email().safeParse(formData.get("email"));
-  if (!result.success) redirect("/profile?error=Enter%20a%20valid%20email%20address.");
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!result.success) return reply("invalid", "Enter a valid email address.");
+  let supabase;
+  try { supabase = await createClient(); }
+  catch { return reply("unavailable", "Email changes are temporarily unavailable. No request was sent."); }
+  try {
+    const authentication = await supabase.auth.getUser();
+    if (authentication?.error !== null) {
+      const error = authentication?.error;
+      if (error?.status === 401 || error?.name === "AuthSessionMissingError") return reply("auth", "Log in again before requesting an email change. No request was sent.");
+      return reply("unavailable", "Could not verify your account right now. No email-change request was sent.");
+    }
+    if (!authentication?.data?.user?.id) return reply("auth", "Log in again before requesting an email change. No request was sent.");
+  } catch { return reply("unavailable", "Could not verify your account right now. No email-change request was sent."); }
   const settings = publicConfig(process.env);
-  if (!settings) redirect("/profile?error=Email%20changes%20are%20temporarily%20unavailable.");
-  const { error } = await supabase.auth.updateUser({ email: result.data }, { emailRedirectTo: `${settings.siteOrigin}/auth/confirm?next=/profile` });
-  if (error) redirect("/profile?error=Could%20not%20request%20an%20email%20change.");
-  redirect("/profile?success=Check%20your%20current%20and%20new%20email%20inboxes%20to%20confirm%20the%20change.");
+  if (!settings) return reply("unavailable", "Email changes are temporarily unavailable. No request was sent.");
+  const uncertain = () => reply("unknown", "Could not confirm whether the email-change request was accepted. Check your current and new inboxes and account before trying again. This request will not be automatically replayed.");
+  try {
+    const response = await supabase.auth.updateUser({ email: result.data }, { emailRedirectTo: `${settings.siteOrigin}/auth/confirm?next=/profile` });
+    if (!response || response.error === undefined) return uncertain();
+    if (response.error) {
+      if (response.error.status && response.error.status < 500) return reply("rejected", "The email-change request was not accepted. Check the address or try again later.");
+      return uncertain();
+    }
+    if (!response.data?.user?.id) return uncertain();
+  } catch { return uncertain(); }
+  return reply("sent", "Check your current and new email inboxes to confirm the change.");
 }

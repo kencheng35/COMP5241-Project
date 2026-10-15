@@ -24,7 +24,7 @@ async function checkDatabase() {
     global: { fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(15000) }) },
   });
   const tables = [
-    ["profiles", "id,display_name,age,age_range,avatar_url,learning_level,preferred_subjects,learning_goals", "schema.sql and age-eligibility migration"],
+    ["profiles", "id,display_name,age,age_range,avatar_url,learning_level,preferred_subjects,learning_goals,onboarding_completed_at,onboarding_background,diagnostic_summary,learning_setup_revision", "schema.sql, age-eligibility and 20261015_onboarding_diagnostic.sql migrations"],
     ["forge_lessons", "id,owner_id,title,subject,summary,content,visibility,version,created_at,published_at,review_requested", "learning and review-privacy migrations"],
     ["forge_enrollments", "user_id,lesson_id,enrolled_at,attended_at,enrollment_kind,attendance_kind", "learning and record-integrity migrations"],
     ["forge_attempts", "id,user_id,lesson_id,original_lesson_id,lesson_title,lesson_version,certificate_kind,answers,questions,score,completed_at", "learning and record-integrity migrations"],
@@ -32,7 +32,7 @@ async function checkDatabase() {
     ["forge_requests", "user_id,day,count,coach_count", "learning and coach migrations"],
     ["forge_reviewers", "user_id,lesson_id", "learning migration"],
     ["forge_resume", "user_id,lesson_id,lesson_version,revision,stage,slide,ordering,answers", "resume migration"],
-    ["forge_interviews", "id,owner_id,schema_version,topic,level,state,revision,created_at,updated_at,completed_at", "20261015_interviews.sql (apply before feature/export queries)"],
+    ["forge_interviews", "id,owner_id,schema_version,topic,level,state,revision,created_at,updated_at,completed_at", "20261015_interviews_ran.sql (verify application before feature/export queries; filename is not proof of application)"],
   ];
   for (const [table, columns, migration] of tables) {
     const { data, error } = await client.from(table).select(columns).limit(0);

@@ -7,12 +7,12 @@ import { coachReply, generateLesson } from "@/lib/openrouter";
 import { gradeQuiz, lessonSchema } from "@/lib/learning";
 import { resumeSchema, type ResumeState } from "@/lib/resume";
 import { requireAiAccess } from "@/lib/ai-eligibility-server";
-import { isSdlcSubject } from "@/lib/recommendations";
+import { FAMILIES, readMetadata, selectionFromForm, subjectSelection, validateCurriculumContent } from "@/lib/curriculum";
 
-export type ActionState = { error?: string; success?: string; lessonId?: string; attemptId?: string; score?: number; feedback?: { prompt: string; correct: string; explanation: string }[] };
+export type ActionState = { error?: string; saveUncertain?: true; success?: string; lessonId?: string; version?: number; attemptId?: string; score?: number; feedback?: { prompt: string; correct: string; explanation: string }[] };
 
 function failure(error: unknown): ActionState {
-  if (error instanceof z.ZodError) return { error: `Please check your input: ${error.issues[0]?.message ?? "Invalid input."}` };
+  if (error instanceof z.ZodError) return { error: `Please check ${error.issues[0]?.path.join(".") || "your input"}: ${error.issues[0]?.message ?? "Invalid input."}` };
   if (error instanceof SyntaxError) return { error: "The lesson content could not be read. Please reload the editor." };
   return { error: error instanceof Error ? error.message : "The request failed. Please try again." };
 }
@@ -22,10 +22,12 @@ export async function createLesson(_previous: ActionState, form: FormData): Prom
     const user = await currentUser();
     await requireAiAccess(user);
     const topic = z.string().trim().min(5, "Describe a topic in at least five characters.").max(500).parse(form.get("topic"));
+    const selection = selectionFromForm(form);
     const { data: allowed, error } = await database().rpc("forge_claim_request", { request_user: user.id });
     if (error) throw new Error("Generation is unavailable. Check the learning database migration.");
     if (!allowed) throw new Error("Your five daily generation requests have been used. Quiz retries are still unlimited.");
-    const content = await generateLesson(topic);
+    const content = await generateLesson(topic, selection);
+    await requireAiAccess(await currentUser());
     const { data, error: saveError } = await database().from("forge_lessons").insert({ owner_id: user.id, title: content.title, subject: content.subject, summary: content.summary, content }).select("id").single();
     if (saveError) throw new Error("Could not save the generated lesson.");
     revalidatePath("/dashboard"); revalidatePath("/catalog");
@@ -95,8 +97,7 @@ export async function updateLesson(_previous: ActionState, form: FormData): Prom
     const id = z.uuid().parse(form.get("lessonId"));
     const lesson = await accessibleLesson(id, user, true);
     if (!lesson || !canEditLesson(user, lesson)) throw new Error("You cannot edit this lesson.");
-    const content = lessonSchema.parse(JSON.parse(String(form.get("content"))));
-    if (!isSdlcSubject(content.subject)) return { error: "Choose an SDLC subject, such as Software testing or Software design." };
+    const content = validateCurriculumContent(lessonSchema.parse(JSON.parse(String(form.get("content")))));
     const expectedVersion = z.coerce.number().int().positive().parse(form.get("version"));
     const publish = form.get("publish") === "on";
     if (publish && !canPublishLessons(user)) throw new Error("Instructor access is required to publish lessons.");
@@ -104,7 +105,7 @@ export async function updateLesson(_previous: ActionState, form: FormData): Prom
     if (error) throw new Error("Could not save this lesson.");
     if (!data) throw new Error("This lesson changed in another session. Reload before editing.");
     revalidatePath("/catalog"); revalidatePath(`/courses/${id}`); revalidatePath("/admin"); revalidatePath("/studio");
-    return { success: publish ? "Reviewed lesson published." : "Lesson saved.", lessonId: id };
+    return { success: publish ? "Reviewed lesson published." : "Lesson saved.", lessonId: id, version: expectedVersion + 1 };
   } catch (error) { return failure(error); }
 }
 
@@ -148,17 +149,36 @@ export async function requestReview(_previous: ActionState, form: FormData): Pro
 }
 
 export async function createManualLesson(_previous: ActionState, form: FormData): Promise<ActionState> {
+  let insertAttempted = false;
+  const unknown = (): ActionState => ({
+    saveUncertain: true,
+    error: "Save outcome is unknown. This lesson may already exist. Your draft is retained here. Check your owned lessons before creating another copy.",
+  });
   try {
     const user = await currentUser();
-    const content = lessonSchema.parse(JSON.parse(String(form.get("content"))));
-    if (!isSdlcSubject(content.subject)) return { error: "Choose an SDLC subject, such as Software testing or Software design." };
+    const content = validateCurriculumContent(lessonSchema.parse(JSON.parse(String(form.get("content")))));
     const publish = form.get("publish") === "on";
     if (publish && !canPublishLessons(user)) throw new Error("Instructor access required to publish.");
-    const { data, error } = await database().from("forge_lessons").insert({ owner_id: user.id, title: content.title, subject: content.subject, summary: content.summary, content, visibility: publish ? "public" : "private", published_at: publish ? new Date().toISOString() : null }).select("id").single();
-    if (error) throw new Error("Could not create this lesson. Check the database migration.");
+    const client = database();
+    insertAttempted = true;
+    const { data, error } = await client.from("forge_lessons").insert({ owner_id: user.id, title: content.title, subject: content.subject, summary: content.summary, content, visibility: publish ? "public" : "private", published_at: publish ? new Date().toISOString() : null }).select("id").single();
+    // Only explicit PostgreSQL statement rejections establish that this insert did not commit.
+    // Transport/PostgREST failures (including failed response shaping), missing data, and
+    // contradictory acknowledgements do not. Never turn those into an invitation to retry.
+    if (error) {
+      if (!data && ["23502", "23503", "23505", "23514", "42501", "22001"].includes(error.code)) {
+        return { error: "The database rejected this creation. Your draft is retained. Check the lesson requirements and your permissions before retrying." };
+      }
+      return unknown();
+    }
+    if (!z.uuid().safeParse(data?.id).success) return unknown();
     revalidatePath("/catalog"); revalidatePath("/dashboard");
-    return { success: "Lesson created.", lessonId: data.id };
-  } catch (error) { return failure(error); }
+    return { success: "Lesson created.", lessonId: data.id, version: 1 };
+  } catch (error) {
+    // Even a thrown database error may arrive after commit. Also covers a failure after
+    // insertion but before the server can finish acknowledging the action.
+    return insertAttempted ? unknown() : failure(error);
+  }
 }
 
 export async function askCoach(id: string, history: unknown): Promise<{ reply?: string; error?: string }> {
@@ -166,12 +186,17 @@ export async function askCoach(id: string, history: unknown): Promise<{ reply?: 
     const user = await currentUser();
     await requireAiAccess(user);
     const lesson = await enrolledLesson(z.uuid().parse(id), user);
+    const selection = subjectSelection(lesson.subject);
+    if (!selection || subjectSelection(lesson.content.subject)?.family !== selection.family) throw new Error("This lesson is outside the approved coaching curriculum.");
+    const topic = readMetadata(lesson.subject, lesson.content.metadata)?.topic ?? selection.topic;
     const messages = z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1200) })).min(1).max(12).parse(history);
     if (messages.at(-1)?.role !== "user") throw new Error("Enter a question for your coach.");
     const { data: allowed, error } = await database().rpc("forge_claim_coach_request", { request_user: user.id });
     if (error) throw new Error("Coach service unavailable. Check the database migration.");
     if (!allowed) throw new Error("Your shared 15/day text-AI quota (coach and interviews) has been reached. Lessons and quizzes remain available.");
-    return { reply: await coachReply(lesson.content.slides, messages) };
+    const reply = await coachReply({ subject: FAMILIES[selection.family], topic, slides: lesson.content.slides }, messages);
+    await requireAiAccess(await currentUser());
+    return { reply };
   } catch (error) { return failure(error); }
 }
 

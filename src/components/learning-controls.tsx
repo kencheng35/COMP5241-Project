@@ -3,14 +3,31 @@
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, Bookmark, Check, ChevronLeft, ChevronRight, LoaderCircle, Plus, Save, Trash2 } from "lucide-react";
-import { attend, saveBookmark, saveResume, submitQuiz, type ActionState } from "@/app/learning/actions";
+import { attend, saveBookmark, saveResume, submitQuiz, updateLesson, type ActionState } from "@/app/learning/actions";
 import type { LessonContent } from "@/lib/learning";
 import type { ResumeState } from "@/lib/resume";
 import { LessonPreview } from "./lesson-preview";
+import { MetadataFields } from "./lesson-metadata";
 
-export function ActionForm({ action, children, label, preview }: { action: (previous: ActionState, form: FormData) => Promise<ActionState>; children: React.ReactNode; label: string; preview?: LessonContent }) {
-  const [state, submit, pending] = useActionState(action, {});
-  return <form action={submit} className="learning-form"><fieldset disabled={pending}>{children}{preview && <LessonPreview content={preview} />}<button className="auth-submit" type="submit">{pending ? <LoaderCircle size={17} className="spin" /> : <Save size={17} />}{pending ? "Working..." : label}</button></fieldset>{state.error && <p role="alert" className="form-notice notice-error">{state.error}</p>}{state.success && <p role="status" className="form-notice">{state.success}</p>}{state.lessonId && <Link className="text-link" href={`/courses/${state.lessonId}`}>Open lesson <ChevronRight size={15} /></Link>}</form>;
+export function ActionForm({ action, children, label, preview, disabled = false, retainInput = false }: { action: (previous: ActionState, form: FormData) => Promise<ActionState>; children: React.ReactNode; label: string; preview?: LessonContent; disabled?: boolean; retainInput?: boolean }) {
+  const inFlight = useRef(false);
+  const formElement = useRef<HTMLFormElement>(null);
+  const keepInput = retainInput || Boolean(preview);
+  useEffect(() => {
+    const form = formElement.current;
+    if (!form || !keepInput) return;
+    // React resets forms during commit, when its delegated event handlers are disabled.
+    const preserve = (event: Event) => event.preventDefault();
+    form.addEventListener("reset", preserve);
+    return () => form.removeEventListener("reset", preserve);
+  }, [keepInput]);
+  const notice = useRef<HTMLParagraphElement>(null);
+  const [state, submit, pending] = useActionState(async (previous: ActionState, form: FormData) => {
+    try { return await action(previous, form); }
+    finally { inFlight.current = false; }
+  }, {});
+  useEffect(() => { if (state.error) notice.current?.focus(); }, [state]);
+  return <form ref={formElement} action={submit} onSubmit={event => { if (inFlight.current || disabled) event.preventDefault(); else inFlight.current = true; }} className="learning-form"><fieldset disabled={pending || disabled}>{children}{preview && <LessonPreview content={preview} />}<button className="auth-submit" type="submit">{pending ? <LoaderCircle size={17} className="spin" /> : <Save size={17} />}{pending ? "Working..." : label}</button></fieldset>{state.error && <p ref={notice} tabIndex={-1} role="alert" className="form-notice notice-error">{state.error}</p>}{state.success && <p role="status" className="form-notice">{state.success}</p>}{state.lessonId && <Link className="text-link" href={`/courses/${state.lessonId}`}>Open lesson <ChevronRight size={15} /></Link>}</form>;
 }
 
 export function BookmarkButton({ id, initial }: { id: string; initial: boolean }) {
@@ -103,39 +120,57 @@ export function LessonPlayer({ id, version, content, saved, revision, resumeAvai
 export function LessonEditor({ id, version, initial, action: saveLesson, admin }: { id: string; version: number; initial: LessonContent; action: (previous: ActionState, form: FormData) => Promise<ActionState>; admin: boolean }) {
   const [content, setContent] = useState(initial);
   const [savedContent, setSavedContent] = useState(JSON.stringify(initial));
+  const [persisted, setPersisted] = useState({ id, version });
+  const [uncertain, setUncertain] = useState(false);
   const readyInput = useRef<HTMLInputElement>(null);
   useEffect(() => { if (readyInput.current) readyInput.current.dataset.editorReady = "true"; }, []);
   const dirty = JSON.stringify(content) !== savedContent;
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty && !uncertain) return;
+    const leaveMessage = uncertain
+      ? "The save outcome is unknown. Leaving will discard this editor's retained draft. Check your owned lessons first. Leave anyway?"
+      : "You have unsaved lesson changes. Leave without saving?";
     function beforeUnload(event: BeforeUnloadEvent) { event.preventDefault(); }
     function leaveByLink(event: MouseEvent) {
       const target = event.target;
       const link = target instanceof Element ? target.closest("a[href]") : null;
-      if (!link || link.getAttribute("href")?.startsWith("#")) return;
-      if (!window.confirm("You have unsaved lesson changes. Leave without saving?")) event.preventDefault();
+      if (!link || link.getAttribute("href")?.startsWith("#") || link.getAttribute("target") === "_blank") return;
+      if (!window.confirm(leaveMessage)) event.preventDefault();
     }
     function leaveByHistory(event: Event) {
       const navigation = event as Event & { navigationType?: string };
-      if (navigation.navigationType === "traverse" && navigation.cancelable && !window.confirm("You have unsaved lesson changes. Leave without saving?")) navigation.preventDefault();
+      if (navigation.navigationType === "traverse" && navigation.cancelable && !window.confirm(leaveMessage)) navigation.preventDefault();
     }
     const navigation = (window as Window & { navigation?: EventTarget }).navigation;
     window.addEventListener("beforeunload", beforeUnload);
     document.addEventListener("click", leaveByLink, true);
     navigation?.addEventListener("navigate", leaveByHistory);
     return () => { window.removeEventListener("beforeunload", beforeUnload); document.removeEventListener("click", leaveByLink, true); navigation?.removeEventListener("navigate", leaveByHistory); };
-  }, [dirty]);
+  }, [dirty, uncertain]);
   async function action(previous: ActionState, form: FormData) {
-    const result = await saveLesson(previous, form);
-    if (result.success) setSavedContent(String(form.get("content")));
-    return result;
+    if (uncertain) return { saveUncertain: true as const, error: "Save outcome is unknown. Check your owned lessons before creating another copy." };
+    try {
+      const result = await (persisted.id ? updateLesson : saveLesson)(previous, form);
+      if (result.saveUncertain) {
+        setUncertain(true);
+        return result;
+      }
+      if (result.success && result.lessonId && result.version) {
+        setPersisted({ id: result.lessonId, version: result.version });
+        setSavedContent(String(form.get("content")));
+      }
+      return result;
+    } catch {
+      setUncertain(true);
+      return { saveUncertain: true as const, error: "Save outcome is unknown. This lesson may already exist. Your draft is retained here. Check your owned lessons before creating another copy." };
+    }
   }
-  return <ActionForm action={action} label="Save lesson" preview={content}>
-    <input ref={readyInput} type="hidden" name="lessonId" value={id} />
-    <input type="hidden" name="version" value={version} />
+  return <><ActionForm action={action} label="Save lesson" preview={content} disabled={uncertain}>
+    <input ref={readyInput} type="hidden" name="lessonId" value={persisted.id} />
+    <input type="hidden" name="version" value={persisted.version} />
     <input type="hidden" name="content" value={JSON.stringify(content)} />
     <label>Title<input value={content.title} maxLength={120} required onChange={event => setContent({ ...content, title: event.target.value })} /></label>
-    <label>Subject<input value={content.subject} maxLength={60} required onChange={event => setContent({ ...content, subject: event.target.value })} /></label>
+    <MetadataFields subject={content.subject} metadata={content.metadata} onChange={(subject, metadata) => setContent({ ...content, subject, metadata })} />
     <label>Summary<textarea value={content.summary} maxLength={300} required onChange={event => setContent({ ...content, summary: event.target.value })} /></label>
     <h2>Slides</h2>
     {content.slides.map((item, index) => <fieldset key={index}>
@@ -156,5 +191,11 @@ export function LessonEditor({ id, version, initial, action: saveLesson, admin }
       <label>Explanation<textarea value={question.explanation} onChange={event => setContent({ ...content, questions: content.questions.map((item, questionIndex) => questionIndex === index ? { ...item, explanation: event.target.value } : item) })} /></label>
     </details>)}
     {admin && <label><input type="checkbox" name="publish" /> Review and publish this lesson</label>}
-  </ActionForm>;
+  </ActionForm>{uncertain && <section className="learning-section" aria-label="Reconcile uncertain save">
+    <h2>Check the saved result before continuing</h2>
+    <p>Keep this tab open to retain your draft. Open the canonical lesson list in another tab, refresh it and compare the saved lesson with this draft. If found, open that lesson and choose Edit lesson to continue with its saved ID and version. Do not create another copy until the outcome has been reconciled.</p>
+    <p><Link href="/catalog?visibility=private" target="_blank" rel="noopener noreferrer" className="text-link">Check my private lessons (new tab)</Link></p>
+    {admin && <p>If you selected publication, also <Link href="/teaching" target="_blank" rel="noopener noreferrer" className="text-link">check my teaching lessons (new tab)</Link>.</p>}
+    {persisted.id && <p><Link href={`/studio?edit=${persisted.id}`} target="_blank" rel="noopener noreferrer" className="text-link">Open saved lesson editor (new tab)</Link></p>}
+  </section>}</>;
 }

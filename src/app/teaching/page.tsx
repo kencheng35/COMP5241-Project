@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { LearnerShell } from "@/components/learner-shell";
 import { LearnerImport } from "@/components/learner-import";
 import { ActionForm } from "@/components/learning-controls";
+import { GenerationMetadataFields } from "@/components/lesson-metadata";
 import { isInstructor, accessibleLesson, canManageEnrollment, canPublishLessons, database, displayName, isAdmin, requireUser } from "@/lib/learning-server";
 import { collectRows } from "@/lib/learning";
 import { importTeachingMaterial } from "./actions";
@@ -26,10 +27,12 @@ export default async function Teaching({ searchParams }: { searchParams: Promise
       <p><a href="/studio?manual=1" className="secondary-button">Create lesson</a></p>
       {selected && <><h2>{selected.title}</h2><LearnerImport key={selected.id} lessonId={selected.id} /></>}
       <section className="learning-section"><h2>Teaching materials</h2>
-        <ActionForm action={importTeachingMaterial} label="Generate editable draft">
-          <label>SDLC learning objective<textarea name="topic" required minLength={5} maxLength={500} rows={3} /></label>
+        <ActionForm action={importTeachingMaterial} label="Generate editable draft" retainInput>
+          <GenerationMetadataFields />
+          <label>Learning objective within the selected curriculum topic<textarea name="topic" required minLength={5} maxLength={500} rows={3} /></label>
           <label>Teaching file<input type="file" name="material" required accept=".pdf,.pptx,.ppt" /></label>
           <p>PDF or PPTX, up to 4 MB and 60 pages or slides. Legacy PPT conversion is not available yet.</p>
+          <p>Only extracted text is used for generation; original files are not retained. Review the resulting metadata, slides and quiz before publication.</p>
           <label><input type="checkbox" name="consent" required /> I have permission to use this material and send its extracted text to the configured AI provider. It contains no personal student data.</label>
         </ActionForm>
       </section>

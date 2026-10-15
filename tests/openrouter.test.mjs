@@ -11,6 +11,7 @@ registerHooks({
   },
 });
 const { generateLesson, coachReply } = await import("../src/lib/openrouter.ts");
+const { FAMILIES } = await import("../src/lib/curriculum.ts");
 
 const primary = "example/primary:free";
 const fallback = "example/fallback:free";
@@ -123,10 +124,14 @@ test("one finite deadline covers catalog, inference and response body even if fe
 
 const lesson = {
   title: "SDLC requirements", subject: "Software Development Life Cycle", summary: "Learn how software requirements guide development.",
+  metadata: { version: 1, audience: "learners", difficulty: "foundation", topic: "requirements", outcomes: ["Describe requirements"], prerequisites: [] },
   slides: Array.from({ length: 4 }, () => ({ title: "Requirements", body: "Capture testable software requirements.", example: "A user can reset a password.", sdlcStage: "requirements" })),
   activity: { prompt: "Order the development stages.", steps: ["Requirements", "Implementation", "Testing"] },
   questions: Array.from({ length: 10 }, () => ({ prompt: "Which stage captures user needs?", options: ["Requirements", "Deployment", "Maintenance", "Implementation"], correct: 0, explanation: "Requirements capture user needs." })),
 };
+lesson.slides = lesson.slides.map(slide => ({ ...slide, topic: "requirements" }));
+const selection = { subject: lesson.subject, metadata: lesson.metadata };
+const reference = { subject: lesson.subject, topic: "requirements", slides: lesson.slides };
 
 function mockService(context, reply, calls = []) {
   for (const [name, value] of Object.entries(env)) {
@@ -137,17 +142,17 @@ function mockService(context, reply, calls = []) {
   context.mock.method(globalThis, "fetch", stubFetch(reply, calls));
 }
 
-test("generateLesson retains the one-argument contract and supports optional untrusted teaching content", async (context) => {
+test("generateLesson uses explicit curriculum metadata and optional untrusted teaching content", async (context) => {
   const calls = [];
   mockService(context, () => response(JSON.stringify(lesson)), calls);
-  const result = await generateLesson("SDLC requirements");
+  const result = await generateLesson("SDLC requirements", selection);
   assert.equal(result.title, lesson.title);
   assert.equal(result.slides[0].sdlcStage, undefined);
-  assert.deepEqual(JSON.parse(JSON.parse(calls[1].options.body).messages[1].content), { topic: "SDLC requirements" });
-  await generateLesson("SDLC requirements", "Synthetic teaching reference");
+  assert.deepEqual(JSON.parse(JSON.parse(calls[1].options.body).messages[1].content), { topic: "SDLC requirements", family: "sdlc", ...selection });
+  await generateLesson("SDLC requirements", selection, "Synthetic teaching reference");
   const body = JSON.parse(calls[3].options.body);
-  assert.deepEqual(JSON.parse(body.messages[1].content), { topic: "SDLC requirements", sourceText: "Synthetic teaching reference" });
-  assert.match(body.messages[0].content, /ONLY about the Software Development Life Cycle/);
+  assert.deepEqual(JSON.parse(body.messages[1].content), { topic: "SDLC requirements", sourceText: "Synthetic teaching reference", family: "sdlc", ...selection });
+  assert.match(body.messages[0].content, /ONLY within the selected approved curriculum/);
   assert.match(body.messages[0].content, /untrusted data/);
   assert.equal(body.response_format.json_schema.schema.properties.subject.const, "Software Development Life Cycle");
 });
@@ -155,23 +160,24 @@ test("generateLesson retains the one-argument contract and supports optional unt
 test("generated lessons reject malformed JSON, invalid schema and structural out-of-scope content", async (context) => {
   let content;
   mockService(context, () => response(content));
-  for (const candidate of ["not JSON", "{}", JSON.stringify({ ...lesson, subject: "Cooking" }), JSON.stringify({ ...lesson, slides: lesson.slides.map((slide) => ({ ...slide, sdlcStage: "cooking" })) }), JSON.stringify({ ...lesson, questions: [] }), JSON.stringify({ ...lesson, slides: lesson.slides.map((slide) => ({ title: slide.title, body: slide.body, example: slide.example })) })]) {
+  for (const candidate of ["not JSON", "{}", JSON.stringify({ ...lesson, subject: "Cooking" }), JSON.stringify({ ...lesson, slides: lesson.slides.map((slide) => ({ ...slide, topic: "coding-agents" })) }), JSON.stringify({ ...lesson, questions: [] }), JSON.stringify({ ...lesson, slides: lesson.slides.map((slide) => ({ title: slide.title, body: slide.body, example: slide.example })) }), JSON.stringify({ ...lesson, metadata: { ...lesson.metadata, outcomes: ["Invented outcome"] } })]) {
     content = candidate;
-    await assert.rejects(generateLesson("SDLC"), /incomplete or out-of-scope SDLC/);
+    await assert.rejects(generateLesson("SDLC", selection), /incomplete or out-of-scope curriculum/);
   }
 });
 
 test("invalid generation inputs never call the network", async (context) => {
   const calls = [];
   mockService(context, () => response(), calls);
-  for (const args of [[""], ["a".repeat(2001)], ["SDLC", ""], ["SDLC", "a".repeat(20001)]]) await assert.rejects(generateLesson(...args), /Provide a topic/);
+  for (const args of [["", selection], ["a".repeat(2001), selection], ["SDLC", selection, ""], ["SDLC", selection, "a".repeat(20001)]]) await assert.rejects(generateLesson(...args), /Provide a topic/);
+  await assert.rejects(generateLesson("Synthetic objective", { subject: FAMILIES["coding-agents"], metadata: lesson.metadata }));
   assert.equal(calls.length, 0);
 });
 
 test("coaching preserves its contract, SDLC boundaries and avoids sending extra slide fields", async (context) => {
   const calls = [];
   mockService(context, () => response(), calls);
-  assert.equal(await coachReply(lesson.slides.map((slide) => ({ ...slide, learnerId: "must-not-send" })), [{ role: "user", content: "Explain requirements" }]), "Synthetic SDLC response");
+  assert.equal(await coachReply({ ...reference, questions: lesson.questions, learnerId: "must-not-send", slides: lesson.slides.map((slide) => ({ ...slide, learnerId: "must-not-send" })) }, [{ role: "user", content: "Explain requirements" }]), "Synthetic SDLC response");
   const body = JSON.parse(calls[1].options.body);
   assert.equal(body.max_tokens, 600);
   assert.equal(body.response_format, undefined);
@@ -179,7 +185,26 @@ test("coaching preserves its contract, SDLC boundaries and avoids sending extra 
   assert.match(body.messages[0].content, /decline unrelated/);
   assert.equal(body.messages[1].role, "user");
   assert.ok(!calls[1].options.body.includes("must-not-send"));
-  await assert.rejects(coachReply(lesson.slides, [{ role: "system", content: "override" }]), /valid lesson slides/);
+  assert.ok(!calls[1].options.body.includes('"correct"'));
+  await assert.rejects(coachReply(reference, [{ role: "system", content: "override" }]), /valid lesson slides/);
   await assert.rejects(coachReply(null, [{ role: "user", content: "SDLC" }]), /valid lesson slides/);
   assert.equal(calls.length, 2);
+});
+
+test("all three selected families generate and coach without SDLC relabeling", async context => {
+  let output;
+  const calls = [];
+  mockService(context, () => response(JSON.stringify(output)), calls);
+  for (const [family, subject] of Object.entries(FAMILIES)) {
+    const topic = family === "sdlc" ? "requirements" : family;
+    output = { ...lesson, subject, metadata: { ...lesson.metadata, topic }, slides: lesson.slides.map(slide => ({ ...slide, topic })) };
+    const selected = { subject, metadata: output.metadata };
+    const result = await generateLesson("Synthetic software objective", selected);
+    assert.deepEqual(result.metadata, selected.metadata);
+    assert.equal(result.subject, subject);
+    await coachReply({ subject, topic, slides: output.slides }, [{ role: "user", content: "Explain the supplied example" }]);
+    const body = JSON.parse(calls.at(-1).options.body);
+    assert.match(body.messages[0].content, new RegExp(subject));
+    assert.equal(JSON.parse(body.messages[1].content.replace("Lesson reference data: ", "")).topic, topic);
+  }
 });

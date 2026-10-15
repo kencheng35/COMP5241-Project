@@ -136,6 +136,24 @@ test("export GET handles empty tables and an exact-page boundary without truncat
   }
 });
 
+test("profiles.* export includes only the owner's onboarding and latest diagnostic fields", async () => {
+  const fields = {
+    onboarding_completed_at: "2026-10-15T00:00:00.000Z",
+    onboarding_background: { version: 1, role: "learner", experience: "coursework", goals: ["sdlc"] },
+    diagnostic_summary: { rubric_version: "draft-2026-10-v1", role: "learner", score: 4, total: 6, suggested_level: "intermediate", completed_at: "2026-10-15T00:00:00.000Z" },
+    learning_setup_revision: 2,
+  };
+  const rows = Object.fromEntries(tables.map(([table]) => [table, ownerRows(table)]));
+  rows.profiles = [{ ...ownerRows("profiles")[0], ...fields }, { ...ownerRows("profiles", 1, "other-owner")[0], ...fields, diagnostic_summary: { private: "must-not-export" } }];
+  const fixture = loadExport({ rows });
+  const response = await fixture.GET();
+  assert.equal(response.status, 200);
+  const exported = (await response.json()).records.profiles;
+  assert.deepEqual(exported, [rows.profiles[0]]);
+  assert.equal(JSON.stringify(exported).includes("must-not-export"), false);
+  assert.deepEqual(fixture.queries.find(query => query.table === "profiles").filters, [["id", user.id]]);
+});
+
 const pageFailures = [
   ["returned error", () => ({ data: null, error: { message: "Private database detail" } })],
   ["data with error", () => ({ data: [{ private: "partial-row" }], error: new Error("Private database detail") })],

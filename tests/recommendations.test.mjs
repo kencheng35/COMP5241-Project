@@ -5,11 +5,17 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
-import { buildPathRequest, derivePreferences, lessonTopic, MAX_AI_CANDIDATES, MAX_PATH_LESSONS, recommendLessons, validatePathResponse } from "../src/lib/recommendations.ts";
+registerHooks({ resolve(specifier, context, next) {
+  if (specifier === "@/lib/curriculum") return next(new URL("../src/lib/curriculum.ts", import.meta.url).href, context);
+  return next(specifier, context);
+} });
+const { buildPathRequest, derivePreferences, lessonTopic, MAX_AI_CANDIDATES, MAX_PATH_LESSONS, recommendLessons, validatePathResponse } = await import("../src/lib/recommendations.ts");
+const { FAMILIES } = await import("../src/lib/curriculum.ts");
 
 const id = number => `11111111-1111-4111-8111-${String(number).padStart(12, "0")}`;
 const lesson = (number, title, subject = "SDLC") => ({ id: id(number), title, subject, summary: "A practical lesson." });
-const catalog = [lesson(1, "Requirements basics"), lesson(2, "Software testing"), lesson(3, "Deployment basics"), lesson(4, "Biology testing", "Biology")];
+const catalog = [lesson(1, "Requirements basics", "Software requirements"), lesson(2, "Software testing", "Software testing"), lesson(3, "Deployment basics", "Software deployment"), lesson(4, "Biology testing", "Biology")];
+const token = (request, lessonId) => `candidate-${request.candidates.findIndex(item => item.id === lessonId) + 1}`;
 
 test("ranking is deterministic, topic-sensitive, and limited to supplied SDLC lessons", () => {
   const preferences = derivePreferences({ level: "new" }, { topic: "testing" });
@@ -26,6 +32,20 @@ test("completed lessons are omitted", () => {
   assert.ok(!result.some(item => item.id === id(2)));
 });
 
+test("all three families use metadata for local/AI paths and revalidate metadata changes", () => {
+  const lessons = Object.entries(FAMILIES).map(([family, subject], index) => ({
+    ...lesson(index + 20, `Synthetic ${family}`, subject),
+    metadata: { version: 1, topic: family === "sdlc" ? "testing" : family, audience: "both", difficulty: "intermediate", outcomes: ["Apply a skill"], prerequisites: [] },
+  }));
+  const request = buildPathRequest(lessons, derivePreferences({ level: "intermediate" }));
+  assert.equal(request.candidates.length, 3);
+  assert.ok(request.candidates.every(item => item.reason.includes("Author-specified")));
+  const response = JSON.stringify({ lessonIds: ["candidate-3", "candidate-2", "candidate-1"] });
+  assert.equal(validatePathResponse(response, request.candidates, lessons).length, 3);
+  assert.throws(() => validatePathResponse(response, request.candidates, lessons.map(item => ({ ...item, metadata: { ...item.metadata, difficulty: "advanced" } }))));
+  assert.equal(recommendLessons(lessons, derivePreferences({}), [lessons[1].id]).length, 2);
+});
+
 test("selected topics and goals override profile-derived preferences", () => {
   const profile = { level: "foundation", subjects: "Software requirements", goals: "Improve software testing quality" };
   assert.equal(derivePreferences(profile).goal, "quality");
@@ -36,12 +56,16 @@ test("selected topics and goals override profile-derived preferences", () => {
   assert.equal(recommendLessons(catalog, derivePreferences({}, { goal: "delivery" }))[0].id, id(3));
 });
 
-test("background level prioritizes titles conservatively and explains the inference", () => {
+test("background level uses author metadata only, never title-inferred difficulty", () => {
   const levels = [lesson(5, "Advanced software design"), lesson(6, "Software design basics")];
+  assert.equal(recommendLessons(levels, derivePreferences({ level: "new" }))[0].id, id(5));
+  assert.match(recommendLessons(levels, derivePreferences({}))[0].reason, /not specified/);
+  levels[0].metadata = { version: 1, audience: "learners", difficulty: "advanced", topic: "design", outcomes: ["Design"], prerequisites: [] };
+  levels[1].metadata = { ...levels[0].metadata, difficulty: "new" };
   assert.equal(recommendLessons(levels, derivePreferences({ level: "new" }))[0].id, id(6));
   const advanced = recommendLessons(levels, derivePreferences({ level: "advanced" }));
   assert.equal(advanced[0].id, id(5));
-  assert.match(advanced[0].reason, /Title indicates/);
+  assert.match(advanced[0].reason, /Author-specified/);
   assert.equal(derivePreferences({ level: "arbitrary personal data" }).level, "new");
 });
 
@@ -53,8 +77,8 @@ test("scope depends on an explicit SDLC subject, not incidental keywords in unre
   assert.equal(lessonTopic(lesson(7, "Release automation", "SDLC: Deployment")), "deployment");
 });
 
-test("specific subjects and titles take precedence over incidental summary stage mentions", () => {
-  assert.equal(lessonTopic({ ...lesson(7, "Unit testing"), summary: "Validate requirements and design through automated tests." }), "testing");
+test("metadata and explicit subjects determine topics, never incidental title/summary mentions", () => {
+  assert.equal(lessonTopic({ ...lesson(7, "Unit testing"), summary: "Validate requirements and design through automated tests." }), "overview");
   assert.equal(lessonTopic({ ...lesson(7, "Requirements validation", "Software Testing"), summary: "Software design and implementation." }), "testing");
 });
 
@@ -75,16 +99,17 @@ test("external payload contains only allowed coarse preferences and course metad
   const request = buildPathRequest(catalog.map(item => ({ ...item, owner_id: "owner-secret", questions: ["answer-secret"], score: 2, summary: "summary-secret" })), preferences);
   const payload = JSON.parse(request.messages[1].content);
   assert.deepEqual(Object.keys(payload).sort(), ["lessons", "preferences"]);
-  for (const entry of payload.lessons) assert.deepEqual(Object.keys(entry).sort(), ["id", "title", "topic"]);
+  for (const entry of payload.lessons) assert.deepEqual(Object.keys(entry).sort(), ["audience", "difficulty", "id", "title", "topic"]);
   const serialized = JSON.stringify(request.messages);
   for (const secret of ["Private Name", "private@example.com", "user-secret", "owner-secret", "answer-secret", "summary-secret", "score"]) assert.ok(!serialized.includes(secret));
+  for (const item of catalog) assert.ok(!serialized.includes(item.id));
   assert.throws(() => buildPathRequest(catalog, { ...preferences, email: "private@example.com" }));
   assert.throws(() => buildPathRequest(catalog, { ...preferences, topics: ["cooking"] }));
 });
 
 test("valid AI ordering uses only local titles and reasons", () => {
   const request = buildPathRequest(catalog, derivePreferences({}));
-  const path = validatePathResponse(JSON.stringify({ lessonIds: [id(3), id(1)] }), request.candidates, catalog);
+  const path = validatePathResponse(JSON.stringify({ lessonIds: [token(request, id(3)), token(request, id(1))] }), request.candidates, catalog);
   assert.deepEqual(path.map(item => item.id), [id(3), id(1)]);
   assert.equal(path[0].title, catalog[2].title);
   assert.match(path[0].reason, /Not yet completed/);
@@ -93,12 +118,12 @@ test("valid AI ordering uses only local titles and reasons", () => {
 test("rejects malicious, duplicate, missing, inaccessible, completed, and excessive model IDs", () => {
   const request = buildPathRequest(catalog, derivePreferences({}));
   const invalid = [null, {}, { lessonIds: [] }, { lessonIds: [null] }, { lessonIds: ["javascript:alert(1)"] },
-    { lessonIds: ["../../admin"] }, { lessonIds: [id(1), id(1)] }, { lessonIds: [id(99)] },
+    { lessonIds: ["../../admin"] }, { lessonIds: ["candidate-1", "candidate-1"] }, { lessonIds: ["candidate-99"] },
     { lessonIds: [id(4)] }, { lessonIds: [id(1)], reason: "model-controlled reason" },
     { lessonIds: Array.from({ length: MAX_PATH_LESSONS + 1 }, (_, index) => id(index + 1)) }];
   for (const response of invalid) assert.throws(() => validatePathResponse(JSON.stringify(response), request.candidates, catalog));
   for (const response of ["not JSON", "```json\n{}\n```", " ".repeat(4097)]) assert.throws(() => validatePathResponse(response, request.candidates, catalog));
-  const response = JSON.stringify({ lessonIds: [id(1)] });
+  const response = JSON.stringify({ lessonIds: [token(request, id(1))] });
   assert.throws(() => validatePathResponse(response, request.candidates, catalog.slice(1)));
   assert.throws(() => validatePathResponse(response, request.candidates, catalog, [id(1)]));
   assert.throws(() => validatePathResponse(response, request.candidates, [{ ...catalog[0], subject: "Biology" }]));
@@ -156,7 +181,7 @@ test("server action gates AI, minimizes data, and rechecks current catalog and c
     state.completion = async (messages, schema) => {
       calls.push(["completion", messages, schema]);
       if (state.afterCompletion) state.afterCompletion();
-      return state.response ?? JSON.stringify({ lessonIds: [id(2)] });
+      return state.response ?? JSON.stringify({ lessonIds: [JSON.parse(messages[1].content).lessons.find(item => item.title === catalog[1].title).id] });
     };
     globalThis[key] = state;
     const form = new FormData();
@@ -250,6 +275,6 @@ test("learning-path initial UI exposes local links but requires explicit eligibl
     assert.match(adult, /name="shareCourseContent"/);
     assert.match(adult, /<button[^>]*disabled=""/);
     const empty = renderToStaticMarkup(createElement(LearningPath, { ...props, catalog: [] }));
-    assert.match(empty, /No uncompleted SDLC lessons/);
+    assert.match(empty, /No uncompleted curriculum lessons/);
   } finally { hooks.deregister(); delete globalThis[key]; }
 });

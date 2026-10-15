@@ -8,6 +8,7 @@ import { requireAiAccess } from "@/lib/ai-eligibility-server";
 import { generateLesson } from "@/lib/openrouter";
 import { extractTeachingMaterial } from "@/lib/teaching-material";
 import type { ActionState } from "@/app/learning/actions";
+import { selectionFromForm } from "@/lib/curriculum";
 
 export async function searchLearners(_previous: DirectoryState, form: FormData): Promise<DirectoryState> {
   try {
@@ -48,6 +49,7 @@ export async function importTeachingMaterial(_previous: ActionState, form: FormD
     await requireAiAccess(user);
     if (form.get("consent") !== "on") return { error: "Confirm that the material is permitted to be sent for AI processing." };
     const topic = z.string().trim().min(5).max(500).parse(form.get("topic"));
+    const selection = selectionFromForm(form);
     const file = form.get("material");
     if (!(file instanceof File)) return { error: "Choose a teaching file." };
     const source = await extractTeachingMaterial(file);
@@ -56,13 +58,14 @@ export async function importTeachingMaterial(_previous: ActionState, form: FormD
     const { data: allowed, error: quotaError } = await client.rpc("forge_claim_request", { request_user: user.id });
     if (quotaError) return { error: "Generation is unavailable. Check the database migration." };
     if (!allowed) return { error: "Your five daily generation requests have been used." };
-    const content = await generateLesson(topic, source);
+    const content = await generateLesson(topic, selection, source);
+    await requireAiAccess(await currentUser());
     const { data, error } = await client.from("forge_lessons").insert({ owner_id: user.id, title: content.title, subject: content.subject, summary: content.summary, content }).select("id").single();
     if (error || !data) return { error: "Could not save the generated draft. Nothing was published." };
     revalidatePath("/teaching"); revalidatePath("/studio");
     return { success: "Editable private draft created. Review its slides and quiz before publication.", lessonId: data.id };
   } catch (error) {
-    if (error instanceof z.ZodError) return { error: "Enter an SDLC learning objective between 5 and 500 characters." };
+    if (error instanceof z.ZodError) return { error: "Choose a consistent curriculum subject/topic, complete the metadata, and enter a learning objective between 5 and 500 characters." };
     return { error: error instanceof Error ? error.message : "Material import failed. Try again." };
   }
 }

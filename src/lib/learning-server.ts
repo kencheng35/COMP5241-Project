@@ -10,6 +10,7 @@ export { isAdmin, isInstructor, canPublishLessons, canEditLesson, canManageEnrol
 export type LessonRow = {
   id: string; owner_id: string; title: string; subject: string; summary: string;
   content: LessonContent; visibility: "private" | "public"; version: number; created_at: string; review_requested: boolean;
+  metadata?: unknown;
 };
 export type AttemptRow = {
   id: string; user_id: string; lesson_id: string | null; original_lesson_id: string; lesson_title: string; lesson_version: number;
@@ -45,7 +46,7 @@ export async function displayName(user: User) {
 
 export async function visibleLessons(user: User) {
   const data = await collectRows((start, end) => database().from("forge_lessons")
-    .select("id,owner_id,title,subject,summary,visibility,version,created_at")
+    .select("id,owner_id,title,subject,summary,visibility,version,created_at,metadata:content->metadata")
     .or(`visibility.eq.public,owner_id.eq.${user.id}`).order("created_at", { ascending: false }).order("id").range(start, end));
   return data as Omit<LessonRow, "content">[];
 }

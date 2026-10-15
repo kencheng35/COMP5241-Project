@@ -61,6 +61,7 @@ test("mounted LessonPlayer progress scheduling (offline)", async context => {
           if (name === "next/link") return { __esModule: true, default: ({ children, ...props }) => load("react").createElement("a", props, children) };
           if (name === "lucide-react") return new Proxy({}, { get: () => () => null });
           if (name === "./lesson-preview") return { LessonPreview: () => null };
+          if (name === "./lesson-metadata") return { MetadataFields: () => null };
           if (!modules[name]) {
             if (!sources[name]) throw new Error(`Unexpected offline module: ${name}`);
             const loadedModule = { exports: {} };

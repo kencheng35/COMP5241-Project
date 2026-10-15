@@ -4,6 +4,7 @@ import { isInstructor, database, isAdmin, requireUser, visibleLessons } from "@/
 import { requireAiAccess } from "@/lib/ai-eligibility-server";
 import { collectRows } from "@/lib/learning";
 import { derivePreferences, lessonTopic } from "@/lib/recommendations";
+import { readMetadata } from "@/lib/curriculum";
 
 export default async function Paths() {
   const user = await requireUser();
@@ -22,12 +23,12 @@ export default async function Paths() {
     subjects: Array.isArray(profile?.preferred_subjects) ? profile.preferred_subjects.join(", ") : "",
     goals: profile?.learning_goals,
   });
-  const lessons = catalog.filter(lesson => lessonTopic(lesson)).map(({ id, title, subject, summary }) => ({ id, title, subject, summary }));
+  const lessons = catalog.filter(lesson => lessonTopic(lesson)).map(({ id, title, subject, summary, metadata }) => ({ id, title, subject, summary, metadata: readMetadata(subject, metadata) }));
   const completedIds = passed.map(row => String(row.original_lesson_id)).filter(id => lessons.some(lesson => lesson.id === id));
 
   return <LearnerShell active="/paths" name={String(profile?.display_name ?? "Learner")} admin={isAdmin(user)} instructor={isInstructor(user)}>
     <div className="portal-page">
-      <header className="portal-heading"><div><span className="eyebrow">SOFTWARE DEVELOPMENT LIFE CYCLE</span><h1>Learning paths</h1><p>Optional recommendations. Enrollment is always your choice.</p></div></header>
+      <header className="portal-heading"><div><span className="eyebrow">SOFTWARE DEVELOPMENT CURRICULUM</span><h1>Learning paths</h1><p>Optional recommendations. Enrollment is always your choice.</p></div></header>
       <LearningPath catalog={lessons} completedIds={completedIds} initialPreferences={preferences} aiAvailable={aiAvailable} />
     </div>
   </LearnerShell>;

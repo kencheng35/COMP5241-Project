@@ -7,6 +7,7 @@ import nextEnv from "@next/env";
 import { createClient } from "@supabase/supabase-js";
 import { chromium, expect } from "@playwright/test";
 import { lessonSchema } from "../src/lib/learning.ts";
+import { FAMILIES, curriculumSelectionSchema, subjectSelection, validateCurriculumContent } from "../src/lib/curriculum.ts";
 
 nextEnv.loadEnvConfig(process.cwd(), true, { info() {}, error() {} });
 const origin = new URL(process.env.E2E_BASE_URL ?? "http://127.0.0.1:3126");
@@ -66,10 +67,48 @@ async function denied(page, path) {
   await expect(page.locator('input[name="content"], input[name="learnerId"], .account-row')).toHaveCount(0);
 }
 function pass() { passed++; console.log(`PASS ${stage}`); }
+function fixtureCurriculum() {
+  const selection = subjectSelection("Software testing");
+  assert.ok(selection, "The existing testing fixture must resolve through the curriculum registry.");
+  return curriculumSelectionSchema.parse({
+    subject: FAMILIES[selection.family],
+    metadata: { version: 1, topic: selection.topic, audience: "learners", difficulty: "foundation",
+      outcomes: ["Plan a reproducible test from a software requirement."],
+      prerequisites: ["Read a short software requirement."] },
+  });
+}
+async function fillCurriculumMetadata(page, selection = fixtureCurriculum()) {
+  await page.locator('select[name="subject"]').selectOption(selection.subject);
+  await page.locator('select[name="curriculumTopic"]').selectOption(selection.metadata.topic);
+  await page.locator('select[name="audience"]').selectOption(selection.metadata.audience);
+  await page.locator('select[name="difficulty"]').selectOption(selection.metadata.difficulty);
+  await page.locator('textarea[name="outcomes"]').fill(selection.metadata.outcomes.join("\n"));
+  await page.locator('textarea[name="prerequisites"]').fill(selection.metadata.prerequisites.join("\n"));
+}
+async function completeOnboarding(page, trustedRole) {
+  const instructor = trustedRole === "admin" || trustedRole === "instructor";
+  await page.waitForURL("**/onboarding");
+  await expect(page.getByRole("group", { name: instructor ? "Instructor background and teaching goals" : "Learner background and learning goals", exact: true })).toBeVisible();
+  await page.getByLabel("Background", { exact: true }).selectOption(instructor ? "teaching" : "coursework");
+  await page.getByRole("form", { name: "Background and goals" }).getByRole("checkbox").first().check();
+  await page.getByLabel("Your chosen learning level", { exact: true }).selectOption("foundation");
+  await page.getByRole("button", { name: /^Save (and complete onboarding|background changes)$/ }).click();
+  await expect(page.getByRole("status")).toContainText("Background, goals and your chosen level are saved.");
+  await page.getByRole("link", { name: "Continue to dashboard", exact: true }).click();
+  await page.waitForURL("**/dashboard");
+}
+async function assertProfileRevision(page, id) {
+  const profile = checked(await database.from("profiles").select("age,learning_setup_revision,onboarding_completed_at,onboarding_background,diagnostic_summary").eq("id", id).single(), "Read temporary onboarding profile");
+  assert.equal(profile.age, 22);
+  assert.ok(profile.onboarding_completed_at, "Onboarding must be saved through its real UI.");
+  assert.ok(Number.isInteger(profile.learning_setup_revision) && profile.learning_setup_revision > 0);
+  await expect(page.locator('input[name="setupRevision"]')).toHaveValue(String(profile.learning_setup_revision));
+  return profile.learning_setup_revision;
+}
 async function lesson(owner, label, visibility = "private") {
   assert.ok(users.includes(owner.id), "Fixture owner must belong to this run");
-  const content = lessonSchema.parse({
-    title: `QA ${label} ${runId}`, subject: "Software testing",
+  const content = validateCurriculumContent(lessonSchema.parse({
+    title: `QA ${label} ${runId}`, ...fixtureCurriculum(),
     summary: "Manually reviewed SDLC fixture covering test planning, execution and defect review.",
     slides: ["Plan requirements", "Design test cases", "Execute tests", "Review defects"].map(title => ({ title,
       body: "Trace each software requirement to a reproducible test and compare actual with expected results.",
@@ -78,7 +117,7 @@ async function lesson(owner, label, visibility = "private") {
     questions: Array.from({ length: 10 }, (_, index) => ({ prompt: `SDLC check ${index + 1}: what establishes expected software behavior?`,
       options: ["Agreed requirements", "Random output", "Skipping tests", "Ignoring defects"], correct: 0,
       explanation: "Agreed requirements define expected behavior and guide test cases." })),
-  });
+  }));
   return checked(await database.from("forge_lessons").insert({ owner_id: owner.id, title: content.title,
     subject: content.subject, summary: content.summary, content, visibility,
     published_at: visibility === "public" ? new Date().toISOString() : null,
@@ -124,7 +163,10 @@ async function account(role) {
   await page.getByLabel("Email address", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Log in", exact: true }).click();
-  await page.waitForURL(`${origin.origin}/dashboard`);
+  await completeOnboarding(page, user.app_metadata?.role);
+  await visit(page, "/profile");
+  await assertProfileRevision(page, user.id);
+  await visit(page, "/dashboard");
   return { id: user.id, email, page, context };
 }
 async function accountRow(admin, target) {
@@ -138,10 +180,13 @@ async function accountRow(admin, target) {
 }
 
 try {
+  step("onboarding/profile schema preflight");
+  evidence = "Requires age eligibility and 20261015_onboarding_diagnostic.sql on the approved disposable database; no fixtures created yet.";
+  checked(await database.from("profiles").select("age,learning_setup_revision,onboarding_completed_at,onboarding_background,diagnostic_summary").limit(0), "Onboarding/profile schema preflight");
   browser = await chromium.launch();
   step("anonymous protected-page denial");
   const anonymous = await browser.newContext();
-  for (const path of ["/admin", "/admin/accounts", "/teaching", "/studio", "/reports"]) {
+  for (const path of ["/admin", "/admin/accounts", "/teaching", "/studio", "/reports", "/onboarding", "/diagnostic"]) {
     evidence = `Anonymous ${path} must redirect to a local login page`;
     const response = await anonymous.request.get(`${origin.origin}${path}`, { maxRedirects: 0 });
     assert.equal(response.status(), 307, "Anonymous protected request must redirect");
@@ -182,6 +227,10 @@ try {
   const capturedGrant = await grantRequest;
   await success(admin.page, "Account permissions saved.");
   assert.equal(checked(await database.auth.admin.getUserById(owner.id), "Verify temporary role").user.app_metadata.role, "instructor");
+  await visit(owner.page, "/onboarding");
+  await completeOnboarding(owner.page, "instructor");
+  const instructorBackground = checked(await database.from("profiles").select("onboarding_background").eq("id", owner.id).single(), "Verify trusted instructor onboarding").onboarding_background;
+  assert.equal(instructorBackground.role, "instructor");
   await screenshot(admin.page, "instructor-granted");
   await responsive(admin.page, "account-layout");
   pass();
@@ -294,7 +343,8 @@ try {
   await publishPage.locator('input[name="publish"]').check();
   await editor(owner.page, own.id);
   await visit(importPage, "/teaching");
-  await importPage.getByLabel("SDLC learning objective").fill("Plan software tests from agreed requirements.");
+  await fillCurriculumMetadata(importPage);
+  await importPage.getByLabel("Learning objective within the selected curriculum topic").fill("Plan software tests from agreed requirements.");
   await importPage.getByLabel("Teaching file").setInputFiles({ name: "sdlc.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\nQA fixture: role denial must occur before parsing.\n%%EOF") });
   await importPage.locator('input[name="consent"]').check();
   await visit(enrollmentPage, `/teaching?lesson=${own.id}`);
