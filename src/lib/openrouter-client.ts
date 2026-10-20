@@ -3,7 +3,7 @@ import { z } from "zod";
 const freeModelId = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*:free$/;
 
 export function configuredFreeModels(env: NodeJS.ProcessEnv = process.env) {
-  const primary = env.OPENROUTER_MODEL ?? "qwen/qwen3.8-27b:free";
+  const primary = env.OPENROUTER_MODEL ?? "nvidia/nemotron-3-ultra-550b-a55b:free";
   const models = [...new Set([primary.trim(), ...(env.OPENROUTER_FALLBACK_MODELS ?? "").split(",").map((model) => model.trim()).filter(Boolean)])];
   if (models.length > 10 || models.some((model) => !freeModelId.test(model))) {
     throw new Error("Only explicit free model IDs are enabled (at most ten models).");
@@ -70,8 +70,10 @@ export async function completion(messages: Message[], schema?: Record<string, un
   if (!key) throw new OpenRouterError("Lesson generation is not configured.");
   const models = configuredFreeModels(env);
   const fetchRequest = options.fetch ?? fetch;
-  const timeoutMs = options.timeoutMs ?? 55000;
-  if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 55000) throw new OpenRouterError("Invalid AI request timeout.");
+  const timeoutMs = options.timeoutMs ?? 30000;
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) throw new OpenRouterError("Invalid AI request timeout.");
+  // Python len(text): total Unicode code points in all outgoing message content, not UTF-16 units.
+  const characterCount = messages.reduce((total, { content }) => total + [...content].length, 0);
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_, reject) => {
@@ -103,7 +105,7 @@ export async function completion(messages: Message[], schema?: Record<string, un
           provider: { data_collection: "deny", zdr: true, require_parameters: true },
           reasoning: { enabled: false },
           messages,
-          max_tokens: schema ? 6500 : 600,
+          max_tokens: Math.min(16384, Math.max(256, characterCount * 3)),
           ...(schema ? { response_format: { type: "json_schema", json_schema: { name: "learning_lesson", strict: true, schema } } } : {}),
         }),
       });

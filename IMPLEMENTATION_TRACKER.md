@@ -2,6 +2,21 @@
 
 Last reviewed: 2026-10-20
 
+## 20 October 2026 — approved OpenRouter configuration (IMPLEMENTER; independent QA pending)
+
+**Owner/deliverable:** bounded configuration change in `src/lib/openrouter-client.ts`, the stale comment in `src/lib/interview-ai.ts`, `tests/openrouter.test.mjs`, `.env.example`, model/fallback assignments only in ignored/untracked `.env.local`, and these small README/tracker updates. Existing activity-step and other work is preserved. Default/local model: `nvidia/nemotron-3-ultra-550b-a55b:free`; no configured fallback. Optional ordered free fallbacks remain supported.
+
+**Contract:** all outgoing message-content Unicode code points (Python `len`, including system/history/reference text; no separators, role fields or schema JSON) determine `min(16384, max(256, count * 3))` for structured lessons and plain coaching/interviews alike. One 30,000 ms default/maximum deadline covers catalog, inference and bodies; smaller injectable deadlines remain valid. Zero-price catalog checks, strict privacy/ZDR/required parameters, disabled reasoning, structured output, abort, sanitized failures and eligibility protections remain intact. Missing/nonzero catalog entries are not bypassed.
+
+**Actual local evidence — Windows, Node 25.2.1, existing dependencies:**
+- `node --experimental-strip-types --test tests/openrouter.test.mjs tests/interviews.test.mjs`: baseline **30/30**; immediate post-change **36/36**, no failures/cancellations/skips. Node timer mocks prove exact 30,000 ms and shared cumulative deadlines without a 30-second wait; token coverage includes adjacent clamp boundaries, both schema modes, astral Unicode and combining characters.
+- Focused pre-change name-filtered regression run: **2 passed / 8 failed**, confirming model, token and timeout mismatches. One earlier red timeout case accidentally omitted its fetch mock and reached the public catalog before failing closed; no authenticated inference or quota probe followed. The corrected case explicitly forbids network and the subsequent red/green runs use synthetic fetch only.
+- `node node_modules/eslint/bin/eslint.js src/lib/openrouter-client.ts src/lib/interview-ai.ts tests/openrouter.test.mjs` and `node node_modules/typescript/bin/tsc --noEmit --incremental false`: both exit 0; no Next environment loader.
+- Local env had no model/fallback assignments; only those two were added. Model-only checks confirm the requested ID and empty fallback exactly once. A byte-exact remove/add roundtrip confirmed preservation of the remaining bytes, including CRLF/no final newline (the first verifier's expected trailing newline was corrected). Git confirms ignored, untracked and nothing staged.
+- Final focused rerun: **36/36**; scoped lint, direct TypeScript and `git diff --check` pass. The three unrelated modified application/test files match their initial SHA-256 fingerprints. New documentation references resolve; the broader link check found the preexisting missing `supabase/migrations/20261015_onboarding_diagnostic.sql` link (also present in HEAD README), left unchanged as out of scope.
+
+**Acceptance/limits:** request independent QA of this frozen configuration/tests; no independent acceptance, live catalog/provider availability, connected fix or release certification is claimed. Full suite/build, services, quota probes, remote writes, learner-data access, installs, deployment and commits were not performed; `.env.prod` was untouched. Earlier evidence and connected gates remain open.
+
 ## Current coordination — 20 October 2026 - lesson creation repair
 
 **Governing current status:** Forge QA independently accepted the lesson-creation repair within bounded **LOCAL** checks on **20 October 2026, 09:34–09:36 HKT: 232 tests passed**, with lint, typecheck and build passing. This supersedes the current-status wording in the historical 15 October entry below, not its dated evidence. It is **not live, release or whole-project acceptance**: the original user's connected failure/root cause is not established, healthy local mocks worked before some repairs, and neither “live generation fixed” nor “all creation failures resolved” is supported. The whole project and associated tasks remain **Open/Partial**.
@@ -40,6 +55,36 @@ Last reviewed: 2026-10-20
 **Open connected gates and authorization:** historical missing migrations and provider 429/404 observations were **not rechecked**. Read-only remote `check:setup` was skipped because database target classification was unconfirmed. Offline Next dev checks covered configuration presence/public validity, OpenRouter key presence and the `:free` model suffix without revealing values; `.env.prod` was not imported and is **not automatically loaded by Next/Vercel**. Connected schema/cache, RPC/grants, real route/action transport, provider availability/quota and actual persisted creation require the confirmed intended disposable nonproduction target and app origin, plus separate permission for any quota-consuming AI probe. No remote writes or reads of learner data, migration application, connected suites, live AI/quota calls, deployment or commit occurred. Coordinator/Owner must authorize and arrange independent connected QA; local acceptance does not close these gates.
 
 **Documentation handover boundary:** only this tracker and the short README current-status note are reconciled here; the six existing application/test modifications and all dated historical logs are preserved. Documentation whitespace, local links and content consistency are the only checks for this handover; no test rerun or additional implementation is required.
+
+### 20 October residual activity-step defect — IMPLEMENTER follow-up; independent QA pending
+
+**New report after the first repair, not a retroactive closure:** the user's exact `Please check activity.steps.1: Too small: expected string to have >=1 characters.` was reproduced by the mounted real editor submitting a blank second line. This establishes this local manual-authoring defect, not the original connected generation failure's root cause. The six previous lesson repairs and their dated evidence above remain preserved.
+
+| Work | Owner | Dependency / deliverable / acceptance |
+| --- | --- | --- |
+| Activity-step entry follow-up | Forge Implementer | Delivered only in `src/components/learning-controls.tsx`, `tests/manual-authoring.test.mjs`, `tests/learning.test.mjs`, plus these short README/tracker entries |
+| Independent regression/visual QA | Forge QA (requested, not performed by implementer) | Frozen follow-up; rerun focused tests, full-suite/build gates and review raw typing, canonical preview/save, count/length focus, saved-ID/version and uncertainty behavior |
+| Connected acceptance | Coordinator + Owner | Still pending authorized disposable nonproduction target/app origin and separately authorized AI quota use; no connected acceptance claimed |
+
+**Behavior:** raw textarea state retains Enter, caret, whitespace and failed-save input. A derived ordered list trims surrounding whitespace and ignores separator-only blank lines for preview, hidden JSON and dirty/saved baseline. Instructions explicitly explain this formatting treatment. Associated inline feedback/native custom validity focuses the steps field for fewer than 3 or more than 6 real steps, or a step over 120 characters; meaningful content is never silently dropped/truncated and missing steps are never fabricated. No shared helper, server action or schema changes were necessary; direct action tampering remains rejected by the authoritative existing bounds, and `z.toJSONSchema(lessonSchema)` retains its strict provider-compatible activity shape.
+
+**Actual local commands/results (Windows, Node 25.2.1, existing dependencies, offline Playwright Chromium 153.0.8010.12):**
+
+| Command | Implementer result |
+| --- | --- |
+| `node --experimental-strip-types --test tests/manual-authoring.test.mjs` before fix | Initial test locator failure: **17 passed, 2 failed**; corrected locator then reproduced the **exact user error**, **17 passed, 2 failed** (new regression and parent) |
+| Same command immediately after editor fix | **19 passed, 0 failed/skipped** |
+| Same command after expanded activity coverage | **24 passed, 0 failed/skipped** |
+| `node --experimental-strip-types --test tests/manual-authoring.test.mjs tests/learning.test.mjs` | Final **31 passed, 0 failed/cancelled/skipped** |
+| `node node_modules/eslint/bin/eslint.js src/components/learning-controls.tsx tests/manual-authoring.test.mjs tests/learning.test.mjs` | Exit 0 |
+| `node node_modules/typescript/bin/tsc --noEmit --incremental false` | Exit 0; direct compiler, no Next/environment loader |
+| Bundled Git `git diff --check` | Passed |
+
+Coverage includes raw `'\n\n'` blank-route default; blank second, leading/trailing and whitespace-only lines; CRLF; Enter then next-step typing/caret; native validation focus/no action/write for insufficient/excess/overlong steps; valid six-step/120-character boundaries; 320px/1440px Tab/Shift+Tab, Enter and Escape; preview/submission/persisted order; three-step create and same-ID/version-2 update; clean formatting-only versus dirty meaningful edits; retained failed-save input and retry; direct invalid create/update actions; unchanged provider JSON schema. Existing manual/AI/ownership/uncertain-save cases in the same harness also remain green. Harness assertions recorded **0 unexpected browser/Node network attempts and 0 page errors**; persistence/provider dependencies were synthetic only.
+
+**Visual evidence:** six `activity-{insufficient,overlong,preview}-{320,1440}.png` screenshots from the expanded green run were actually opened and inspected in `C:\Users\SOLUSER\AppData\Local\Temp\forge-manual-qa01-LAlwaQ`. Feedback/help/focus wrap without overlapping controls; preview shows exactly three ordered nonempty steps at both widths. Final focused-run captures are retained separately at `C:\Users\SOLUSER\AppData\Local\Temp\forge-manual-qa01-ASw8zj`; these additional captures are not claimed as newly inspected. These are real-component/CSS offline mounts, not deployed routing/action transport or screenreader acceptance.
+
+**Frozen for independent QA:** no full suite/build rerun or release certification by the implementer. No environment-file reads/imports, remote services/quota/DB operations, connected suites, installs, migrations, commits or deployment; browser contexts close through harness cleanup. Existing unrelated files and earlier documentation are preserved. Initial Git inspection reported a clean baseline despite the supplied dirty-worktree expectation; no reset/stash/cleanup of existing work was performed. All connected/provider/privacy/release gates above remain open.
 
 ## Current coordination — 15 October 2026, 03/18 + 08 integration
 
@@ -208,7 +253,7 @@ Owned implementation files added:
 
 Narrow existing-file changes: `src/components/learner-shell.tsx`, `src/lib/supabase/middleware.ts`, `src/app/api/account/export/route.ts`, `scripts/check-setup.mjs`, `src/app/profile/page.tsx`, `src/app/profile/delete/page.tsx`, `src/app/learning/actions.ts` (quota wording only), `tests/account.test.mjs`, `README.md`, `IMPLEMENTATION_TRACKER.md`. No existing lesson grading/report/ownership, coach storage/privacy client, old migration/base schema, dependency or Task24 runtime changes.
 
-Limits implemented and disclosed: 8 learner answers + opening; 1,200 learner / 1,600 assistant characters; 128 KiB transcript; 12,000 total provider-message characters; unchanged 600-token completion; 3 explicit attempts per turn; one pending turn per owner; 75-second DB lease; 100 retained interviews; stable metadata-only 20-row history pages. Expired pending work requires explicit retry/finish/delete before another interview starts. Failed inference consumes shared quota; no automatic retries/refunds. Successful eighth answer requests final formative feedback. Early finish retains existing feedback and makes no extra AI request or invented summary/score/hiring decision. Retention ends only at interview/account deletion; infrastructure backups/log/provider retention are separate gates.
+Limits implemented and disclosed: 8 learner answers + opening; 1,200 learner / 1,600 assistant characters; 128 KiB transcript; 12,000 total provider-message characters; then-unchanged 600-token completion (superseded by the approved 20 October content-based budget above); 3 explicit attempts per turn; one pending turn per owner; 75-second DB lease; 100 retained interviews; stable metadata-only 20-row history pages. Expired pending work requires explicit retry/finish/delete before another interview starts. Failed inference consumes shared quota; no automatic retries/refunds. Successful eighth answer requests final formative feedback. Early finish retains existing feedback and makes no extra AI request or invented summary/score/hiring decision. Retention ends only at interview/account deletion; infrastructure backups/log/provider retention are separate gates.
 
 ### Actual Task25 commands and results
 

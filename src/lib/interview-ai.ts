@@ -33,6 +33,6 @@ export function interviewMessages(row: Interview): Message[] {
   return [system, ...recent, latest];
 }
 export async function interviewReply(row: Interview) {
-  // No schema argument: retain the existing 600-token text ceiling and privacy client.
+  // No schema argument: use the shared content-based token budget and strict privacy client.
   return assistantTextSchema.parse(await completion(interviewMessages(row)));
 }

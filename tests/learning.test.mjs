@@ -1,9 +1,40 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { collectRows, gradeQuiz, safeDestination } from "../src/lib/learning.ts";
+import { z } from "zod";
+import { collectRows, gradeQuiz, lessonSchema, safeDestination } from "../src/lib/learning.ts";
 import { canEditLesson, canManageEnrollment, canPublishLessons, isAdmin, isInstructor } from "../src/lib/permissions.ts";
 
 const questions = Array.from({ length: 10 }, () => ({ correct: 0 }));
+
+test("authoritative activity schema retains bounds and rejects a blank second step without normalizing", () => {
+  const parse = steps => lessonSchema.shape.activity.parse({ prompt: "Order the work", steps }).steps;
+  for (const steps of [["First", "Second", "Third"], ["x".repeat(120), "Second", "Third", "Fourth", "Fifth", "Sixth"]]) {
+    assert.deepEqual(parse(steps), steps);
+  }
+  for (const steps of [[], ["First", "Second"], Array(7).fill("Real step"), ["First", "x".repeat(121), "Third"]]) {
+    assert.throws(() => parse(steps), z.ZodError);
+  }
+  const invalid = lessonSchema.shape.activity.safeParse({ prompt: "Order the work", steps: ["First", "", "Third"] });
+  assert.equal(invalid.success, false);
+  assert.deepEqual(invalid.error.issues[0].path, ["steps", 1]);
+  assert.deepEqual(parse([" First ", "Second", "Third"]), [" First ", "Second", "Third"], "formatting normalization belongs to the editor, not an AI-schema transform");
+});
+
+test("OpenRouter lesson JSON schema remains representable with strict activity shape and unchanged step bounds", () => {
+  const schema = z.toJSONSchema(lessonSchema);
+  assert.equal(schema.additionalProperties, false);
+  assert.equal(schema.properties.activity.additionalProperties, false);
+  assert.deepEqual(schema.properties.activity.required, ["prompt", "steps"]);
+  assert.deepEqual(schema.properties.activity.properties.steps, {
+    type: "array", minItems: 3, maxItems: 6,
+    items: { type: "string", minLength: 1, maxLength: 120 },
+  });
+  assert.deepEqual(schema.properties.activity.properties.prompt, { type: "string", minLength: 1, maxLength: 240 });
+  assert.equal(schema.properties.slides.minItems, 4);
+  assert.equal(schema.properties.slides.maxItems, 6);
+  assert.equal(schema.properties.questions.minItems, 10);
+  assert.equal(schema.properties.questions.maxItems, 10);
+});
 
 test("instructor permissions are trusted, owner-scoped and preserve private drafts", () => {
   const learner = { id: "owner", app_metadata: {}, user_metadata: { role: "admin" } };

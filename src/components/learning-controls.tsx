@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, Bookmark, Check, ChevronLeft, ChevronRight, LoaderCircle, Plus, Save, Trash2 } from "lucide-react";
 import { attend, saveBookmark, saveResume, submitQuiz, updateLesson, type ActionState } from "@/app/learning/actions";
 import type { LessonContent } from "@/lib/learning";
@@ -126,8 +126,23 @@ export function LessonPlayer({ id, version, content, saved, revision, resumeAvai
 }
 
 export function LessonEditor({ id, version, initial, action: saveLesson, admin }: { id: string; version: number; initial: LessonContent; action: (previous: ActionState, form: FormData) => Promise<ActionState>; admin: boolean }) {
-  const [content, setContent] = useState(initial);
-  const [savedContent, setSavedContent] = useState(JSON.stringify(initial));
+  const [draft, setContent] = useState(initial);
+  // Keep raw typing (including Enter/caret position) separate from the canonical lesson.
+  const [stepsText, setStepsText] = useState(initial.activity.steps.join("\n"));
+  const steps = stepsText.split(/\r?\n/).map(step => step.trim()).filter(Boolean);
+  const content = { ...draft, activity: { ...draft.activity, steps } };
+  const [savedContent, setSavedContent] = useState(JSON.stringify(content));
+  const stepsId = useId();
+  const stepsInput = useRef<HTMLTextAreaElement>(null);
+  const longStep = steps.findIndex(step => step.length > 120);
+  const stepsError = steps.length < 3
+    ? `Add ${3 - steps.length} more nonempty ${steps.length === 2 ? "step" : "steps"}. Enter 3–6 steps in the correct order; you have ${steps.length}.`
+    : steps.length > 6
+      ? `You have ${steps.length} steps. Remove or combine steps to keep 3–6 nonempty steps.`
+      : longStep >= 0
+        ? `Step ${longStep + 1} has ${steps[longStep].length} characters. Shorten it to 120 characters or fewer.`
+        : "";
+  useEffect(() => { stepsInput.current?.setCustomValidity(stepsError); }, [stepsError]);
   const [persisted, setPersisted] = useState({ id, version });
   const [uncertain, setUncertain] = useState(false);
   const readyInput = useRef<HTMLInputElement>(null);
@@ -190,7 +205,10 @@ export function LessonEditor({ id, version, initial, action: saveLesson, admin }
     <button className="secondary-button" type="button" disabled={content.slides.length >= 6} onClick={() => setContent({ ...content, slides: [...content.slides, { title: "", body: "", example: "" }] })}><Plus size={16} />Add slide</button>
     <h2>Ordering activity</h2>
     <label>Prompt<input value={content.activity.prompt} required maxLength={240} onChange={event => setContent({ ...content, activity: { ...content.activity, prompt: event.target.value } })} /></label>
-    <label>Steps in correct order, one per line<textarea value={content.activity.steps.join("\n")} required onChange={event => setContent({ ...content, activity: { ...content.activity, steps: event.target.value.split("\n") } })} /></label>
+    <label htmlFor={stepsId}>Steps in correct order, one per line</label>
+    <textarea ref={stepsInput} id={stepsId} value={stepsText} required aria-invalid={Boolean(stepsError)} aria-describedby={`${stepsId}-help${stepsError ? ` ${stepsId}-error` : ""}`} onChange={event => setStepsText(event.target.value)} />
+    <p id={`${stepsId}-help`}>Enter 3–6 nonempty steps, up to 120 characters each. Blank lines and surrounding whitespace are ignored in the preview and saved lesson; your typing stays here.</p>
+    {stepsError && <p id={`${stepsId}-error`} className="form-notice notice-error">{stepsError}</p>}
     <h2>Final quiz</h2>
     {content.questions.map((question, index) => <details key={index}>
       <summary>Question {index + 1}</summary>

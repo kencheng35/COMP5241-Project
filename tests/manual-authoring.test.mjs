@@ -221,10 +221,157 @@ test("mounted real studio: blank manual creation and AI generation persistence c
   assert.equal(rows.get(calls[0].id).version, 2);
   assert.equal(rows.get(calls[0].id).title, "Updated software requirements");
 
+  await context.test("activity blank second line is formatting, not an empty saved step", async () => {
+    const page = await mount();
+    try {
+      const raw = "Discover\n\nDescribe\nValidate";
+      await page.getByLabel(/^Steps in correct order, one per line/).fill(raw);
+      await page.getByRole("button", { name: "Save lesson", exact: true }).click();
+      await page.waitForFunction(() => window.manualSettled === 1);
+      assert.equal(await page.getByRole("alert").count(), 0,
+        `Blank separator must save successfully, not: ${await page.getByRole("alert").allTextContents()}`);
+      await page.getByRole("status").filter({ hasText: "Lesson created." }).waitFor();
+      assert.deepEqual(rows.get(calls.at(-1).id).content.activity.steps, fixture.activity.steps);
+      assert.equal(await page.getByLabel(/^Steps in correct order, one per line/).inputValue(), raw);
+    } finally { await page.close(); }
+  });
+
+  const submittedSteps = async page => JSON.parse(await page.locator('input[name="content"]').inputValue()).activity.steps;
+  async function leaveNotices(page) {
+    return page.evaluate(() => {
+      const notices = [];
+      window.confirm = message => { notices.push(message); return false; };
+      const link = document.createElement("a"); link.href = "/catalog";
+      link.addEventListener("click", event => event.preventDefault());
+      document.body.append(link); link.click(); link.remove();
+      return notices;
+    });
+  }
+  for (const width of [320, 1440]) {
+    await context.test(`activity bounds focus the field without writes and preserve Enter/caret at ${width}px`, async () => {
+      const page = await mount();
+      try {
+        await page.setViewportSize({ width, height: 900 });
+        const field = page.getByLabel("Steps in correct order, one per line", { exact: true });
+        const before = calls.length;
+        for (const [raw, message, screenshot] of [
+          ["\n\n", /Add 3 more nonempty steps/, "insufficient"],
+          ["", /Add 3 more nonempty steps/],
+          ["Discover\n \t\n", /Add 2 more nonempty steps/],
+          ["Discover\nDescribe", /Add 1 more nonempty step/],
+          [Array.from({ length: 7 }, (_, index) => `Step ${index + 1}`).join("\n"), /You have 7 steps/],
+          [`Discover\n${"x".repeat(121)}\nValidate`, /Step 2 has 121 characters.*120/, "overlong"],
+        ]) {
+          await field.fill(raw);
+          assert.equal(await field.getAttribute("aria-invalid"), "true");
+          const feedback = await field.evaluate(element => document.getElementById(`${element.id}-error`).textContent);
+          assert.match(feedback, message);
+          assert.equal(await field.evaluate(element => element.getAttribute("aria-describedby").includes(`${element.id}-error`)), true);
+          assert.match(await field.evaluate(element => element.validationMessage), message);
+          await page.getByRole("button", { name: "Save lesson", exact: true }).focus();
+          await page.keyboard.press("Enter");
+          assert.equal(await field.evaluate(element => element === document.activeElement), true);
+          assert.equal(await field.inputValue(), raw, "invalid input must not be cleared or truncated");
+          assert.equal(calls.length, before);
+          assert.equal(await page.evaluate(() => window.manualSettled), 0, "invalid steps should not invoke the action");
+          if (screenshot) {
+            await field.evaluate(element => element.scrollIntoView({ block: "center" }));
+            await page.screenshot({ path: join(screenshots, `activity-${screenshot}-${width}.png`) });
+          }
+        }
+        const boundary = ["x".repeat(120), "Second", "Third", "Fourth", "Fifth", "Sixth"];
+        await field.fill(boundary.join("\n"));
+        assert.equal(await field.evaluate(element => element.checkValidity()), true);
+        assert.deepEqual(await submittedSteps(page), boundary, "six real steps and exactly 120 characters must remain intact");
+        await field.fill("Discover\nDescribe");
+        await field.press("End");
+        await field.press("Enter");
+        assert.equal(await field.inputValue(), "Discover\nDescribe\n", "Enter must survive the controlled rerender");
+        assert.equal(await field.evaluate(element => element.selectionStart), "Discover\nDescribe\n".length);
+        assert.deepEqual(await submittedSteps(page), ["Discover", "Describe"], "no fabricated third step");
+        await page.keyboard.type("Validate");
+        assert.equal(await field.inputValue(), fixture.activity.steps.join("\n"));
+        assert.equal(await field.evaluate(element => element.selectionStart), fixture.activity.steps.join("\n").length);
+        assert.equal(await field.getAttribute("aria-invalid"), "false");
+        assert.equal(await field.evaluate(element => element.validationMessage), "");
+        await field.press("Tab");
+        assert.equal(await page.evaluate(() => document.activeElement?.textContent), "Question 1");
+        await page.keyboard.press("Shift+Tab");
+        assert.equal(await field.evaluate(element => element === document.activeElement), true);
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      } finally { await page.close(); }
+    });
+
+    await context.test(`activity formatting, preview, create/update, dirty baseline and retained failure at ${width}px`, async () => {
+      const page = await mount();
+      try {
+        await page.setViewportSize({ width, height: 900 });
+        const field = page.getByLabel("Steps in correct order, one per line", { exact: true });
+        for (const raw of [
+          "Discover\n\nDescribe\nValidate",
+          "\n\n Discover \n Describe \n Validate \n\n",
+          "\t\n Discover \n \t \n Describe \n Validate \n ",
+          "\r\n Discover \r\n \t\r\n Describe \r\n Validate \r\n",
+        ]) {
+          await field.fill(raw);
+          assert.equal(await field.inputValue(), raw.replace(/\r\n/g, "\n"), "only the browser's CRLF conversion changes raw entry");
+          assert.deepEqual(await submittedSteps(page), fixture.activity.steps);
+          assert.equal(await field.evaluate(element => element.checkValidity()), true);
+          assert.deepEqual(await leaveNotices(page), [], "formatting alone must not mark canonical content dirty");
+          await page.getByRole("button", { name: "Preview lesson", exact: true }).focus();
+          await page.keyboard.press("Enter");
+          const practice = page.getByRole("dialog").locator("section").filter({ has: page.getByText("PRACTICE", { exact: true }) });
+          assert.deepEqual(await practice.locator("li").allTextContents(), await submittedSteps(page));
+          await practice.scrollIntoViewIfNeeded();
+          if (raw.includes("\r\n")) await page.screenshot({ path: join(screenshots, `activity-preview-${width}.png`) });
+          await page.keyboard.press("Escape");
+          assert.equal(await page.getByRole("button", { name: "Preview lesson", exact: true }).evaluate(element => element === document.activeElement), true);
+        }
+        const raw = await field.inputValue(), before = calls.length;
+        await page.getByRole("button", { name: "Save lesson", exact: true }).focus();
+        await page.keyboard.press("Enter");
+        await page.getByRole("status").filter({ hasText: "Lesson created." }).waitFor();
+        const id = calls.at(-1).id;
+        assert.deepEqual(rows.get(id).content.activity.steps, await submittedSteps(page));
+        assert.equal(await field.inputValue(), raw);
+        assert.deepEqual(await leaveNotices(page), [], "confirmed normalized save establishes the clean baseline");
+
+        const changed = ["Discover", "Describe  a test", "Validate"];
+        const changedRaw = `\n ${changed[0]} \n\n ${changed[1]} \n ${changed[2]} \n`;
+        await field.fill(changedRaw);
+        assert.equal((await leaveNotices(page)).length, 1, "meaningful edits must remain dirty");
+        failSave = true;
+        await page.getByRole("button", { name: "Save lesson", exact: true }).click();
+        await page.getByRole("alert").waitFor();
+        assert.equal(await page.getByRole("alert").evaluate(element => element === document.activeElement), true);
+        assert.equal(await field.inputValue(), changedRaw);
+        assert.deepEqual(await submittedSteps(page), changed, "internal spaces are meaningful, not collapsed");
+        assert.equal((await leaveNotices(page)).length, 1, "failure must not change the saved baseline");
+        assert.deepEqual(rows.get(id).content.activity.steps, fixture.activity.steps);
+        failSave = false;
+        await page.getByRole("button", { name: "Save lesson", exact: true }).focus();
+        await page.keyboard.press("Enter");
+        await page.getByRole("status").filter({ hasText: "Lesson saved." }).waitFor();
+        assert.deepEqual(calls.slice(before).map(call => call.kind), ["insert", "update"]);
+        assert.equal(calls.at(-1).id, id);
+        assert.equal(rows.get(id).version, 2);
+        assert.deepEqual(rows.get(id).content.activity.steps, changed);
+        assert.equal(await field.inputValue(), changedRaw);
+        assert.deepEqual(await leaveNotices(page), []);
+        await field.fill(`${changed.join("\n")}\n\n`);
+        assert.deepEqual(await leaveNotices(page), [], "formatting after update must not re-dirty the lesson");
+        await page.getByRole("button", { name: "Preview lesson", exact: true }).click();
+        assert.deepEqual(await page.getByRole("dialog").locator("section").filter({ has: page.getByText("PRACTICE", { exact: true }) }).locator("li").allTextContents(), changed);
+      } finally { failSave = false; await page.close(); }
+    });
+  }
+
   await context.test("real blank route reveals incomplete quiz, then keyboard create and same-ID save at 320px/desktop", async () => {
     for (const width of [320, 1440]) {
       const page = await mount(undefined, false, undefined, { manual: "1" });
       await page.setViewportSize({ width, height: 900 });
+      assert.equal(await page.getByLabel("Steps in correct order, one per line", { exact: true }).inputValue(), "\n\n");
+      assert.deepEqual(await submittedSteps(page), [], "the raw empty default must not invent real steps");
       await page.getByLabel("Title", { exact: true }).fill(fixture.title);
       await page.locator('select[name="subject"]').selectOption(fixture.subject);
       await page.locator('select[name="curriculumTopic"]').selectOption(fixture.metadata.topic);
@@ -572,6 +719,21 @@ test("mounted real studio: blank manual creation and AI generation persistence c
     for (const [key, value] of Object.entries(extra)) form.set(key, value);
     return form;
   };
+  await context.test("direct create/update tampering still rejects empty, too few/many and overlong activity steps", async () => {
+    const before = calls.length, row = rows.get(calls[0].id), saved = structuredClone(row);
+    for (const steps of [[], ["Discover", "", "Validate"], ["Discover", "Describe"],
+      Array(7).fill("Real step"), ["Discover", "x".repeat(121), "Validate"]]) {
+      const content = { ...fixture, activity: { ...fixture.activity, steps } };
+      for (const [action, extra] of [["createManualLesson", {}], ["updateLesson", { lessonId: row.id, version: row.version }]]) {
+        const result = await mod.exports[action]({}, formFor(content, extra));
+        assert.match(result.error, /Please check activity.steps/);
+        assert.equal(result.success, undefined);
+        assert.equal(result.saveUncertain, undefined);
+      }
+    }
+    assert.equal(calls.length, before, "server bounds must reject before any write");
+    assert.deepEqual(row, saved);
+  });
   await context.test("actual create/update actions reject forged metadata, anonymous, foreign ownership and publishing", async () => {
     const before = calls.length;
     for (const content of [{ ...fixture, metadata: undefined }, { ...fixture, subject: "Biology" },

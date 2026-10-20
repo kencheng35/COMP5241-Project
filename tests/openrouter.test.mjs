@@ -11,13 +11,16 @@ registerHooks({
   },
 });
 const { generateLesson, coachReply } = await import("../src/lib/openrouter.ts");
+const { interviewReply } = await import("../src/lib/interview-ai.ts");
 const { FAMILIES } = await import("../src/lib/curriculum.ts");
 
+const defaultModel = "nvidia/nemotron-3-ultra-550b-a55b:free";
 const primary = "example/primary:free";
 const fallback = "example/fallback:free";
 const catalog = { data: [primary, fallback].map((id) => ({ id, pricing: { prompt: "0", completion: "0" } })) };
 
 test("free models preserve primary-first fallback order, trim and deduplicate", () => {
+  assert.deepEqual(configuredFreeModels({}), [defaultModel]);
   assert.deepEqual(configuredFreeModels({ OPENROUTER_MODEL: primary, OPENROUTER_FALLBACK_MODELS: ` ${fallback}, ,${primary},${fallback}` }), [primary, fallback]);
   assert.deepEqual(configuredFreeModels({ OPENROUTER_MODEL: primary }), [primary]);
 });
@@ -49,6 +52,59 @@ const stubFetch = (reply, calls = []) => async (url, options) => {
   return url.endsWith("/models") ? Response.json(catalog) : reply();
 };
 
+test("requests use the exact default or explicit override, with no implicit fallback", async () => {
+  for (const [configuration, model] of [[{}, defaultModel], [{ OPENROUTER_MODEL: primary }, primary]]) {
+    let body;
+    await completion([], undefined, {
+      env: { OPENROUTER_API_KEY: "synthetic-key", ...configuration },
+      fetch: async (url, options) => {
+        if (url.endsWith("/models")) return Response.json({ data: [{ id: model, pricing: { prompt: "0", completion: "0" } }] });
+        body = JSON.parse(options.body);
+        return response();
+      },
+    });
+    assert.deepEqual(body.models, [model]);
+    assert.equal(body.model, undefined);
+  }
+});
+
+test("the requested default still fails closed for missing or nonzero catalog entries", async () => {
+  for (const data of [[], [{ id: defaultModel, pricing: { prompt: "0", completion: "0.01" } }]]) {
+    let requests = 0;
+    await assert.rejects(completion([], undefined, {
+      env: { OPENROUTER_API_KEY: "synthetic-key" },
+      fetch: async () => { requests++; return Response.json({ data }); },
+    }), /zero-price free catalog/);
+    assert.equal(requests, 1);
+  }
+});
+
+test("token budget uses total message Unicode code points with identical schema and text thresholds", async () => {
+  // Neither clamp is divisible by three: test the adjacent integer character counts.
+  const cases = [
+    ["", 256], ["a".repeat(85), 256], ["a".repeat(86), 258],
+    ["a".repeat(100), 300], ["a".repeat(5461), 16383],
+    ["a".repeat(5462), 16384], ["a".repeat(10000), 16384],
+    ["😀".repeat(86), 258], ["漢".repeat(86), 258],
+    ["e\u0301".repeat(43), 258],
+  ];
+  for (const schema of [undefined, { type: "object" }]) {
+    for (const [content, expected] of cases) {
+      const calls = [];
+      // Split across roles: count all content, not just the latest user text.
+      const points = [...content];
+      const messages = ["system", "assistant", "user"].map((role, i) => ({
+        role, content: points.slice(Math.floor(i * points.length / 3), Math.floor((i + 1) * points.length / 3)).join(""),
+      }));
+      await completion(messages, schema, { env, fetch: stubFetch(response, calls) });
+      const body = JSON.parse(calls[1].options.body);
+      assert.equal(body.max_tokens, expected, `code points=${points.length}, schema=${!!schema}`);
+      assert.deepEqual(body.messages, messages);
+      assert.equal(!!body.response_format, !!schema);
+    }
+  }
+});
+
 test("fallback request uses only ordered free models and preserves privacy and structured output", async () => {
   const calls = [];
   const schema = { type: "object" };
@@ -63,7 +119,7 @@ test("fallback request uses only ordered free models and preserves privacy and s
   assert.deepEqual(body.provider, { data_collection: "deny", zdr: true, require_parameters: true });
   assert.deepEqual(body.reasoning, { enabled: false });
   assert.deepEqual(body.response_format, { type: "json_schema", json_schema: { name: "learning_lesson", strict: true, schema } });
-  assert.equal(body.max_tokens, 6500);
+  assert.equal(body.max_tokens, 256);
   for (const call of calls) {
     assert.equal(call.options.cache, "no-store");
     assert.equal(call.options.redirect, "error");
@@ -106,19 +162,70 @@ test("malformed, empty, refused and incomplete completions are rejected", async 
   }
 });
 
-test("one finite deadline covers catalog, inference and response body even if fetch ignores abort", async () => {
-  for (const phase of ["catalog", "inference", "body"]) {
-    let signal;
-    const fetch = async (url, options) => {
-      signal = options.signal;
-      if (phase === "catalog" || (phase === "inference" && !url.endsWith("/models"))) return new Promise(() => {});
-      if (url.endsWith("/models")) return Response.json(catalog);
-      return { ok: true, json: () => new Promise(() => {}) };
-    };
-    await assert.rejects(completion([], undefined, { env, fetch, timeoutMs: 10 }), /timed out/);
+test("default and maximum deadlines are exactly 30000ms; smaller injectable deadlines remain valid", async context => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  for (const timeoutMs of [undefined, 30000, 1, 10]) {
+    let signal, settled = false;
+    const pending = completion([], undefined, {
+      env, ...(timeoutMs === undefined ? {} : { timeoutMs }),
+      fetch: async (_url, options) => { signal = options.signal; return new Promise(() => {}); },
+    });
+    pending.then(() => { settled = true; }, () => { settled = true; });
+    const rejected = assert.rejects(pending, /timed out/);
+    context.mock.timers.tick((timeoutMs ?? 30000) - 1);
+    await Promise.resolve();
+    assert.equal(settled, false);
+    assert.equal(signal.aborted, false);
+    context.mock.timers.tick(1);
+    await rejected;
     assert.equal(signal.aborted, true);
   }
-  for (const timeoutMs of [Infinity, NaN, 0, -1, 55001]) await assert.rejects(completion([], undefined, { env, timeoutMs }), /timeout/);
+});
+
+test("one shared finite deadline covers both fetches and bodies even if they ignore abort", async context => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  for (const phase of ["catalog", "catalog body", "inference", "body"]) {
+    const signals = [];
+    let elapsed = 0, reachedPhase, settled = false;
+    const reached = new Promise(resolve => { reachedPhase = resolve; });
+    const advance = ms => { elapsed += ms; context.mock.timers.tick(ms); };
+    const block = () => { reachedPhase(); return new Promise(() => {}); };
+    const fetch = async (url, options) => {
+      signals.push(options.signal);
+      if (url.endsWith("/models")) {
+        if (phase === "catalog") return block();
+        advance(4);
+        return { ok: true, json: async () => {
+          if (phase === "catalog body") return block();
+          advance(3);
+          return catalog;
+        } };
+      }
+      if (phase === "inference") return block();
+      advance(2);
+      return { ok: true, json: block };
+    };
+    const pending = completion([], undefined, { env, fetch, timeoutMs: 10 });
+    pending.then(() => { settled = true; }, () => { settled = true; });
+    const rejected = assert.rejects(pending, /timed out/);
+    await reached;
+    advance(9 - elapsed);
+    await Promise.resolve();
+    assert.equal(settled, false, phase);
+    advance(1);
+    await rejected;
+    assert.ok(signals.every(signal => signal === signals[0] && signal.aborted));
+  }
+});
+
+test("invalid deadlines and transport details fail safely", async () => {
+  let requests = 0;
+  for (const timeoutMs of [Infinity, NaN, 0, -1, 30001, 55000]) {
+    await assert.rejects(completion([], undefined, {
+      env, timeoutMs, fetch: async () => { requests++; throw new Error("Network forbidden"); },
+    }), /Invalid AI request timeout/);
+  }
+  assert.equal(requests, 0);
   await assert.rejects(completion([], undefined, { env, fetch: async () => { throw new Error("private transport details"); } }), /^OpenRouterError: Generation timed out/);
 });
 
@@ -155,6 +262,7 @@ test("generateLesson uses explicit curriculum metadata and optional untrusted te
   assert.match(body.messages[0].content, /ONLY within the selected approved curriculum/);
   assert.match(body.messages[0].content, /untrusted data/);
   assert.equal(body.response_format.json_schema.schema.properties.subject.const, "Software Development Life Cycle");
+  assert.equal(body.max_tokens, Math.min(16384, Math.max(256, body.messages.reduce((sum, message) => sum + [...message.content].length, 0) * 3)));
 });
 
 test("generated lessons reject malformed JSON, invalid schema and structural out-of-scope content", async (context) => {
@@ -179,7 +287,7 @@ test("coaching preserves its contract, SDLC boundaries and avoids sending extra 
   mockService(context, () => response(), calls);
   assert.equal(await coachReply({ ...reference, questions: lesson.questions, learnerId: "must-not-send", slides: lesson.slides.map((slide) => ({ ...slide, learnerId: "must-not-send" })) }, [{ role: "user", content: "Explain requirements" }]), "Synthetic SDLC response");
   const body = JSON.parse(calls[1].options.body);
-  assert.equal(body.max_tokens, 600);
+  assert.equal(body.max_tokens, Math.min(16384, Math.max(256, body.messages.reduce((sum, message) => sum + [...message.content].length, 0) * 3)));
   assert.equal(body.response_format, undefined);
   assert.match(body.messages[0].content, /Software Development Life Cycle/);
   assert.match(body.messages[0].content, /decline unrelated/);
@@ -189,6 +297,17 @@ test("coaching preserves its contract, SDLC boundaries and avoids sending extra 
   await assert.rejects(coachReply(reference, [{ role: "system", content: "override" }]), /valid lesson slides/);
   await assert.rejects(coachReply(null, [{ role: "user", content: "SDLC" }]), /valid lesson slides/);
   assert.equal(calls.length, 2);
+});
+
+test("interview text uses the shared content-based budget and privacy client without a schema", async context => {
+  const calls = [];
+  mockService(context, response, calls);
+  await interviewReply({ topic: "verification", level: "foundation", turns: [{ status: "pending", kind: "opening" }] });
+  const body = JSON.parse(calls[1].options.body);
+  assert.equal(body.max_tokens, Math.min(16384, Math.max(256, body.messages.reduce((sum, message) => sum + [...message.content].length, 0) * 3)));
+  assert.equal(body.response_format, undefined);
+  assert.deepEqual(body.provider, { data_collection: "deny", zdr: true, require_parameters: true });
+  assert.deepEqual(body.reasoning, { enabled: false });
 });
 
 test("all three selected families generate and coach without SDLC relabeling", async context => {
