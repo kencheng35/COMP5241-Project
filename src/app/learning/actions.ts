@@ -17,7 +17,28 @@ function failure(error: unknown): ActionState {
   return { error: error instanceof Error ? error.message : "The request failed. Please try again." };
 }
 
+function uncertainCreation(): ActionState {
+  return { saveUncertain: true, error: "Save outcome is unknown. This lesson may already exist. Your input is retained here. Check your owned lessons before creating another copy." };
+}
+
+function creationAcknowledgement(data: { id?: unknown } | null, error: { code?: string } | null): ActionState | null {
+  // Only definite statement/schema rejections prove that retrying cannot duplicate a row.
+  // Response-shaping and transport failures can happen after commit.
+  if (error) {
+    if (!data && ["42P01", "42703", "PGRST204", "PGRST205"].includes(error.code ?? "")) {
+      return { error: "Lesson storage is unavailable. Check the learning database migrations and schema cache, then try again. Nothing was saved." };
+    }
+    if (!data && ["23502", "23503", "23505", "23514", "42501", "22001"].includes(error.code ?? "")) {
+      return { error: "The database rejected this creation. Your input is retained. Check the lesson requirements and your permissions before retrying." };
+    }
+    return uncertainCreation();
+  }
+  return z.uuid().safeParse(data?.id).success ? null : uncertainCreation();
+}
+
 export async function createLesson(_previous: ActionState, form: FormData): Promise<ActionState> {
+  if (_previous.saveUncertain) return uncertainCreation();
+  let insertAttempted = false;
   try {
     const user = await currentUser();
     await requireAiAccess(user);
@@ -27,12 +48,17 @@ export async function createLesson(_previous: ActionState, form: FormData): Prom
     if (error) throw new Error("Generation is unavailable. Check the learning database migration.");
     if (!allowed) throw new Error("Your five daily generation requests have been used. Quiz retries are still unlimited.");
     const content = await generateLesson(topic, selection);
-    await requireAiAccess(await currentUser());
-    const { data, error: saveError } = await database().from("forge_lessons").insert({ owner_id: user.id, title: content.title, subject: content.subject, summary: content.summary, content }).select("id").single();
-    if (saveError) throw new Error("Could not save the generated lesson.");
+    const confirmedUser = await currentUser();
+    await requireAiAccess(confirmedUser);
+    if (confirmedUser.id !== user.id) throw new Error("Your session changed. Nothing was saved. Reload before generating another lesson.");
+    const client = database();
+    insertAttempted = true;
+    const { data, error: saveError } = await client.from("forge_lessons").insert({ owner_id: user.id, title: content.title, subject: content.subject, summary: content.summary, content, visibility: "private" }).select("id").single();
+    const rejected = creationAcknowledgement(data, saveError);
+    if (rejected) return rejected;
     revalidatePath("/dashboard"); revalidatePath("/catalog");
-    return { success: "Your private lesson is ready. Enroll to begin.", lessonId: data.id };
-  } catch (error) { return failure(error); }
+    return { success: "Your private lesson is ready. Enroll to begin.", lessonId: data!.id, version: 1 };
+  } catch (error) { return insertAttempted ? uncertainCreation() : failure(error); }
 }
 
 export async function enroll(_previous: ActionState, form: FormData): Promise<ActionState> {
@@ -149,11 +175,8 @@ export async function requestReview(_previous: ActionState, form: FormData): Pro
 }
 
 export async function createManualLesson(_previous: ActionState, form: FormData): Promise<ActionState> {
+  if (_previous.saveUncertain) return uncertainCreation();
   let insertAttempted = false;
-  const unknown = (): ActionState => ({
-    saveUncertain: true,
-    error: "Save outcome is unknown. This lesson may already exist. Your draft is retained here. Check your owned lessons before creating another copy.",
-  });
   try {
     const user = await currentUser();
     const content = validateCurriculumContent(lessonSchema.parse(JSON.parse(String(form.get("content")))));
@@ -162,22 +185,14 @@ export async function createManualLesson(_previous: ActionState, form: FormData)
     const client = database();
     insertAttempted = true;
     const { data, error } = await client.from("forge_lessons").insert({ owner_id: user.id, title: content.title, subject: content.subject, summary: content.summary, content, visibility: publish ? "public" : "private", published_at: publish ? new Date().toISOString() : null }).select("id").single();
-    // Only explicit PostgreSQL statement rejections establish that this insert did not commit.
-    // Transport/PostgREST failures (including failed response shaping), missing data, and
-    // contradictory acknowledgements do not. Never turn those into an invitation to retry.
-    if (error) {
-      if (!data && ["23502", "23503", "23505", "23514", "42501", "22001"].includes(error.code)) {
-        return { error: "The database rejected this creation. Your draft is retained. Check the lesson requirements and your permissions before retrying." };
-      }
-      return unknown();
-    }
-    if (!z.uuid().safeParse(data?.id).success) return unknown();
+    const rejected = creationAcknowledgement(data, error);
+    if (rejected) return rejected;
     revalidatePath("/catalog"); revalidatePath("/dashboard");
-    return { success: "Lesson created.", lessonId: data.id, version: 1 };
+    return { success: "Lesson created.", lessonId: data!.id, version: 1 };
   } catch (error) {
     // Even a thrown database error may arrive after commit. Also covers a failure after
     // insertion but before the server can finish acknowledging the action.
-    return insertAttempted ? unknown() : failure(error);
+    return insertAttempted ? uncertainCreation() : failure(error);
   }
 }
 

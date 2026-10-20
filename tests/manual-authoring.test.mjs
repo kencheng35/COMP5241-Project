@@ -18,6 +18,8 @@ const recommendations = await import("../src/lib/recommendations.ts");
 const permissions = await import("../src/lib/permissions.ts");
 const resume = await import("../src/lib/resume.ts");
 const curriculum = await import("../src/lib/curriculum.ts");
+const eligibility = await import("../src/lib/eligibility.ts");
+const providerClient = await import("../src/lib/openrouter-client.ts");
 const require = createRequire(import.meta.url);
 const transpile = path => ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), {
   compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
@@ -31,6 +33,7 @@ sources.editor = transpile("../src/components/learning-controls.tsx");
 sources["./lesson-preview"] = transpile("../src/components/lesson-preview.tsx");
 sources["./lesson-metadata"] = transpile("../src/components/lesson-metadata.tsx");
 sources["@/lib/curriculum"] = transpile("../src/lib/curriculum.ts");
+sources.studio = transpile("../src/app/studio/page.tsx");
 function bundleCjs(path) {
   if (sources[path]) return path;
   sources[path] = "loading";
@@ -48,10 +51,18 @@ const fixture = {
 };
 const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8").replace('@import "tailwindcss";', "");
 
-test("mounted real manual editor: confirmed creation then same-ID versioned save", async context => {
+test("mounted real studio: blank manual creation and AI generation persistence contracts", async context => {
+  const unexpectedFetches = [];
+  context.mock.method(globalThis, "fetch", async url => {
+    unexpectedFetches.push(String(url));
+    throw new Error("Unexpected fetch: offline lesson tests require an injected synthetic response.");
+  });
   const rows = new Map(), calls = [];
   const user = { id: "00000000-0000-4000-8000-000000000001", app_metadata: {} };
   let signedIn = true, failSave = false, gate = null, loseAcknowledgement = false, aiAllowed = true, insertOutcome = null;
+  let realGeneration = false, configured = true, profileError = null, insertError = null, quotaError = null, quotaAllowed = true, providerStatus = 200;
+  let providerConfigured = true, revokeAfterProvider = false;
+  const fetchCalls = [], quotaCalls = [];
   const providerCalls = [];
   const server = {
     ...permissions, currentUser: async () => { if (!signedIn) throw new Error("Please log in again."); return user; },
@@ -64,7 +75,14 @@ test("mounted real manual editor: confirmed creation then same-ID versioned save
       if (!row) throw new Error("Lesson not found or unavailable.");
       return row;
     },
-    database: () => ({ from(table) {
+    database: () => {
+      if (!configured) throw new Error("Learning services are not configured.");
+      return { from(table) {
+      if (table === "profiles") {
+        const query = { select(columns) { assert.equal(columns, "age"); return query; }, eq(column, id) { assert.equal(column, "id"); assert.equal(id, user.id); return query; },
+          maybeSingle: async () => ({ data: { age: 18 }, error: profileError }) };
+        return query;
+      }
       assert.equal(table, "forge_lessons");
       let values, kind;
       const filters = {};
@@ -74,6 +92,7 @@ test("mounted real manual editor: confirmed creation then same-ID versioned save
         select() { return query; }, eq(key, value) { filters[key] = value; return query; },
         async single() {
           if (gate) await gate;
+          if (insertError) return { data: null, error: insertError };
           if (failSave) return { data: null, error: { code: "23514", message: "Synthetic constraint rejection" } };
           const id = `00000000-0000-4000-8000-${String(rows.size + 10).padStart(12, "0")}`;
           calls.push({ kind, id });
@@ -94,16 +113,44 @@ test("mounted real manual editor: confirmed creation then same-ID versioned save
         },
       };
       return query;
-    }, async rpc() { return { data: true, error: null }; } }),
+    }, async rpc(name, parameters) { quotaCalls.push({ name, parameters }); return { data: quotaAllowed, error: quotaError }; } };
+    },
   };
+  function loadServer(path, dependencies) {
+    const mod = { exports: {} };
+    new Function("require", "module", "exports", transpile(path))(
+      name => { assert.ok(name in dependencies, name); return dependencies[name]; }, mod, mod.exports);
+    return mod.exports;
+  }
+  const guard = loadServer("../src/lib/ai-eligibility-server.ts", {
+    "server-only": {}, "@/lib/learning-server": server, "@/lib/eligibility": eligibility,
+  });
+  const realProvider = loadServer("../src/lib/openrouter.ts", {
+    "server-only": {}, zod: { z }, "@/lib/learning": learning, "@/lib/curriculum": curriculum,
+    "@/lib/openrouter-client": { completion: (messages, schema) => providerClient.completion(messages, schema, {
+      env: providerConfigured ? { OPENROUTER_API_KEY: "synthetic-only", OPENROUTER_MODEL: "synthetic/model:free" } : {},
+      fetch: async (url, options) => {
+        fetchCalls.push({ url, options });
+        if (url.endsWith("/models")) return Response.json({ data: [{ id: "synthetic/model:free", pricing: { prompt: "0", completion: "0" } }] });
+        if (providerStatus !== 200) return new Response("PRIVATE_PROVIDER_ERROR", { status: providerStatus });
+        const request = JSON.parse(options.body);
+        const selected = JSON.parse(request.messages[1].content);
+        if (revokeAfterProvider) aiAllowed = false;
+        return Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({
+          ...fixture, subject: selected.subject, metadata: selected.metadata,
+          slides: fixture.slides.map(slide => ({ ...slide, topic: selected.metadata.topic })),
+        }) } }] });
+      },
+    }) },
+  });
   const dependencies = {
     "next/cache": { revalidatePath() {} }, zod: { z },
     "@/lib/learning-server": server, "@/lib/learning": learning,
     "@/lib/recommendations": recommendations, "@/lib/resume": resume,
     "@/lib/curriculum": curriculum,
     "@/lib/openrouter": { coachReply: async (...args) => { providerCalls.push(args); return "Synthetic coach reply"; },
-      generateLesson: async (objective, selection) => { providerCalls.push([objective, selection]); return { ...fixture, ...selection }; } },
-    "@/lib/ai-eligibility-server": { requireAiAccess: async () => { if (!aiAllowed) throw new Error("AI access denied"); } },
+      generateLesson: async (objective, selection) => { providerCalls.push([objective, selection]); return realGeneration ? realProvider.generateLesson(objective, selection) : { ...fixture, ...selection }; } },
+    "@/lib/ai-eligibility-server": { requireAiAccess: async account => { if (!aiAllowed) throw new Error("AI access denied"); if (realGeneration) await guard.requireAiAccess({ ...account, app_metadata: { ai_access: true } }); } },
   };
   const mod = { exports: {} };
   new Function("require", "module", "exports", transpile("../src/app/learning/actions.ts"))(
@@ -111,14 +158,14 @@ test("mounted real manual editor: confirmed creation then same-ID versioned save
   const browser = await chromium.launch();
   const browserContext = await browser.newContext({ offline: true, serviceWorkers: "block", viewport: { width: 390, height: 844 } });
   context.after(async () => { await browserContext.close(); await browser.close(); });
-  const requests = [];
+  const requests = [], browserErrors = [];
   const screenshots = await mkdtemp(join(tmpdir(), "forge-manual-qa01-"));
-  context.diagnostic(`Synthetic uncertainty screenshots captured (inspection reported separately): ${screenshots}`);
+  context.diagnostic(`Synthetic studio screenshots captured (inspection reported separately): ${screenshots}; Chromium ${browser.version()}`);
   await browserContext.route("**/*", route => { requests.push(route.request().url()); return route.abort(); });
-  async function mount(initial = fixture, admin = false, persisted = { id: "", version: 1 }) {
+  async function mount(initial = fixture, admin = false, persisted = { id: "", version: 1 }, route = null) {
   const page = await browserContext.newPage();
   page.setDefaultTimeout(5000);
-  page.on("pageerror", error => context.diagnostic(`Browser error: ${error.message}`));
+  page.on("pageerror", error => browserErrors.push(error.message));
   await page.exposeFunction("invokeAction", async (name, previous, entries) => {
     const form = new FormData();
     for (const [key, value] of entries) form.set(key, value);
@@ -127,10 +174,15 @@ test("mounted real manual editor: confirmed creation then same-ID versioned save
     return result;
   });
   await page.setContent(`<style>${css}</style><main class="portal-page studio-editor"><div id="root"></div></main>`);
-  await page.evaluate(({ sources, fixture, admin, persisted }) => {
+  await page.evaluate(async ({ sources, fixture, admin, persisted, route }) => {
     const modules = {};
     window.manualSettled = 0;
     function load(name) {
+      if (name === "@/components/learning-controls") return load("editor");
+      if (name === "@/components/lesson-metadata") return load("./lesson-metadata");
+      if (name === "@/components/learner-shell") return { LearnerShell: ({ children }) => load("react").createElement("main", {}, children) };
+      if (name === "@/lib/learning-server") return { requireUser: async () => ({ id: "synthetic" }), displayName: async () => "Synthetic author", isAdmin: () => false, isInstructor: () => false, canPublishLessons: () => false };
+      if (name === "next/navigation") return { notFound() { throw new Error("Not found"); } };
       if (name === "@/app/learning/actions") return new Proxy({}, { get: (_, action) => async (previous, form) => {
         try { return await invokeAction(action, previous, [...form.entries()]); }
         finally { window.manualSettled++; }
@@ -145,11 +197,14 @@ test("mounted real manual editor: confirmed creation then same-ID versioned save
       }
       return modules[name].exports;
     }
-    load("react-dom/client").createRoot(document.getElementById("root")).render(
-      load("react").createElement(load("editor").LessonEditor, {
+    load("react-dom/client").createRoot(document.getElementById("root")).render(route
+      ? await load("studio").default({ searchParams: Promise.resolve(route) })
+      : load("react").createElement(load("editor").LessonEditor, {
         ...persisted, initial: fixture, admin, action: load("@/app/learning/actions").createManualLesson,
       }));
-  }, { sources, fixture: initial, admin, persisted });
+  }, { sources, fixture: initial, admin, persisted, route });
+  if (route && route.manual !== "1") await page.getByRole("button", { name: "Generate private lesson", exact: true }).waitFor();
+  else await page.locator('input[data-editor-ready="true"]').waitFor({ state: "attached" });
   return page;
   }
   const page = await mount();
@@ -166,6 +221,55 @@ test("mounted real manual editor: confirmed creation then same-ID versioned save
   assert.equal(rows.get(calls[0].id).version, 2);
   assert.equal(rows.get(calls[0].id).title, "Updated software requirements");
 
+  await context.test("real blank route reveals incomplete quiz, then keyboard create and same-ID save at 320px/desktop", async () => {
+    for (const width of [320, 1440]) {
+      const page = await mount(undefined, false, undefined, { manual: "1" });
+      await page.setViewportSize({ width, height: 900 });
+      await page.getByLabel("Title", { exact: true }).fill(fixture.title);
+      await page.locator('select[name="subject"]').selectOption(fixture.subject);
+      await page.locator('select[name="curriculumTopic"]').selectOption(fixture.metadata.topic);
+      await page.locator('select[name="audience"]').selectOption(fixture.metadata.audience);
+      await page.locator('select[name="difficulty"]').selectOption(fixture.metadata.difficulty);
+      await page.getByLabel("Learning outcomes", { exact: true }).fill(fixture.metadata.outcomes.join("\n"));
+      await page.getByLabel("Summary", { exact: true }).fill(fixture.summary);
+      for (let index = 0; index < 4; index++) {
+        for (const field of ["title", "body", "example"]) await page.getByRole("group", { name: `Slide ${index + 1}`, exact: true }).getByLabel(field, { exact: true }).fill(fixture.slides[index][field]);
+      }
+      await page.getByLabel("Prompt", { exact: true }).fill(fixture.activity.prompt);
+      await page.getByLabel("Steps in correct order, one per line", { exact: true }).fill(fixture.activity.steps.join("\n"));
+      await page.getByRole("button", { name: "Save lesson", exact: true }).focus();
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(() => document.querySelector("details").open);
+      assert.equal(await page.locator("details").first().getByLabel("Question", { exact: true }).evaluate(element => element === document.activeElement), true);
+      assert.equal(await page.getByRole("alert").count(), 0, "native validation should identify incomplete quiz before a server round trip");
+      await page.locator("details").first().getByLabel("Question", { exact: true }).evaluate(element => element.scrollIntoView({ block: "center" }));
+      await page.screenshot({ path: join(screenshots, `blank-quiz-${width}.png`) });
+      for (let index = 0; index < 10; index++) {
+        const question = page.locator("form > fieldset > details").nth(index);
+        await question.evaluate(element => { element.open = true; });
+        await question.getByLabel("Question", { exact: true }).fill(fixture.questions[index].prompt);
+        for (let option = 0; option < 4; option++) await question.getByLabel(`Option ${option + 1}`, { exact: true }).fill(fixture.questions[index].options[option]);
+        await question.getByLabel("Explanation", { exact: true }).fill(fixture.questions[index].explanation);
+      }
+      const before = calls.length;
+      aiAllowed = false; // Manual creation must not use the AI gate or provider.
+      await page.getByRole("button", { name: "Save lesson", exact: true }).focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("status").filter({ hasText: "Lesson created." }).waitFor();
+      await page.getByLabel("Title", { exact: true }).fill("Blank route updated lesson");
+      await page.getByRole("button", { name: "Save lesson", exact: true }).focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("status").filter({ hasText: "Lesson saved." }).waitFor();
+      assert.deepEqual(calls.slice(before).map(call => call.kind), ["insert", "update"]);
+      assert.equal(calls[before].id, calls[before + 1].id);
+      assert.equal(rows.get(calls[before].id).version, 2);
+      assert.deepEqual(rows.get(calls[before].id).content.metadata.prerequisites, []);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.screenshot({ path: join(screenshots, `blank-saved-${width}.png`) });
+      aiAllowed = true;
+      await page.close();
+    }
+  });
   await context.test("all families choose metadata, preview, create and update the confirmed ID", async () => {
     for (const [family, subject] of Object.entries(curriculum.FAMILIES)) {
       const page = await mount({ ...fixture, subject: "", metadata: undefined });
@@ -198,6 +302,145 @@ test("mounted real manual editor: confirmed creation then same-ID versioned save
       await page.close();
     }
   });
+  async function generationPage(width = 320) {
+    const page = await mount(undefined, false, undefined, {});
+    await page.setViewportSize({ width, height: 900 });
+    await page.locator('select[name="subject"]').selectOption(fixture.subject);
+    await page.locator('select[name="curriculumTopic"]').selectOption(fixture.metadata.topic);
+    await page.locator('select[name="audience"]').selectOption(fixture.metadata.audience);
+    await page.locator('select[name="difficulty"]').selectOption(fixture.metadata.difficulty);
+    await page.getByLabel("Learning outcomes", { exact: true }).fill("Write testable requirements\n\nCheck an example\n");
+    await page.getByLabel("Learning objective", { exact: true }).fill("Describe testable software requirements");
+    return page;
+  }
+  await context.test("actual AI form -> action -> generator -> client -> save, retained failure and keyboard recovery", async () => {
+    realGeneration = true;
+    try {
+      for (const width of [320, 1440]) {
+        const page = await generationPage(width);
+        const before = calls.length, beforeQuota = quotaCalls.length;
+        providerStatus = 429;
+        await page.getByRole("button", { name: "Generate private lesson", exact: true }).focus();
+        await page.keyboard.press("Enter");
+        await page.getByRole("alert").filter({ hasText: "quota is exhausted" }).waitFor();
+        assert.equal(calls.length, before);
+        assert.equal(await page.getByRole("status").count(), 0);
+        assert.equal(await page.getByRole("alert").evaluate(element => element === document.activeElement), true);
+        assert.equal(await page.getByLabel("Learning objective", { exact: true }).inputValue(), "Describe testable software requirements");
+        assert.equal(await page.locator('select[name="subject"]').inputValue(), fixture.subject);
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        await page.screenshot({ path: join(screenshots, `ai-error-${width}.png`) });
+        providerStatus = 200;
+        await page.getByRole("button", { name: "Generate private lesson", exact: true }).focus();
+        await page.keyboard.press("Enter");
+        await page.getByRole("status").filter({ hasText: "Your private lesson is ready" }).waitFor();
+        assert.equal(calls.length, before + 1);
+        assert.equal(quotaCalls.length, beforeQuota + 2, "no hidden local quota retries");
+        const saved = rows.get(calls.at(-1).id);
+        assert.equal(saved.owner_id, user.id);
+        assert.equal(saved.visibility, "private");
+        assert.equal(await page.getByRole("link", { name: "Open lesson" }).getAttribute("href"), `/courses/${saved.id}`);
+        assert.deepEqual(saved.content.metadata.outcomes, ["Write testable requirements", "Check an example"]);
+        learning.lessonSchema.parse(saved.content);
+        curriculum.validateCurriculumContent(saved.content);
+        const request = JSON.parse(fetchCalls.at(-1).options.body);
+        const input = JSON.parse(request.messages[1].content);
+        assert.equal(input.topic, "Describe testable software requirements");
+        assert.equal(input.metadata.topic, "requirements");
+        assert.deepEqual(request.provider, { data_collection: "deny", zdr: true, require_parameters: true });
+        assert.deepEqual(request.models, ["synthetic/model:free"]);
+        assert.ok(!JSON.stringify(request).includes(user.id));
+        await page.getByRole("link", { name: "Open lesson" }).scrollIntoViewIfNeeded();
+        await page.screenshot({ path: join(screenshots, `ai-saved-${width}.png`) });
+        await page.close();
+      }
+    } finally { realGeneration = false; providerStatus = 200; }
+  });
+  await context.test("AI missing config/schema, provider unavailable and revoked grant never return success", async () => {
+    realGeneration = true;
+    const page = await generationPage();
+    const entries = await page.locator("form").evaluate(form => [...new FormData(form).entries()]);
+    const form = new FormData(); for (const [key, value] of entries) form.set(key, value);
+    try {
+      const before = calls.length, beforeFetch = fetchCalls.length, beforeQuota = quotaCalls.length;
+      configured = false;
+      assert.match((await mod.exports.createLesson({}, form)).error, /AI eligibility could not be checked/);
+      const manualForm = new FormData(); manualForm.set("content", JSON.stringify(fixture));
+      const manualMissingConfig = await mod.exports.createManualLesson({}, manualForm);
+      assert.equal(manualMissingConfig.error, "Learning services are not configured.");
+      assert.equal(manualMissingConfig.saveUncertain, undefined);
+      configured = true; profileError = { code: "42703", message: "PRIVATE missing age" };
+      assert.match((await mod.exports.createLesson({}, form)).error, /AI eligibility could not be checked/);
+      profileError = null; quotaError = { code: "PGRST202", message: "PRIVATE missing RPC" };
+      assert.equal((await mod.exports.createLesson({}, form)).error, "Generation is unavailable. Check the learning database migration.");
+      quotaError = null; quotaAllowed = false;
+      assert.match((await mod.exports.createLesson({}, form)).error, /five daily generation/);
+      quotaAllowed = true;
+      assert.equal(fetchCalls.length, beforeFetch);
+      assert.equal(quotaCalls.length, beforeQuota + 2);
+      providerConfigured = false;
+      assert.equal((await mod.exports.createLesson({}, form)).error, "Lesson generation is not configured.");
+      providerConfigured = true; providerStatus = 404;
+      assert.match((await mod.exports.createLesson({}, form)).error, /No free AI endpoint currently meets/);
+      providerStatus = 200; revokeAfterProvider = true;
+      assert.equal((await mod.exports.createLesson({}, form)).error, "AI access denied");
+      aiAllowed = true; revokeAfterProvider = false;
+      assert.equal(calls.length, before);
+      for (const code of ["42P01", "42703", "PGRST204", "PGRST205"]) {
+        insertError = { code, message: "PRIVATE missing lesson storage" };
+        for (const [action, input] of [["createLesson", form], ["createManualLesson", new FormData()]]) {
+          if (action === "createManualLesson") input.set("content", JSON.stringify(fixture));
+          const result = await mod.exports[action]({}, input);
+          assert.equal(result.error, "Lesson storage is unavailable. Check the learning database migrations and schema cache, then try again. Nothing was saved.");
+          assert.equal(result.saveUncertain, undefined);
+          assert.equal(result.success, undefined);
+        }
+      }
+      assert.equal(calls.length, before);
+    } finally {
+      realGeneration = false; configured = true; profileError = null; quotaError = null; quotaAllowed = true;
+      providerConfigured = true; providerStatus = 200; revokeAfterProvider = false; aiAllowed = true; insertError = null;
+      await page.close();
+    }
+  });
+  for (const outcome of ["throw-after-commit", "returned-error-after-commit", "missing-data-after-commit", "malformed-data-after-commit", "transport-after-action"]) {
+    await context.test(`AI ${outcome}: retain form, reconcile canonical ID and block repeat generation`, async () => {
+      realGeneration = true;
+      const page = await generationPage();
+      const before = calls.length, beforeQuota = quotaCalls.length;
+      insertOutcome = outcome; loseAcknowledgement = outcome === "transport-after-action";
+      try {
+        await page.getByRole("button", { name: "Generate private lesson", exact: true }).click();
+        await page.getByRole("alert").filter({ hasText: "Save outcome is unknown" }).waitFor();
+        assert.equal(await page.getByRole("status").count(), 0);
+        assert.equal(await page.getByRole("link", { name: "Open lesson", exact: true }).count(), 0);
+        assert.equal(await page.getByRole("button", { name: "Generate private lesson", exact: true }).isDisabled(), true);
+        assert.equal(await page.getByLabel("Learning objective", { exact: true }).inputValue(), "Describe testable software requirements");
+        const recovery = page.getByRole("link", { name: "Check my private lessons (new tab)", exact: true });
+        assert.equal(await recovery.getAttribute("href"), "/catalog?visibility=private");
+        assert.equal(await recovery.getAttribute("target"), "_blank");
+        await page.locator("form").evaluate(form => form.requestSubmit());
+        assert.equal(calls.length, before + 1);
+        assert.equal(quotaCalls.length, beforeQuota + 1);
+        assert.ok(!(await page.getByRole("alert").innerText()).includes("PRIVATE"));
+        if (outcome === "missing-data-after-commit") {
+          await recovery.scrollIntoViewIfNeeded();
+          await page.screenshot({ path: join(screenshots, "ai-uncertain-320.png") });
+          insertOutcome = null;
+          const saved = rows.get(calls[before].id);
+          const reconciled = await mount(saved.content, false, { id: saved.id, version: saved.version });
+          await reconciled.getByLabel("Title", { exact: true }).fill("Reconciled generated lesson");
+          await reconciled.getByRole("button", { name: "Save lesson", exact: true }).click();
+          await reconciled.getByRole("status").filter({ hasText: "Lesson saved." }).waitFor();
+          assert.deepEqual(calls.slice(before).map(call => call.kind), ["insert", "update"]);
+          assert.equal(calls.at(-1).id, saved.id);
+          assert.equal(rows.get(saved.id).version, 2);
+          assert.equal(await page.getByRole("button", { name: "Generate private lesson", exact: true }).isDisabled(), true);
+          await reconciled.close();
+        }
+      } finally { realGeneration = false; insertOutcome = null; loseAcknowledgement = false; await page.close(); }
+    });
+  }
   await context.test("failed save retains input, focuses error and allows explicit retry; stale version cannot overwrite", async () => {
     const page = await mount();
     failSave = true;
@@ -377,4 +620,6 @@ test("mounted real manual editor: confirmed creation then same-ID versioned save
     }
   });
   assert.deepEqual(requests, []);
+  assert.deepEqual(unexpectedFetches, [], "Node-side provider requests must use synthetic fetch only");
+  assert.deepEqual(browserErrors, [], "handled failures must not crash the mounted form");
 });

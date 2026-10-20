@@ -1,6 +1,45 @@
 # Implementation Tracker
 
-Last reviewed: 2026-10-15
+Last reviewed: 2026-10-20
+
+## Current coordination — 20 October 2026 - lesson creation repair
+
+**Governing current status:** Forge QA independently accepted the lesson-creation repair within bounded **LOCAL** checks on **20 October 2026, 09:34–09:36 HKT: 232 tests passed**, with lint, typecheck and build passing. This supersedes the current-status wording in the historical 15 October entry below, not its dated evidence. It is **not live, release or whole-project acceptance**: the original user's connected failure/root cause is not established, healthy local mocks worked before some repairs, and neither “live generation fixed” nor “all creation failures resolved” is supported. The whole project and associated tasks remain **Open/Partial**.
+
+**Ownership and delivered scope:** Forge Implementer delivered the repair; Forge QA supplied independent local acceptance; Coordinator owns this documentation-only reconciliation. The six delivered application/test files are [src/app/learning/actions.ts](src/app/learning/actions.ts), [src/app/studio/page.tsx](src/app/studio/page.tsx), [src/components/learning-controls.tsx](src/components/learning-controls.tsx), [src/lib/ai-eligibility-server.ts](src/lib/ai-eligibility-server.ts), [tests/manual-authoring.test.mjs](tests/manual-authoring.test.mjs) and [tests/eligibility.test.mjs](tests/eligibility.test.mjs). Earlier implementer-reported 232 tests, lint, direct `tsc` and 11 screenshots are delivery evidence, distinct from the independent QA results below.
+
+**Concrete repairs and preserved boundaries:**
+
+- Manual required/max-length native validation opens invalid collapsed quiz sections and provides authoring guidance. Manual creation remains independent of AI access and provider availability.
+- Operational eligibility lookup errors are explicit rather than misreported as age/approval denial.
+- Definite missing-schema/storage rejection is distinguished from an uncertain save; an unknown outcome is not treated as a safe automatic retry.
+- AI creation validates the canonical saved UUID and retains input with blocked-replay recovery for malformed, missing or thrown acknowledgements and transport uncertainty.
+- No weakening of the canonical **4–6 slides / 10 questions** or canonical metadata requirements, ownership/publishing checks, age restrictions, admin-granted AI access, free-only provider policy or privacy rules.
+
+| Work | Owner | Dependency | Acceptance / status |
+| --- | --- | --- | --- |
+| Lesson-creation repair | Forge Implementer | Approved bounded repair scope | Delivered in the six files above |
+| Independent local QA | Forge QA | Delivered repair | Locally accepted; evidence below, not connected/release acceptance |
+| Connected verification | Coordinator + Owner | Confirmed intended disposable nonproduction Supabase target and app origin; authorization, including separate permission for any quota-consuming AI probe | Pending; connected gates remain Open |
+
+**Independent QA evidence — 20 October, 09:34–09:36 HKT:** commands ran sequentially in an isolated, sanitized source snapshot using existing dependencies, an OS-environment allowlist and offline controls; no installs. These are supplied independent QA results, not commands rerun for this documentation handover.
+
+| Command | Independent result |
+| --- | --- |
+| `node --experimental-strip-types --test tests/manual-authoring.test.mjs tests/eligibility.test.mjs` | **26 passed, 0 failed/skipped** |
+| `npm test` | **232 passed, 0 failed/cancelled/skipped** |
+| `npm run lint` | Exit 0 |
+| `npm run typecheck` | Exit 0 |
+| `npm run build` | Exit 0; Next.js **16.3.5 Turbopack**, **23/23** static-generation work items |
+| `git diff --check` | Passed |
+
+**Reproducibility and inspected evidence:** the snapshot contained **125 files**, SHA-256 `1a6768d615989d12dc7495d680030147d43933e6c8fd9a17bde24902ab52b87b`. Environment: Windows, Node **25.2.1**, npm **11.6.2**, TypeScript **5.9.3**, ESLint **9.39.5**, Playwright **1.63.0**, Chromium **153.0.8010.12**. QA actually opened and inspected **11 fresh lesson screenshots at 320×900 and 1440×900**, covering invalid-field focus, keyboard Enter, retained-error/retry, success and uncertainty. This was a component harness, **not full deployed routing/styling or a screenreader audit**. Evidence is retained at `C:\Users\SOLUSER\AppData\Local\Temp\forge-independent-lesson-20261020-qa\evidence` (**69 captures total across tests; 11 inspected**). Owned temporary snapshot/scratch cleanup was verified; repository input fingerprints were unchanged by QA.
+
+**What local acceptance proved:** the actual blank manual form reached one confirmed create and then the same canonical ID at version 2. The actual generation form/action/real generator/client, using synthetic fetch, produced a schema-valid private saved lesson. Permission, configuration, schema and provider failures, plus unknown acknowledgements, were covered. These synthetic/local results do not prove connected persistence or live provider availability.
+
+**Open connected gates and authorization:** historical missing migrations and provider 429/404 observations were **not rechecked**. Read-only remote `check:setup` was skipped because database target classification was unconfirmed. Offline Next dev checks covered configuration presence/public validity, OpenRouter key presence and the `:free` model suffix without revealing values; `.env.prod` was not imported and is **not automatically loaded by Next/Vercel**. Connected schema/cache, RPC/grants, real route/action transport, provider availability/quota and actual persisted creation require the confirmed intended disposable nonproduction target and app origin, plus separate permission for any quota-consuming AI probe. No remote writes or reads of learner data, migration application, connected suites, live AI/quota calls, deployment or commit occurred. Coordinator/Owner must authorize and arrange independent connected QA; local acceptance does not close these gates.
+
+**Documentation handover boundary:** only this tracker and the short README current-status note are reconciled here; the six existing application/test modifications and all dated historical logs are preserved. Documentation whitespace, local links and content consistency are the only checks for this handover; no test rerun or additional implementation is required.
 
 ## Current coordination — 15 October 2026, 03/18 + 08 integration
 

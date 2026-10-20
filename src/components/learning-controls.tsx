@@ -9,7 +9,7 @@ import type { ResumeState } from "@/lib/resume";
 import { LessonPreview } from "./lesson-preview";
 import { MetadataFields } from "./lesson-metadata";
 
-export function ActionForm({ action, children, label, preview, disabled = false, retainInput = false }: { action: (previous: ActionState, form: FormData) => Promise<ActionState>; children: React.ReactNode; label: string; preview?: LessonContent; disabled?: boolean; retainInput?: boolean }) {
+export function ActionForm({ action, children, label, preview, disabled = false, retainInput = false, creation = false }: { action: (previous: ActionState, form: FormData) => Promise<ActionState>; children: React.ReactNode; label: string; preview?: LessonContent; disabled?: boolean; retainInput?: boolean; creation?: boolean }) {
   const inFlight = useRef(false);
   const formElement = useRef<HTMLFormElement>(null);
   const keepInput = retainInput || Boolean(preview);
@@ -24,10 +24,18 @@ export function ActionForm({ action, children, label, preview, disabled = false,
   const notice = useRef<HTMLParagraphElement>(null);
   const [state, submit, pending] = useActionState(async (previous: ActionState, form: FormData) => {
     try { return await action(previous, form); }
+    catch (error) {
+      if (!creation) throw error;
+      return { saveUncertain: true as const, error: "Save outcome is unknown. This lesson may already exist. Your input is retained here. Check your owned lessons before creating another copy." };
+    }
     finally { inFlight.current = false; }
   }, {});
+  const blocked = disabled || Boolean(state.saveUncertain);
   useEffect(() => { if (state.error) notice.current?.focus(); }, [state]);
-  return <form ref={formElement} action={submit} onSubmit={event => { if (inFlight.current || disabled) event.preventDefault(); else inFlight.current = true; }} className="learning-form"><fieldset disabled={pending || disabled}>{children}{preview && <LessonPreview content={preview} />}<button className="auth-submit" type="submit">{pending ? <LoaderCircle size={17} className="spin" /> : <Save size={17} />}{pending ? "Working..." : label}</button></fieldset>{state.error && <p ref={notice} tabIndex={-1} role="alert" className="form-notice notice-error">{state.error}</p>}{state.success && <p role="status" className="form-notice">{state.success}</p>}{state.lessonId && <Link className="text-link" href={`/courses/${state.lessonId}`}>Open lesson <ChevronRight size={15} /></Link>}</form>;
+  return <form ref={formElement} action={submit} onInvalidCapture={event => {
+    // Native validation must be able to reveal/focus fields inside collapsed quiz sections.
+    if (event.target instanceof HTMLElement) event.target.closest("details")?.setAttribute("open", "");
+  }} onSubmit={event => { if (inFlight.current || blocked) event.preventDefault(); else inFlight.current = true; }} className="learning-form"><fieldset disabled={pending || blocked}>{children}{preview && <LessonPreview content={preview} />}<button className="auth-submit" type="submit">{pending ? <LoaderCircle size={17} className="spin" /> : <Save size={17} />}{pending ? "Working..." : label}</button></fieldset>{state.error && <p ref={notice} tabIndex={-1} role="alert" className="form-notice notice-error">{state.error}</p>}{state.success && <p role="status" className="form-notice">{state.success}</p>}{state.lessonId && <Link className="text-link" href={`/courses/${state.lessonId}`}>Open lesson <ChevronRight size={15} /></Link>}{creation && state.saveUncertain && <section className="learning-section" aria-label="Reconcile uncertain save"><h2>Check the saved result before continuing</h2><p>Keep this tab open to retain your input. Open your private lessons in another tab and refresh the list. If this lesson exists, open it and use Edit lesson to continue with its saved ID and version. Do not generate another copy until the outcome has been reconciled.</p><Link className="text-link" href="/catalog?visibility=private" target="_blank" rel="noopener noreferrer">Check my private lessons (new tab)</Link></section>}</form>;
 }
 
 export function BookmarkButton({ id, initial }: { id: string; initial: boolean }) {
@@ -169,26 +177,27 @@ export function LessonEditor({ id, version, initial, action: saveLesson, admin }
     <input ref={readyInput} type="hidden" name="lessonId" value={persisted.id} />
     <input type="hidden" name="version" value={persisted.version} />
     <input type="hidden" name="content" value={JSON.stringify(content)} />
-    <label>Title<input value={content.title} maxLength={120} required onChange={event => setContent({ ...content, title: event.target.value })} /></label>
+    <p>Saving requires curriculum metadata, 4–6 complete slides, 3–6 activity steps and all 10 quiz questions. Open each question to write its options and explanation. Manual creation does not require AI access.</p>
+    <label>Title<input value={content.title} minLength={3} maxLength={120} required onChange={event => setContent({ ...content, title: event.target.value })} /></label>
     <MetadataFields subject={content.subject} metadata={content.metadata} onChange={(subject, metadata) => setContent({ ...content, subject, metadata })} />
-    <label>Summary<textarea value={content.summary} maxLength={300} required onChange={event => setContent({ ...content, summary: event.target.value })} /></label>
+    <label>Summary<textarea value={content.summary} minLength={10} maxLength={300} required onChange={event => setContent({ ...content, summary: event.target.value })} /></label>
     <h2>Slides</h2>
     {content.slides.map((item, index) => <fieldset key={index}>
       <legend>Slide {index + 1}</legend>
-      {(["title", "body", "example"] as const).map(field => <label key={field}>{field}<textarea value={item[field]} required onChange={event => setContent({ ...content, slides: content.slides.map((slide, slideIndex) => slideIndex === index ? { ...slide, [field]: event.target.value } : slide) })} /></label>)}
+      {(["title", "body", "example"] as const).map(field => <label key={field}>{field}<textarea value={item[field]} maxLength={{ title: 100, body: 400, example: 240 }[field]} required onChange={event => setContent({ ...content, slides: content.slides.map((slide, slideIndex) => slideIndex === index ? { ...slide, [field]: event.target.value } : slide) })} /></label>)}
       <button type="button" className="secondary-button" disabled={content.slides.length <= 4} onClick={() => setContent({ ...content, slides: content.slides.filter((_, slideIndex) => slideIndex !== index) })}><Trash2 size={16} />Remove slide</button>
     </fieldset>)}
     <button className="secondary-button" type="button" disabled={content.slides.length >= 6} onClick={() => setContent({ ...content, slides: [...content.slides, { title: "", body: "", example: "" }] })}><Plus size={16} />Add slide</button>
     <h2>Ordering activity</h2>
-    <label>Prompt<input value={content.activity.prompt} onChange={event => setContent({ ...content, activity: { ...content.activity, prompt: event.target.value } })} /></label>
-    <label>Steps in correct order, one per line<textarea value={content.activity.steps.join("\n")} onChange={event => setContent({ ...content, activity: { ...content.activity, steps: event.target.value.split("\n") } })} /></label>
+    <label>Prompt<input value={content.activity.prompt} required maxLength={240} onChange={event => setContent({ ...content, activity: { ...content.activity, prompt: event.target.value } })} /></label>
+    <label>Steps in correct order, one per line<textarea value={content.activity.steps.join("\n")} required onChange={event => setContent({ ...content, activity: { ...content.activity, steps: event.target.value.split("\n") } })} /></label>
     <h2>Final quiz</h2>
     {content.questions.map((question, index) => <details key={index}>
       <summary>Question {index + 1}</summary>
-      <label>Question<input value={question.prompt} onChange={event => setContent({ ...content, questions: content.questions.map((item, questionIndex) => questionIndex === index ? { ...item, prompt: event.target.value } : item) })} /></label>
-      {question.options.map((option, optionIndex) => <label key={optionIndex}>Option {optionIndex + 1}<input value={option} onChange={event => setContent({ ...content, questions: content.questions.map((item, questionIndex) => questionIndex === index ? { ...item, options: item.options.map((choice, choiceIndex) => choiceIndex === optionIndex ? event.target.value : choice) } : item) })} /></label>)}
+      <label>Question<input value={question.prompt} required maxLength={300} onChange={event => setContent({ ...content, questions: content.questions.map((item, questionIndex) => questionIndex === index ? { ...item, prompt: event.target.value } : item) })} /></label>
+      {question.options.map((option, optionIndex) => <label key={optionIndex}>Option {optionIndex + 1}<input value={option} required maxLength={200} onChange={event => setContent({ ...content, questions: content.questions.map((item, questionIndex) => questionIndex === index ? { ...item, options: item.options.map((choice, choiceIndex) => choiceIndex === optionIndex ? event.target.value : choice) } : item) })} /></label>)}
       <label>Correct option<select value={question.correct} onChange={event => setContent({ ...content, questions: content.questions.map((item, questionIndex) => questionIndex === index ? { ...item, correct: Number(event.target.value) } : item) })}>{question.options.map((_, optionIndex) => <option key={optionIndex} value={optionIndex}>Option {optionIndex + 1}</option>)}</select></label>
-      <label>Explanation<textarea value={question.explanation} onChange={event => setContent({ ...content, questions: content.questions.map((item, questionIndex) => questionIndex === index ? { ...item, explanation: event.target.value } : item) })} /></label>
+      <label>Explanation<textarea value={question.explanation} required maxLength={400} onChange={event => setContent({ ...content, questions: content.questions.map((item, questionIndex) => questionIndex === index ? { ...item, explanation: event.target.value } : item) })} /></label>
     </details>)}
     {admin && <label><input type="checkbox" name="publish" /> Review and publish this lesson</label>}
   </ActionForm>{uncertain && <section className="learning-section" aria-label="Reconcile uncertain save">

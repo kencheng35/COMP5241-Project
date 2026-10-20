@@ -85,12 +85,12 @@ test("server AI guard checks the database profile and fails closed on lookup fai
     result = { data: { age }, error: null };
     await assert.rejects(requireAiAccess(user), /External AI requires/);
   }
-  for (const lookup of [{ data: null, error: null }, { data: { age: 18 }, error: new Error("Synthetic query failure") }]) {
-    result = lookup;
-    await assert.rejects(requireAiAccess(user), /External AI requires/);
-  }
-  unavailable = true;
+  result = { data: null, error: null };
   await assert.rejects(requireAiAccess(user), /External AI requires/);
+  result = { data: { age: 18 }, error: new Error("PRIVATE_SCHEMA query failure") };
+  await assert.rejects(requireAiAccess(user), /^Error: AI eligibility could not be checked\. Check the learning service configuration and profile migrations, then try again\.$/);
+  unavailable = true;
+  await assert.rejects(requireAiAccess(user), /^Error: AI eligibility could not be checked\. Check the learning service configuration and profile migrations, then try again\.$/);
 });
 
 test("signup validates numeric age and never writes a trusted AI grant or guardian consent", async () => {

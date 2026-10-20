@@ -4,6 +4,10 @@ A Next.js 16 / React 19 learning application for COMP5241, using Supabase Auth/P
 
 Track remaining work, blockers, acceptance criteria and verification updates in [IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md).
 
+## Current coordination — 20 October 2026 - lesson creation repair
+
+**Independent bounded LOCAL acceptance only; live creation remains unverified.** Forge Implementer delivered the manual-validation, eligibility-error and uncertain-save/AI acknowledgement recovery repairs; Forge QA independently accepted them on **20 October, 09:34–09:36 HKT**: **232 tests passed**, with lint, typecheck and build exit 0. Manual creation remains independent of AI access/provider availability; canonical content, authorization and privacy rules are unchanged. Coordinator reconciled documentation only. The original connected failure/root cause remains unestablished: this is not a claim that live generation or all creation failures are fixed, nor release/project completion. Whole-project and associated tasks remain **Open/Partial**. Connected checks need a confirmed intended disposable nonproduction Supabase target/app origin and authorization, with separate permission for any quota-consuming AI probe. See the [20 October tracker handover](IMPLEMENTATION_TRACKER.md#current-coordination--20-october-2026---lesson-creation-repair) for ownership, six delivered files, independent local evidence and pending gates; the 15 October entries below remain historical.
+
 ## Current coordination — 15 October 2026, 03/18 + 08 integration
 
 **Independent bounded LOCAL QA accepted at 15:07 HK; not release or whole-project acceptance.** Forge Implementer delivered onboarding/local diagnostic, the coupled profile/email repairs (03/13/18/20) and browser-harness integration; the disjoint curriculum writer delivered canonical curriculum/metadata and manual-authoring repairs (08/14). With all source frozen, Forge QA independently verified the integrated local packet and owns this final documentation-only evidence update. The project owner still approves pedagogy/content and release.

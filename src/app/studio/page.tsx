@@ -18,7 +18,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
         <LessonEditor key={`${lesson.id}-${lesson.version}`} id={lesson.id} version={lesson.version} initial={lesson.content} action={updateLesson} admin={canPublishLessons(user)} />
         {lesson.owner_id === user.id && lesson.visibility === "private" && !canPublishLessons(user) && <section className="learning-section"><h2>Publication review</h2><p>Submitting grants administrators access to this draft and permission to publish it for all learners.</p><ActionForm action={requestReview} label="Submit for publication review"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm></section>}
       </> : manual === "1" ? <LessonEditor id="" version={1} initial={blank} action={createManualLesson} admin={canPublishLessons(user)} /> : <>
-        <ActionForm action={createLesson} label="Generate private lesson" retainInput>
+        <ActionForm action={createLesson} label="Generate private lesson" retainInput creation>
           <GenerationMetadataFields />
           <label>Learning objective<textarea name="topic" required minLength={5} maxLength={500} rows={5} placeholder="Describe a learning objective within your selected curriculum topic" /></label>
           <p className="privacy-note">Do not include personal information. Generated content may be inaccurate and still needs review. Lessons stay private until published by an instructor or administrator.</p>
