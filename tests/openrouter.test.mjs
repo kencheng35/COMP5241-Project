@@ -64,19 +64,31 @@ beforeEach(context => {
   context.mock.method(globalThis, "fetch", async () => { throw new Error("Unexpected network forbidden"); });
 });
 
-test("requests use the exact default or explicit override, with no implicit fallback", async () => {
-  for (const [configuration, model] of [[{}, defaultModel], [{ OPENROUTER_MODEL: primary }, primary]]) {
-    let body;
-    await completion([], undefined, {
-      env: { OPENROUTER_API_KEY: "synthetic-key", ...configuration },
-      fetch: async (url, options) => {
-        if (url.endsWith("/models")) return Response.json({ data: [{ id: model, pricing: { prompt: "0", completion: "0" } }] });
-        body = JSON.parse(options.body);
-        return response();
-      },
-    });
-    assert.deepEqual(body.models, [model]);
-    assert.equal(body.model, undefined);
+test("text and structured requests use singular default or override with no implicit fallback or request overrides", async () => {
+  for (const schema of [undefined, { type: "object" }]) {
+    for (const [configuration, model] of [[{}, defaultModel], [{ OPENROUTER_MODEL: primary }, primary]]) {
+      let body;
+      const messages = [{ role: "user", content: "Explain SDLC" }];
+      await completion(messages, schema, {
+        // Existing key alias still works.
+        env: { OPEN_ROUTER_API_KEY: "synthetic-key", ...configuration },
+        fetch: async (url, options) => {
+          if (url.endsWith("/models")) {
+            assert.equal(options.headers, undefined);
+            return Response.json({ data: [{ id: model, pricing: { prompt: "0", completion: "0" } }] });
+          }
+          assert.equal(options.headers.Authorization, "Bearer synthetic-key");
+          body = JSON.parse(options.body);
+          return response();
+        },
+      });
+      assert.deepEqual(Object.keys(body).sort(), ["model", "messages", "max_tokens", ...(schema ? ["response_format"] : [])].sort());
+      assert.equal(body.model, model);
+      for (const key of ["models", "provider", "reasoning"]) assert.equal(Object.hasOwn(body, key), false);
+      assert.deepEqual(body.messages, messages);
+      assert.equal(body.max_tokens, 256);
+      if (schema) assert.deepEqual(body.response_format, { type: "json_schema", json_schema: { name: "learning_lesson", strict: true, schema } });
+    }
   }
 });
 
@@ -117,38 +129,56 @@ test("token budget uses total message Unicode code points with identical schema 
   }
 });
 
-test("fallback request uses only ordered free models and preserves privacy and structured output", async () => {
-  const calls = [];
-  const schema = { type: "object" };
-  assert.equal(await completion([{ role: "user", content: "Explain SDLC" }], schema, { env, fetch: stubFetch(() => response("fallback result", { model: fallback }), calls) }), "fallback result");
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0].options.headers, undefined);
-  assert.equal(calls[0].url, "https://openrouter.ai/api/v1/models");
-  assert.equal(calls[1].url, "https://openrouter.ai/api/v1/chat/completions");
-  const body = JSON.parse(calls[1].options.body);
-  assert.deepEqual(Object.keys(body).sort(), ["models", "provider", "reasoning", "messages", "max_tokens", "response_format"].sort());
-  assert.deepEqual(body.models, [primary, fallback]);
-  assert.deepEqual(body.provider, { data_collection: "deny", zdr: true, require_parameters: true });
-  assert.deepEqual(body.reasoning, { enabled: false });
-  assert.deepEqual(body.response_format, { type: "json_schema", json_schema: { name: "learning_lesson", strict: true, schema } });
-  assert.equal(body.max_tokens, 256);
-  for (const call of calls) {
-    assert.equal(call.options.cache, "no-store");
-    assert.equal(call.options.redirect, "error");
-    assert.ok(call.options.signal instanceof AbortSignal);
+test("text and structured fallback requests use only ordered free models without provider or reasoning overrides", async () => {
+  for (const schema of [undefined, { type: "object" }]) {
+    const calls = [];
+    assert.equal(await completion([{ role: "user", content: "Explain SDLC" }], schema, { env, fetch: stubFetch(() => response("fallback result", { model: fallback }), calls) }), "fallback result");
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].options.headers, undefined);
+    assert.equal(calls[0].url, "https://openrouter.ai/api/v1/models");
+    assert.equal(calls[1].url, "https://openrouter.ai/api/v1/chat/completions");
+    const body = JSON.parse(calls[1].options.body);
+    assert.deepEqual(Object.keys(body).sort(), ["models", "messages", "max_tokens", ...(schema ? ["response_format"] : [])].sort());
+    assert.deepEqual(body.models, [primary, fallback]);
+    for (const key of ["model", "provider", "reasoning"]) assert.equal(Object.hasOwn(body, key), false);
+    if (schema) assert.deepEqual(body.response_format, { type: "json_schema", json_schema: { name: "learning_lesson", strict: true, schema } });
+    assert.equal(body.max_tokens, 256);
+    for (const call of calls) {
+      assert.equal(call.options.cache, "no-store");
+      assert.equal(call.options.redirect, "error");
+      assert.ok(call.options.signal instanceof AbortSignal);
+    }
   }
 });
 
 test("unverified or malformed catalog never reaches authenticated inference", async () => {
-  for (const reply of [Response.json({ data: [] }), new Response("invalid JSON"), new Response(null, { status: 503 })]) {
+  for (const reply of [Response.json({ data: [] }), Response.json({ data: null }), Response.json({ data: [{ id: primary }] }), Response.json({ data: [{ id: primary, pricing: { prompt: "0", completion: "0.01" } }] }), new Response("invalid JSON"), new Response(null, { status: 503 })]) {
     let requests = 0;
-    await assert.rejects(completion([], undefined, { env, fetch: async () => { requests++; return reply; } }), /catalog/);
+    await assert.rejects(completion([], undefined, { env, fetch: async (url, options) => {
+      requests++;
+      assert.equal(url, "https://openrouter.ai/api/v1/models");
+      assert.equal(options.headers, undefined);
+      return reply;
+    } }), /catalog/);
     assert.equal(requests, 1);
   }
 });
 
+test("invalid or paid primary and fallback configurations block all fetches", async () => {
+  let requests = 0;
+  for (const configuration of [
+    { OPENROUTER_MODEL: "example/paid" }, { OPENROUTER_MODEL: "" },
+    { OPENROUTER_FALLBACK_MODELS: "example/paid" }, { OPENROUTER_FALLBACK_MODELS: "openrouter/auto" },
+  ]) {
+    await assert.rejects(completion([], undefined, {
+      env: { ...env, ...configuration }, fetch: async () => { requests++; throw new Error("Network forbidden"); },
+    }), /Only explicit free/);
+  }
+  assert.equal(requests, 0);
+});
+
 test("quota and provider failures are clear, sanitized and never locally retried", async () => {
-  for (const [status, message] of [[429, /quota/], [401, /key is invalid/], [402, /No paid fallback/], [404, /privacy/], [503, /privacy/], [500, /could not complete/]]) {
+  for (const [status, message] of [[429, /quota/], [401, /key is invalid/], [402, /No paid fallback/], [404, /configured model, request and account settings/], [503, /configured model, request and account settings/], [500, /could not complete/]]) {
     const calls = [];
     await assert.rejects(completion([], undefined, { env, fetch: stubFetch(() => new Response("private provider error", { status, headers: { "retry-after": "30" } }), calls) }), (error) => {
       assert.match(error.message, message);
@@ -272,8 +302,8 @@ async function failed(options, schema) {
   assert.equal(publicError.diagnosticId, record.diagnostic_id);
   assert.ok(Number.isSafeInteger(record.elapsed_ms) && record.elapsed_ms >= 0);
   assert.equal(typeof record.timed_out, "boolean");
-  assert.deepEqual(record.provider, { data_collection: "deny", zdr: true, require_parameters: true });
-  assert.equal(record.reasoning_enabled, false);
+  assert.equal(record.provider, null, "no request provider override; effective account/provider policy unknown");
+  assert.equal(record.reasoning_enabled, null, "no request reasoning override, not reasoning disabled");
   assert.ok(record.retry_after_seconds === null || (record.retry_after_seconds >= 0 && record.retry_after_seconds <= 3600));
   for (const marker of privateMarkers) {
     assert.ok(!JSON.stringify(record).includes(marker));
@@ -283,6 +313,29 @@ async function failed(options, schema) {
   assert.equal(new Set(diagnostics.map(log => log.diagnostic_id)).size, diagnostics.length);
   return { record, publicError };
 }
+
+test("failure logs accurately record omitted overrides for singular and fallback text and schema requests", async () => {
+  for (const schema of [undefined, privateSchema]) {
+    for (const fallbacks of ["", fallback]) {
+      const calls = [];
+      const { record, publicError } = await failed({
+        env: { ...privateEnv, OPENROUTER_FALLBACK_MODELS: fallbacks },
+        fetch: stubFetch(() => Response.json(hostileEnvelope("No endpoints found supporting ZDR", 503), { status: 404 }), calls),
+      }, schema);
+      const body = JSON.parse(calls[1].options.body);
+      assert.equal(calls.length, 2, "no hidden retry");
+      for (const key of ["provider", "reasoning"]) assert.equal(Object.hasOwn(body, key), false);
+      assert.equal(Object.hasOwn(body, "model"), !fallbacks);
+      assert.equal(Object.hasOwn(body, "models"), !!fallbacks);
+      assert.deepEqual(record.models, fallbacks ? [primary, fallback] : [primary]);
+      assert.equal(record.output_mode, schema ? "json_schema" : "text");
+      assert.equal(record.reason, "zdr", "account policy can still restrict an override-free request");
+      assert.equal(record.http_status, 404);
+      assert.equal(record.provider_code, 503);
+      assert.equal(publicError.status, 404);
+    }
+  }
+});
 
 test("structured logs distinguish policy, parameters, availability and unknown without status guesses", async () => {
   const cases = [
@@ -526,6 +579,9 @@ test("generateLesson uses explicit curriculum metadata and optional untrusted te
   assert.match(body.messages[0].content, /ONLY within the selected approved curriculum/);
   assert.match(body.messages[0].content, /untrusted data/);
   assert.equal(body.response_format.json_schema.schema.properties.subject.const, "Software Development Life Cycle");
+  assert.equal(body.response_format.type, "json_schema");
+  assert.equal(body.response_format.json_schema.strict, true);
+  for (const key of ["provider", "reasoning"]) assert.equal(Object.hasOwn(body, key), false);
   assert.equal(body.max_tokens, Math.min(16384, Math.max(256, body.messages.reduce((sum, message) => sum + [...message.content].length, 0) * 3)));
 });
 
@@ -553,6 +609,7 @@ test("coaching preserves its contract, SDLC boundaries and avoids sending extra 
   const body = JSON.parse(calls[1].options.body);
   assert.equal(body.max_tokens, Math.min(16384, Math.max(256, body.messages.reduce((sum, message) => sum + [...message.content].length, 0) * 3)));
   assert.equal(body.response_format, undefined);
+  for (const key of ["provider", "reasoning"]) assert.equal(Object.hasOwn(body, key), false);
   assert.match(body.messages[0].content, /Software Development Life Cycle/);
   assert.match(body.messages[0].content, /decline unrelated/);
   assert.equal(body.messages[1].role, "user");
@@ -563,15 +620,14 @@ test("coaching preserves its contract, SDLC boundaries and avoids sending extra 
   assert.equal(calls.length, 2);
 });
 
-test("interview text uses the shared content-based budget and privacy client without a schema", async context => {
+test("interview text uses the shared content-based budget without schema or provider/reasoning overrides", async context => {
   const calls = [];
   mockService(context, response, calls);
   await interviewReply({ topic: "verification", level: "foundation", turns: [{ status: "pending", kind: "opening" }] });
   const body = JSON.parse(calls[1].options.body);
   assert.equal(body.max_tokens, Math.min(16384, Math.max(256, body.messages.reduce((sum, message) => sum + [...message.content].length, 0) * 3)));
   assert.equal(body.response_format, undefined);
-  assert.deepEqual(body.provider, { data_collection: "deny", zdr: true, require_parameters: true });
-  assert.deepEqual(body.reasoning, { enabled: false });
+  for (const key of ["provider", "reasoning"]) assert.equal(Object.hasOwn(body, key), false);
 });
 
 test("all three selected families generate and coach without SDLC relabeling", async context => {

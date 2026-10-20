@@ -494,8 +494,14 @@ test("mounted real studio: blank manual creation and AI generation persistence c
         const input = JSON.parse(request.messages[1].content);
         assert.equal(input.topic, "Describe testable software requirements");
         assert.equal(input.metadata.topic, "requirements");
-        assert.deepEqual(request.provider, { data_collection: "deny", zdr: true, require_parameters: true });
-        assert.deepEqual(request.models, ["synthetic/model:free"]);
+        assert.equal(Object.hasOwn(request, "provider"), false);
+        assert.equal(Object.hasOwn(request, "reasoning"), false);
+        assert.equal(request.model, "synthetic/model:free");
+        assert.equal(Object.hasOwn(request, "models"), false);
+        assert.equal(request.response_format.type, "json_schema");
+        assert.equal(request.response_format.json_schema.name, "learning_lesson");
+        assert.equal(request.response_format.json_schema.strict, true);
+        assert.equal(request.response_format.json_schema.schema.type, "object");
         assert.ok(!JSON.stringify(request).includes(user.id));
         await page.getByRole("link", { name: "Open lesson" }).scrollIntoViewIfNeeded();
         await page.screenshot({ path: join(screenshots, `ai-saved-${width}.png`) });

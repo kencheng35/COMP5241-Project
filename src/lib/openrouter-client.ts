@@ -54,7 +54,7 @@ function serviceError(status: number, retryAfter: string | null = null) {
   if (status === 429) return new OpenRouterError("The free AI provider is busy or the account's free request quota is exhausted. Model fallback cannot bypass account quotas. Please try again later.", status, retryAfterSeconds);
   if (status === 401) return new OpenRouterError("The AI service key is invalid. Contact the administrator.", status);
   if (status === 402) return new OpenRouterError("The AI account cannot serve this request. No paid fallback was used.", status);
-  if (status === 404 || status === 503) return new OpenRouterError("No free AI endpoint currently meets the required privacy and output settings. Please try later or contact the administrator.", status);
+  if (status === 404 || status === 503) return new OpenRouterError("No free AI endpoint currently meets the configured model, request and account settings. Please try later or contact the administrator.", status);
   return new OpenRouterError("The AI service could not complete this request. Please try again later.", status);
 }
 
@@ -210,9 +210,9 @@ export async function completion(messages: Message[], schema?: Record<string, un
         cache: "no-store",
         redirect: "error",
         body: JSON.stringify({
-          models,
-          provider: { data_collection: "deny", zdr: true, require_parameters: true },
-          reasoning: { enabled: false },
+          ...(models.length === 1 ? { model: models[0] } : { models }),
+          // Approved note.py compatibility: no provider or reasoning overrides.
+          // Account/provider defaults still apply; this request does not enforce ZDR or data collection denial.
           messages,
           max_tokens: Math.min(16384, Math.max(256, characterCount * 3)),
           ...(schema ? { response_format: { type: "json_schema", json_schema: { name: "learning_lesson", strict: true, schema } } } : {}),
@@ -267,8 +267,9 @@ export async function completion(messages: Message[], schema?: Record<string, un
       http_status: httpStatus, provider_code: providerCode,
       elapsed_ms: Math.max(0, Math.round(performance.now() - started)), timed_out: timedOut,
       retry_after_seconds: retryAfterSeconds, models: verifiedModels, output_mode: schema ? "json_schema" : "text",
-      provider: { data_collection: "deny", zdr: true, require_parameters: true },
-      reasoning_enabled: false, reason: timedOut ? "timeout" : reason, error_body_state: errorBodyState,
+      // null means no request override, not false; effective account/provider defaults are unknown.
+      provider: null,
+      reasoning_enabled: null, reason: timedOut ? "timeout" : reason, error_body_state: errorBodyState,
     })); } catch { /* A failing log sink must not replace the primary sanitized failure. */ }
     throw publicError;
   } finally {
