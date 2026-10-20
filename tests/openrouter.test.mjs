@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { completion, configuredFreeModels, validateFreeCatalog } from "../src/lib/openrouter-client.ts";
@@ -51,6 +51,18 @@ const stubFetch = (reply, calls = []) => async (url, options) => {
   calls.push({ url, options });
   return url.endsWith("/models") ? Response.json(catalog) : reply();
 };
+
+let diagnostics;
+beforeEach(context => {
+  diagnostics = [];
+  context.mock.method(console, "error", (...args) => {
+    assert.equal(args.length, 1);
+    assert.equal(typeof args[0], "string");
+    diagnostics.push(JSON.parse(args[0]));
+  });
+  // Every test must explicitly supply a mock; a regression must never reach the network.
+  context.mock.method(globalThis, "fetch", async () => { throw new Error("Unexpected network forbidden"); });
+});
 
 test("requests use the exact default or explicit override, with no implicit fallback", async () => {
   for (const [configuration, model] of [[{}, defaultModel], [{ OPENROUTER_MODEL: primary }, primary]]) {
@@ -195,15 +207,18 @@ test("one shared finite deadline covers both fetches and bodies even if they ign
       if (url.endsWith("/models")) {
         if (phase === "catalog") return block();
         advance(4);
-        return { ok: true, json: async () => {
-          if (phase === "catalog body") return block();
-          advance(3);
-          return catalog;
-        } };
+        return new Response(new ReadableStream({
+          async start(controller) {
+            if (phase === "catalog body") { await block(); return; }
+            advance(3);
+            controller.enqueue(new TextEncoder().encode(JSON.stringify(catalog)));
+            controller.close();
+          },
+        }));
       }
       if (phase === "inference") return block();
       advance(2);
-      return { ok: true, json: block };
+      return new Response(new ReadableStream({ start: block }));
     };
     const pending = completion([], undefined, { env, fetch, timeoutMs: 10 });
     pending.then(() => { settled = true; }, () => { settled = true; });
@@ -227,6 +242,255 @@ test("invalid deadlines and transport details fail safely", async () => {
   }
   assert.equal(requests, 0);
   await assert.rejects(completion([], undefined, { env, fetch: async () => { throw new Error("private transport details"); } }), /^OpenRouterError: Generation timed out/);
+});
+
+const privateMarkers = ["SYNTHETIC_KEY_9df", "SYNTHETIC_PROMPT_6ab", "learner-private@example.test", "SYNTHETIC_METADATA_87c", "SYNTHETIC_HEADER_4cd", "SYNTHETIC_SCHEMA_5bc", "secret/synthetic-sensitive-value:free"];
+const privateText = privateMarkers.join(" ");
+const privateMessages = [{ role: "user", content: privateText }];
+const privateSchema = { type: "object", description: privateMarkers[5] };
+const privateEnv = { ...env, OPENROUTER_API_KEY: privateMarkers[0] };
+const hostileEnvelope = (message, code) => ({
+  error: { code, message: `${message} ${privateText}`, metadata: { raw: privateText, provider_name: privateText } },
+  user: privateText,
+});
+
+async function failed(options, schema) {
+  const before = diagnostics.length;
+  let publicError;
+  await assert.rejects(completion(privateMessages, schema, { env: privateEnv, ...options }), error => {
+    publicError = error;
+    return true;
+  });
+  assert.equal(diagnostics.length, before + 1, "one JSON console.error record per failed operation");
+  const record = diagnostics.at(-1);
+  assert.deepEqual(Object.keys(record).sort(), [
+    "event", "diagnostic_id", "stage", "http_status", "provider_code", "elapsed_ms", "timed_out",
+    "retry_after_seconds", "models", "output_mode", "provider", "reasoning_enabled", "reason", "error_body_state",
+  ].sort());
+  assert.equal(record.event, "openrouter_completion_failed");
+  assert.match(record.diagnostic_id, /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/);
+  assert.equal(publicError.diagnosticId, record.diagnostic_id);
+  assert.ok(Number.isSafeInteger(record.elapsed_ms) && record.elapsed_ms >= 0);
+  assert.equal(typeof record.timed_out, "boolean");
+  assert.deepEqual(record.provider, { data_collection: "deny", zdr: true, require_parameters: true });
+  assert.equal(record.reasoning_enabled, false);
+  assert.ok(record.retry_after_seconds === null || (record.retry_after_seconds >= 0 && record.retry_after_seconds <= 3600));
+  for (const marker of privateMarkers) {
+    assert.ok(!JSON.stringify(record).includes(marker));
+    assert.ok(!JSON.stringify(publicError).includes(marker));
+    assert.ok(!String(publicError).includes(marker));
+  }
+  assert.equal(new Set(diagnostics.map(log => log.diagnostic_id)).size, diagnostics.length);
+  return { record, publicError };
+}
+
+test("structured logs distinguish policy, parameters, availability and unknown without status guesses", async () => {
+  const cases = [
+    [404, "No endpoints found matching your data policy", "data_policy"],
+    [404, "No endpoints found supporting ZDR", "zdr"],
+    [404, "No endpoints found supporting zero data retention", "zdr"],
+    [404, "No endpoints found that support the requested parameters", "unsupported_required_parameters"],
+    [404, "Unsupported required parameters: json_schema", "unsupported_required_parameters"],
+    [404, "Structured output is not supported", "unsupported_required_parameters"],
+    [404, "The requested model was not found", "model_unavailable"],
+    [404, "No endpoints found", "no_endpoints"],
+    [404, "Unrecognized private failure", "upstream_unknown"],
+    [503, "Unrecognized private failure", "upstream_unknown"],
+    [503, "Model temporarily unavailable", "model_unavailable"],
+    [429, "Rate limit exceeded", "rate_limit"],
+  ];
+  for (const [status, message, reason] of cases) {
+    const calls = [];
+    const { record, publicError } = await failed({ fetch: stubFetch(() => Response.json(hostileEnvelope(message, 529), {
+      status, headers: { "retry-after": "999999", "x-request-id": privateText, "x-provider": privateText },
+    }), calls) }, privateSchema);
+    assert.equal(calls.length, 2, "no retries or extra diagnostic fetch");
+    assert.equal(record.http_status, status);
+    assert.equal(record.provider_code, 529);
+    assert.equal(record.reason, reason);
+    assert.equal(record.stage, "inference_body");
+    assert.equal(record.error_body_state, "json");
+    assert.equal(record.retry_after_seconds, 3600);
+    assert.equal(record.output_mode, "json_schema");
+    assert.deepEqual(record.models, [primary, fallback]);
+    assert.equal(publicError.status, status);
+    if (status === 429) assert.equal(publicError.retryAfterSeconds, 999999, "existing public retry contract preserved");
+    assert.ok(!publicError.message.includes(record.diagnostic_id), "public text unchanged; ID is a property only");
+  }
+});
+
+test("HTTP-200 envelopes keep actual HTTP status separate from provider code, even with invalid choices", async () => {
+  for (const code of [429, undefined, privateText, 1e100]) {
+    const { record, publicError } = await failed({ fetch: stubFetch(() => Response.json({
+      ...hostileEnvelope("Quota exhausted", code), choices: privateText,
+    })) }, undefined);
+    assert.equal(record.http_status, 200);
+    assert.equal(record.provider_code, code === 429 ? 429 : null);
+    assert.equal(record.stage, "output_validation");
+    assert.equal(record.output_mode, "text");
+    assert.equal(record.reason, "rate_limit");
+    assert.equal(publicError.status, code === 429 ? 429 : 502);
+  }
+});
+
+test("untrusted error bodies are read once, bounded and never replace primary HTTP errors", async () => {
+  const bodies = [
+    [() => new Response(privateText, { status: 503 }), "malformed_json"],
+    [() => new Response(`{"error": ${privateText}`, { status: 404 }), "malformed_json"],
+    [() => new Response(null, { status: 503 }), "empty"],
+    [() => new Response(privateText.repeat(500), { status: 503 }), "too_large"],
+    [() => new Response(new ReadableStream({ start(controller) { controller.error(new Error(privateText)); } }), { status: 503 }), "unreadable"],
+    [() => Response.json({ metadata: { raw: privateText }, error: privateText }, { status: 503 }), "json"],
+  ];
+  for (const [make, bodyState] of bodies) {
+    const reply = make();
+    const { record, publicError } = await failed({ fetch: stubFetch(() => reply) });
+    assert.equal(record.reason, "upstream_unknown");
+    assert.equal(record.error_body_state, bodyState);
+    assert.equal(record.http_status, reply.status);
+    assert.equal(publicError.status, reply.status);
+    assert.equal(record.provider_code, null);
+    if (reply.body) assert.equal(reply.bodyUsed, true);
+  }
+  let pulls = 0, cancelled = false;
+  const streaming = new Response(new ReadableStream({
+    pull(controller) { pulls++; controller.enqueue(new Uint8Array(4096)); },
+    cancel() { cancelled = true; },
+  }), { status: 503 });
+  const { record } = await failed({ fetch: stubFetch(() => streaming) });
+  assert.equal(record.error_body_state, "too_large");
+  assert.ok(pulls <= 6, "bounded read stops instead of draining an oversized body");
+  assert.equal(cancelled, true);
+});
+
+test("config and catalog failures log sanitized stages and make no unauthorized inference", async () => {
+  for (const [configuration, timeoutMs, reason, expectedModels] of [
+    [{}, 10, "missing_key", []],
+    [{ ...privateEnv, OPENROUTER_MODEL: privateText }, 10, "invalid_model_config", []],
+    [{ ...privateEnv, OPENROUTER_FALLBACK_MODELS: privateText }, 10, "invalid_model_config", []],
+    [privateEnv, 30001, "invalid_timeout", []],
+  ]) {
+    let calls = 0;
+    const { record } = await failed({ env: configuration, timeoutMs, fetch: async () => { calls++; throw new Error(privateText); } });
+    assert.equal(calls, 0);
+    assert.equal(record.stage, "config");
+    assert.equal(record.reason, reason);
+    assert.deepEqual(record.models, expectedModels);
+    assert.equal(record.http_status, null);
+  }
+  const { record: unverified } = await failed({
+    env: { ...privateEnv, OPENROUTER_MODEL: privateMarkers[6] },
+    fetch: async () => Response.json(catalog),
+  });
+  assert.equal(unverified.reason, "catalog_unverified");
+  assert.deepEqual(unverified.models, [], "even syntactically valid unknown IDs must not be logged");
+  for (const [make, reason, stage, status] of [
+    [() => Response.json(hostileEnvelope("No endpoints", 503), { status: 503 }), "catalog_http_error", "catalog_body", 503],
+    [() => new Response(privateText), "catalog_malformed_json", "catalog_body", 200],
+    [() => Response.json({ data: privateText }), "catalog_invalid", "catalog_validation", 200],
+    [() => Response.json({ data: [] }), "catalog_unverified", "catalog_validation", 200],
+    [() => new Response("x".repeat(2 * 1024 * 1024 + 1)), "body_too_large", "catalog_body", 200],
+  ]) {
+    let calls = 0;
+    const { record } = await failed({ fetch: async () => { calls++; return make(); } });
+    assert.equal(calls, 1);
+    assert.equal(record.reason, reason);
+    assert.equal(record.stage, stage);
+    assert.equal(record.http_status, status);
+  }
+  for (const phase of ["catalog", "inference"]) {
+    const { record } = await failed({ fetch: async url => {
+      if (phase === "inference" && url.endsWith("/models")) return Response.json(catalog);
+      throw new Error(privateText);
+    } });
+    assert.equal(record.reason, "transport_error");
+    assert.equal(record.stage, `${phase}_fetch`);
+    assert.equal(record.http_status, null);
+  }
+});
+
+test("a failing diagnostic sink cannot replace the sanitized primary failure", async context => {
+  let attempts = 0;
+  context.mock.method(console, "error", () => { attempts++; throw new Error(privateText); });
+  await assert.rejects(completion(privateMessages, undefined, {
+    env: privateEnv, fetch: stubFetch(() => new Response(privateText, { status: 503 })),
+  }), error => {
+    assert.equal(error.status, 503);
+    assert.match(error.message, /No free AI endpoint/);
+    assert.equal(typeof error.diagnosticId, "string");
+    assert.ok(!String(error).includes(privateText));
+    return true;
+  });
+  assert.equal(attempts, 1);
+});
+
+test("malformed, refused, truncated and empty output log closed safe reasons; success logs nothing", async () => {
+  for (const [reply, reason] of [
+    [() => new Response(privateText), "malformed_json"],
+    [() => Response.json({ choices: privateText }), "invalid_response"],
+    [() => response(privateText, { choices: [{ message: { content: privateText, refusal: privateText } }] }), "refused_output"],
+    [() => Response.json({ choices: [{ message: { content: privateText }, finish_reason: privateText }] }), "truncated_output"],
+    [() => response(" "), "empty_output"],
+    [() => new Response(privateText.repeat(15000)), "body_too_large"],
+    [() => new Response(new ReadableStream({ start(controller) { controller.error(new Error(privateText)); } })), "transport_error"],
+  ]) {
+    const { record } = await failed({ fetch: stubFetch(reply) });
+    assert.equal(record.reason, reason);
+    assert.equal(record.http_status, 200);
+  }
+  const before = diagnostics.length;
+  for (const schema of [undefined, privateSchema]) {
+    assert.equal(await completion(privateMessages, schema, { env: privateEnv, fetch: stubFetch(() => response(privateText)) }), privateText);
+  }
+  assert.equal(diagnostics.length, before);
+});
+
+test("deadline logs once on stalled error reads and late ignored-abort work, preserving known HTTP failures", async context => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  for (const phase of ["catalog_fetch", "inference_fetch", "inference_body", "error_body", "catalog_error_body"]) {
+    let resume, signal, requests = 0, reached;
+    const atPhase = new Promise(resolve => { reached = resolve; });
+    const late = new Promise(resolve => { resume = resolve; });
+    const blockBody = () => new ReadableStream({
+      async pull(controller) {
+        reached();
+        await late;
+        controller.enqueue(new TextEncoder().encode(JSON.stringify(hostileEnvelope("data policy"))));
+        controller.close();
+      },
+    }, { highWaterMark: 0 });
+    const fetch = async (url, options) => {
+      requests++;
+      signal = options.signal;
+      if (url.endsWith("/models")) {
+        if (phase === "catalog_fetch") { reached(); await late; }
+        if (phase === "catalog_error_body") return new Response(blockBody(), { status: 503 });
+        return Response.json(catalog);
+      }
+      if (phase === "inference_fetch") { reached(); await late; return response(privateText); }
+      return new Response(blockBody(), { status: phase === "error_body" ? 503 : 200 });
+    };
+    const pending = failed({ fetch, timeoutMs: 10 });
+    await atPhase;
+    context.mock.timers.tick(10);
+    const { record, publicError } = await pending;
+    assert.equal(record.reason, "timeout");
+    assert.equal(record.timed_out, true);
+    assert.equal(record.stage, phase === "catalog_error_body" ? "catalog_body" : phase === "error_body" ? "inference_body" : phase);
+    assert.equal(signal.aborted, true);
+    if (phase.includes("error_body")) {
+      assert.equal(publicError.status, 503);
+      assert.equal(record.http_status, 503);
+      assert.equal(record.error_body_state, "reading");
+    }
+    const count = diagnostics.length;
+    const calls = requests;
+    resume();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(diagnostics.length, count, "late work must not emit a second log");
+    assert.equal(requests, calls, "late catalog work must not start inference");
+    assert.equal(record.reason, "timeout");
+  }
 });
 
 const lesson = {
