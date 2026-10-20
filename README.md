@@ -2,6 +2,8 @@
 
 A Next.js 16 / React 19 learning application for COMP5241, using Supabase Auth/Postgres and server-side OpenRouter inference.
 
+For a presentation-ready overview of features, design choices and prototype screenshots, see [Project showcase](PROJECT_SHOWCASE.md).
+
 Track remaining work, blockers, acceptance criteria and verification updates in [IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md).
 
 ## 20 October 2026 — saved, resumable lesson generation (independent bounded LOCAL acceptance; connected gates open)
