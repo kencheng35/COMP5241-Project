@@ -1,0 +1,18 @@
+.panel { min-width: 0; max-width: 54rem; overflow-wrap: anywhere; }
+.panel p { margin-block: 1rem; }
+.panel .privacy { font-size: .875rem; line-height: 1.5; text-align: start; }
+.form { display: grid; gap: 1rem; min-width: 0; }
+.form label { display: grid; gap: .4rem; min-width: 0; }
+.form input, .form select, .form textarea { max-width: 100%; min-width: 0; }
+.form input[type="checkbox"] { justify-self: start; }
+.status { margin-block: 1.5rem; padding: 1rem; border: 1px solid #8a9791; border-radius: .75rem; }
+.status h2:focus { outline: 3px solid #16734f; outline-offset: 4px; }
+.status progress { max-width: 100%; width: 100%; }
+.buttons { display: flex; flex-wrap: wrap; gap: .75rem; margin-block: 1rem; }
+.buttons button, .form button { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
+.list { list-style: none; padding: 0; }
+.list li { display: flex; flex-wrap: wrap; gap: .75rem; padding-block: 1rem; border-bottom: 1px solid #a7b1ac; }
+.list span { flex-basis: 100%; }
+.panel button { cursor: pointer; }
+.panel button:disabled { cursor: not-allowed; opacity: .6; }
+@media (max-width: 480px) { .buttons { flex-direction: column; align-items: stretch; } }

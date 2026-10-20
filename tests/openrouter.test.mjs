@@ -204,9 +204,9 @@ test("malformed, empty, refused and incomplete completions are rejected", async 
   }
 });
 
-test("default and maximum deadlines are exactly 30000ms; smaller injectable deadlines remain valid", async context => {
+test("default deadline is 30000ms and explicit maximum is 60000ms; smaller deadlines remain valid", async context => {
   context.mock.timers.enable({ apis: ["setTimeout"] });
-  for (const timeoutMs of [undefined, 30000, 1, 10]) {
+  for (const timeoutMs of [undefined, 30000, 60000, 1, 10]) {
     let signal, settled = false;
     const pending = completion([], undefined, {
       env, ...(timeoutMs === undefined ? {} : { timeoutMs }),
@@ -226,6 +226,7 @@ test("default and maximum deadlines are exactly 30000ms; smaller injectable dead
 
 test("one shared finite deadline covers both fetches and bodies even if they ignore abort", async context => {
   context.mock.timers.enable({ apis: ["setTimeout"] });
+  for (const timeoutMs of [10, 60000]) {
   for (const phase of ["catalog", "catalog body", "inference", "body"]) {
     const signals = [];
     let elapsed = 0, reachedPhase, settled = false;
@@ -236,36 +237,37 @@ test("one shared finite deadline covers both fetches and bodies even if they ign
       signals.push(options.signal);
       if (url.endsWith("/models")) {
         if (phase === "catalog") return block();
-        advance(4);
+        advance(timeoutMs * 0.4);
         return new Response(new ReadableStream({
           async start(controller) {
             if (phase === "catalog body") { await block(); return; }
-            advance(3);
+            advance(timeoutMs * 0.3);
             controller.enqueue(new TextEncoder().encode(JSON.stringify(catalog)));
             controller.close();
           },
         }));
       }
       if (phase === "inference") return block();
-      advance(2);
+      advance(timeoutMs * 0.2);
       return new Response(new ReadableStream({ start: block }));
     };
-    const pending = completion([], undefined, { env, fetch, timeoutMs: 10 });
+    const pending = completion([], undefined, { env, fetch, timeoutMs });
     pending.then(() => { settled = true; }, () => { settled = true; });
     const rejected = assert.rejects(pending, /timed out/);
     await reached;
-    advance(9 - elapsed);
+    advance(timeoutMs - 1 - elapsed);
     await Promise.resolve();
     assert.equal(settled, false, phase);
     advance(1);
     await rejected;
     assert.ok(signals.every(signal => signal === signals[0] && signal.aborted));
   }
+  }
 });
 
 test("invalid deadlines and transport details fail safely", async () => {
   let requests = 0;
-  for (const timeoutMs of [Infinity, NaN, 0, -1, 30001, 55000]) {
+  for (const timeoutMs of [Infinity, NaN, 0, -1, 60001]) {
     await assert.rejects(completion([], undefined, {
       env, timeoutMs, fetch: async () => { requests++; throw new Error("Network forbidden"); },
     }), /Invalid AI request timeout/);
@@ -421,7 +423,7 @@ test("config and catalog failures log sanitized stages and make no unauthorized 
     [{}, 10, "missing_key", []],
     [{ ...privateEnv, OPENROUTER_MODEL: privateText }, 10, "invalid_model_config", []],
     [{ ...privateEnv, OPENROUTER_FALLBACK_MODELS: privateText }, 10, "invalid_model_config", []],
-    [privateEnv, 30001, "invalid_timeout", []],
+    [privateEnv, 60001, "invalid_timeout", []],
   ]) {
     let calls = 0;
     const { record } = await failed({ env: configuration, timeoutMs, fetch: async () => { calls++; throw new Error(privateText); } });

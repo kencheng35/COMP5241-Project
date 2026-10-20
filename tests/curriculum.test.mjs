@@ -115,63 +115,38 @@ test("actual lesson loader projects metadata only and preserves public/owner and
   await assert.rejects(server.requireUser(), /Redirect/);
 });
 
-test("actual teaching import validates every family before extraction; saves only a private generated representation", async () => {
-  const user = { id: "synthetic-instructor", app_metadata: { role: "instructor" } };
-  const saves = [], calls = [];
-  let aiAllowed = true, revokeAfterGeneration = false;
-  const database = {
-    rpc: async () => { calls.push("quota"); return { data: true, error: null }; },
-    from(table) {
-      assert.equal(table, "forge_lessons");
-      return { insert(value) { saves.push(value); return { select: () => ({ single: async () => ({ data: { id: "synthetic-draft" }, error: null }) }) }; } };
-    },
-  };
-  const actions = loadReal("app/teaching/actions.ts", {
-    "next/cache": { revalidatePath() {} }, zod: { z },
-    "@/lib/learning-server": { ...permissions, currentUser: async () => user, database: () => database },
-    "@/lib/account-directory": {}, "@/lib/curriculum": curriculum,
-    "@/lib/ai-eligibility-server": { requireAiAccess: async () => { if (!aiAllowed) throw new Error("AI access denied"); } },
-    "@/lib/teaching-material": { extractTeachingMaterial: async file => { calls.push("extract"); assert.equal(file.name, "synthetic.pdf"); return "Synthetic extracted software content"; } },
-    "@/lib/openrouter": { generateLesson: async (objective, selection, source) => {
-      calls.push("generate");
-      assert.equal(objective, "Synthetic curriculum objective");
-      assert.equal(source, "Synthetic extracted software content");
-      if (revokeAfterGeneration) aiAllowed = false;
-      return parseWrite({ ...lessonFixture, ...selection });
-    } },
-  });
+test("actual teaching import validates every family before extraction; starts private saved generation without inference", async t => {
+  const { harness } = await import("./lesson-generation-harness.mjs");
+  const h = await harness(); t.after(h.close);
   const formFor = (family, subject) => {
-    const form = new FormData();
-    for (const [key, value] of Object.entries({ consent: "on", topic: "Synthetic curriculum objective", subject, audience: "instructors",
-      difficulty: "intermediate", curriculumTopic: family === "sdlc" ? "requirements" : family, outcomes: "Apply a software skill", prerequisites: "" })) form.set(key, value);
-    form.set("material", new File(["synthetic file bytes"], "synthetic.pdf", { type: "application/pdf" }));
-    return form;
+    return h.form({ consent: "on", topic: "Synthetic curriculum objective", subject, audience: "instructors",
+      difficulty: "intermediate", curriculumTopic: family === "sdlc" ? "requirements" : family, outcomes: "Apply a software skill", prerequisites: "",
+      material: new File(["synthetic file bytes"], "synthetic.pdf", { type: "application/pdf" }) });
   };
   for (const [family, subject] of Object.entries(FAMILIES)) {
     const form = formFor(family, subject);
-    assert.ok((await actions.importTeachingMaterial({}, form)).success);
-    const saved = saves.at(-1);
-    assert.equal(saved.subject, subject);
-    assert.equal(saved.content.metadata.audience, "instructors");
-    assert.equal(saved.visibility, undefined); // existing database default remains private
-    assert.equal(saved.owner_id, user.id);
+    const started = await h.teachingActions.importTeachingMaterial({}, form);
+    assert.ok(started.generationId);
+    const saved = (await h.actions.loadLessonGeneration(started.generationId)).draft;
+    assert.equal(saved.selection.subject, subject);
+    assert.equal(saved.selection.metadata.audience, "instructors");
+    assert.equal(saved.owner_id, h.owner);
+    assert.equal(saved.source_text, h.state.source);
+    assert.deepEqual(saved.parts, []);
     assert.ok(!JSON.stringify(saved).includes("synthetic file bytes"));
-    assert.ok(!JSON.stringify(saved).includes("Synthetic extracted software content"));
   }
   for (const variant of ["topic", "metadata", "role", "consent", "revoked"]) {
     const form = formFor("sdlc", FAMILIES.sdlc);
-    const before = calls.length;
+    const before = h.state.extractionCalls;
     if (variant === "topic") form.set("curriculumTopic", "coding-agents");
     if (variant === "metadata") form.delete("audience");
-    if (variant === "role") user.app_metadata.role = "learner";
+    if (variant === "role") h.state.user.app_metadata.role = "learner";
     if (variant === "consent") form.delete("consent");
-    if (variant === "revoked") aiAllowed = false;
-    assert.ok((await actions.importTeachingMaterial({}, form)).error);
-    assert.equal(calls.length, before);
-    user.app_metadata.role = "instructor"; aiAllowed = true;
+    if (variant === "revoked") h.state.user.app_metadata.ai_access = false;
+    assert.ok((await h.teachingActions.importTeachingMaterial({}, form)).error);
+    assert.equal(h.state.extractionCalls, before);
+    h.state.user.app_metadata = { role: "instructor", ai_access: true };
   }
-  revokeAfterGeneration = true;
-  const before = saves.length;
-  assert.ok((await actions.importTeachingMaterial({}, formFor("sdlc", FAMILIES.sdlc))).error);
-  assert.equal(saves.length, before);
+  assert.equal(h.state.completions.length, 0);
+  assert.equal((await h.db.query("select count(*)::int as n from forge_lessons")).rows[0].n, 0);
 });

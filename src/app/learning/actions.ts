@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { accessibleLesson, currentUser, database, enrolledLesson, isAdmin, canEditLesson, canPublishLessons } from "@/lib/learning-server";
-import { coachReply, generateLesson } from "@/lib/openrouter";
+import { coachReply } from "@/lib/openrouter";
+import { startGeneration } from "@/lib/lesson-generation-server";
 import { gradeQuiz, lessonSchema } from "@/lib/learning";
 import { resumeSchema, type ResumeState } from "@/lib/resume";
 import { requireAiAccess } from "@/lib/ai-eligibility-server";
 import { FAMILIES, readMetadata, selectionFromForm, subjectSelection, validateCurriculumContent } from "@/lib/curriculum";
 
-export type ActionState = { error?: string; saveUncertain?: true; success?: string; lessonId?: string; version?: number; attemptId?: string; score?: number; feedback?: { prompt: string; correct: string; explanation: string }[] };
+export type ActionState = { error?: string; saveUncertain?: true; generationId?: string; success?: string; lessonId?: string; version?: number; attemptId?: string; score?: number; feedback?: { prompt: string; correct: string; explanation: string }[] };
 
 function failure(error: unknown): ActionState {
   if (error instanceof z.ZodError) return { error: `Please check ${error.issues[0]?.path.join(".") || "your input"}: ${error.issues[0]?.message ?? "Invalid input."}` };
@@ -37,28 +38,14 @@ function creationAcknowledgement(data: { id?: unknown } | null, error: { code?: 
 }
 
 export async function createLesson(_previous: ActionState, form: FormData): Promise<ActionState> {
-  if (_previous.saveUncertain) return uncertainCreation();
-  let insertAttempted = false;
   try {
-    const user = await currentUser();
-    await requireAiAccess(user);
-    const topic = z.string().trim().min(5, "Describe a topic in at least five characters.").max(500).parse(form.get("topic"));
-    const selection = selectionFromForm(form);
-    const { data: allowed, error } = await database().rpc("forge_claim_request", { request_user: user.id });
-    if (error) throw new Error("Generation is unavailable. Check the learning database migration.");
-    if (!allowed) throw new Error("Your five daily generation requests have been used. Quiz retries are still unlimited.");
-    const content = await generateLesson(topic, selection);
-    const confirmedUser = await currentUser();
-    await requireAiAccess(confirmedUser);
-    if (confirmedUser.id !== user.id) throw new Error("Your session changed. Nothing was saved. Reload before generating another lesson.");
-    const client = database();
-    insertAttempted = true;
-    const { data, error: saveError } = await client.from("forge_lessons").insert({ owner_id: user.id, title: content.title, subject: content.subject, summary: content.summary, content, visibility: "private" }).select("id").single();
-    const rejected = creationAcknowledgement(data, saveError);
-    if (rejected) return rejected;
-    revalidatePath("/dashboard"); revalidatePath("/catalog");
-    return { success: "Your private lesson is ready. Enroll to begin.", lessonId: data!.id, version: 1 };
-  } catch (error) { return insertAttempted ? uncertainCreation() : failure(error); }
+    const state = await startGeneration({
+      id: z.uuid().parse(form.get("generationId")), kind: "studio",
+      objective: z.string().trim().min(5).max(500).parse(form.get("topic")), selection: selectionFromForm(form),
+    });
+    return state.draft ? { generationId: state.draft.id, success: "Draft saved. Resume to generate one part at a time." } :
+      { error: state.error, ...(state.uncertain ? { saveUncertain: true as const } : {}) };
+  } catch (error) { return failure(error); }
 }
 
 export async function enroll(_previous: ActionState, form: FormData): Promise<ActionState> {

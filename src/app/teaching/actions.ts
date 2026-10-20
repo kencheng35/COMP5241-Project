@@ -5,7 +5,7 @@ import { z } from "zod";
 import { accessibleLesson, canManageEnrollment, canPublishLessons, currentUser, database } from "@/lib/learning-server";
 import { findAccounts, type DirectoryState } from "@/lib/account-directory";
 import { requireAiAccess } from "@/lib/ai-eligibility-server";
-import { generateLesson } from "@/lib/openrouter";
+import { startGeneration } from "@/lib/lesson-generation-server";
 import { extractTeachingMaterial } from "@/lib/teaching-material";
 import type { ActionState } from "@/app/learning/actions";
 import { selectionFromForm } from "@/lib/curriculum";
@@ -54,16 +54,11 @@ export async function importTeachingMaterial(_previous: ActionState, form: FormD
     if (!(file instanceof File)) return { error: "Choose a teaching file." };
     const source = await extractTeachingMaterial(file);
     if (source.length > 20000) return { error: "This material contains more than 20,000 characters. Upload a shorter section; no content was sent to AI." };
-    const client = database();
-    const { data: allowed, error: quotaError } = await client.rpc("forge_claim_request", { request_user: user.id });
-    if (quotaError) return { error: "Generation is unavailable. Check the database migration." };
-    if (!allowed) return { error: "Your five daily generation requests have been used." };
-    const content = await generateLesson(topic, selection, source);
-    await requireAiAccess(await currentUser());
-    const { data, error } = await client.from("forge_lessons").insert({ owner_id: user.id, title: content.title, subject: content.subject, summary: content.summary, content }).select("id").single();
-    if (error || !data) return { error: "Could not save the generated draft. Nothing was published." };
-    revalidatePath("/teaching"); revalidatePath("/studio");
-    return { success: "Editable private draft created. Review its slides and quiz before publication.", lessonId: data.id };
+    const confirmed = await currentUser();
+    if (confirmed.id !== user.id || !canPublishLessons(confirmed)) return { error: "Your session or instructor permission changed. Reload before importing." };
+    const state = await startGeneration({ id: z.uuid().parse(form.get("generationId")), kind: "import", objective: topic, selection, source });
+    return state.draft ? { generationId: state.draft.id, success: "Extracted reference saved privately. Resume to generate; no AI call has been made." } :
+      { error: state.error, ...(state.uncertain ? { saveUncertain: true as const } : {}) };
   } catch (error) {
     if (error instanceof z.ZodError) return { error: "Choose a consistent curriculum subject/topic, complete the metadata, and enter a learning objective between 5 and 500 characters." };
     return { error: error instanceof Error ? error.message : "Material import failed. Try again." };

@@ -7,9 +7,11 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { chromium } from "@playwright/test";
 import ts from "typescript";
+import { harness } from "./lesson-generation-harness.mjs";
 
 // Offline mounts of the real async route functions and client components. No app server,
-// environment files, database, provider, mail, or image requests are permitted.
+// environment files, connected database, provider, mail, or image requests are permitted.
+// Saved generation uses real actions/helpers backed only by local in-memory PGlite.
 const require = createRequire(import.meta.url);
 const sources = Object.fromEntries([
   ["react", "react", "react.development.js"], ["react/jsx-runtime", "react", "react-jsx-runtime.development.js"],
@@ -21,8 +23,10 @@ function add(name, file) {
     compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText;
 }
-for (const name of ["learning", "curriculum", "recommendations", "resume"]) add(`@/lib/${name}`, `lib/${name}.ts`);
-for (const name of ["learning-controls", "lesson-metadata", "lesson-preview", "catalog-search", "learning-path"]) {
+for (const name of ["learning", "curriculum", "recommendations", "resume", "lesson-generation"]) add(`@/lib/${name}`, `lib/${name}.ts`);
+sources["./learning"] = sources["@/lib/learning"];
+sources["./curriculum"] = sources["@/lib/curriculum"];
+for (const name of ["learning-controls", "lesson-metadata", "lesson-preview", "catalog-search", "learning-path", "lesson-generation"]) {
   add(`@/components/${name}`, `components/${name}.tsx`);
   sources[`./${name}`] = sources[`@/components/${name}`];
 }
@@ -36,20 +40,40 @@ function bundleCjs(path) {
 }
 sources.zod = `module.exports = require(${JSON.stringify(bundleCjs(require.resolve("zod")))});`;
 const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8").replace('@import "tailwindcss";', "") +
-  readFileSync(new URL("../src/components/lesson-metadata.module.css", import.meta.url), "utf8");
+  readFileSync(new URL("../src/components/lesson-metadata.module.css", import.meta.url), "utf8") +
+  readFileSync(new URL("../src/components/lesson-generation.module.css", import.meta.url), "utf8");
 
 test("real curriculum routes and components: combined filters, legacy, player, paths and mobile keyboard", async context => {
+  const h = await harness(); context.after(h.close);
+  const fetches = [];
+  context.mock.method(globalThis, "fetch", async url => { fetches.push(String(url)); throw new Error("Network forbidden"); });
   const browser = await chromium.launch();
   const browserContext = await browser.newContext({ offline: true, serviceWorkers: "block", viewport: { width: 390, height: 844 } });
   context.after(async () => { await browserContext.close(); await browser.close(); });
   const requests = [], errors = [];
-  await browserContext.route("**/*", route => { requests.push(route.request().url()); return route.abort(); });
+  await browserContext.route("**/*", route => {
+    if (route.request().url() === "https://forge-curriculum.synthetic/") {
+      return route.fulfill({ contentType: "text/html", body: `<style>${css}</style><div id="root"></div>` });
+    }
+    requests.push(route.request().url()); return route.abort();
+  });
   const page = await browserContext.newPage();
   page.setDefaultTimeout(5000);
   page.on("pageerror", error => errors.push(error.message));
   const screenshots = await mkdtemp(join(tmpdir(), "forge-tracker08-"));
   context.diagnostic(`Captured synthetic screenshots (not visual approval): ${screenshots}; Chromium ${browser.version()}`);
-  await page.setContent(`<style>${css}</style><div id="root"></div>`);
+  await page.exposeFunction("invokeCurriculumGeneration", async (name, args) => {
+    if (name === "createLesson" || name === "importTeachingMaterial") {
+      const form = new FormData();
+      for (const [key, value] of args) {
+        form.set(key, key === "material" ? new File(["synthetic extraction fixture"], "synthetic.pdf", { type: "application/pdf" }) : value);
+      }
+      return (name === "createLesson" ? h.learningActions.createLesson : h.teachingActions.importTeachingMaterial)({}, form);
+    }
+    assert.ok(Object.hasOwn(h.actions, name), `Unexpected generation action ${name}`);
+    return h.actions[name](...args);
+  });
+  await page.goto("https://forge-curriculum.synthetic/");
   await page.evaluate(async sources => {
     const modules = {};
     let renderRoute, rows, currentRoute = 0;
@@ -68,7 +92,14 @@ test("real curriculum routes and components: combined filters, legacy, player, p
         return query;
       } }),
     };
-    const actions = new Proxy({}, { get: (_, name) => async () => {
+    const generationActions = new Proxy({}, { get: (_, name) => async (...args) => {
+      if (name === "createLesson" || name === "importTeachingMaterial") {
+        return window.invokeCurriculumGeneration(name, [...args[1].entries()].map(([key, value]) => [key, typeof value === "string" ? value : { filename: value.name }]));
+      }
+      return window.invokeCurriculumGeneration(name, args);
+    } });
+    const actions = new Proxy({}, { get: (_, name) => async (...args) => {
+      if (name === "createLesson" || name === "importTeachingMaterial") return generationActions[name](...args);
       if (name === "saveResume") return { revision: 1 };
       if (name === "attend") return { success: "Attendance recorded." };
       return { error: "Synthetic unavailable service. Input is retained." };
@@ -79,6 +110,7 @@ test("real curriculum routes and components: combined filters, legacy, player, p
       if (name === "@/lib/ai-eligibility-server") return { requireAiAccess: async () => {} };
       if (name === "@/components/learner-shell") return { LearnerShell: ({ children }) => load("react").createElement("main", {}, children) };
       if (name === "@/components/learner-import" || name === "@/components/lesson-coach") return new Proxy({}, { get: () => () => null });
+      if (name === "@/app/learning/generation-actions") return generationActions;
       if (name.endsWith("/actions") || name === "./actions") return actions;
       if (name === "next/navigation") return { notFound() { throw new Error("Not found"); }, redirect(path) { throw new Error(`Redirect ${path}`); } };
       if (name === "next/image") return { __esModule: true, default: () => null };
@@ -194,11 +226,77 @@ test("real curriculum routes and components: combined filters, legacy, player, p
       await page.locator('input[name="material"]').setInputFiles({ name: "synthetic.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF synthetic offline boundary") });
       await page.locator('input[name="consent"]').check();
     }
-    await page.getByRole("button", { name: route === "studio" ? "Generate private lesson" : "Generate editable draft" }).click();
+    const save = page.getByRole("button", { name: "Save generation draft (no AI yet)", exact: true });
+    const resume = page.getByRole("button", { name: "Resume / Retry explicitly", exact: true });
+    const reload = page.getByRole("button", { name: "Load saved state / reconcile response loss", exact: true });
+    const status = page.getByRole("heading", { name: "Generation status", exact: true });
+    const callsBefore = h.state.completions.length;
+    h.state.missing = true;
+    await save.focus(); await page.keyboard.press("Enter");
     await page.getByRole("alert").waitFor();
+    assert.match(await page.getByRole("alert").innerText(), /lesson-generation migration/);
     assert.equal(await page.locator('select[name="subject"]').inputValue(), "AI Coding-Agent Skills");
+    assert.equal(await page.locator('select[name="curriculumTopic"]').inputValue(), "coding-agents");
+    assert.equal(await page.locator('select[name="audience"]').inputValue(), "learners");
+    assert.equal(await page.locator('select[name="difficulty"]').inputValue(), "foundation");
+    assert.equal(await page.locator('textarea[name="outcomes"]').inputValue(), "Evaluate a proposed change");
     assert.equal(await page.locator('textarea[name="topic"]').inputValue(), "Explain a synthetic software change");
-    assert.equal(await page.getByRole("alert").evaluate(element => element === document.activeElement), true);
+    if (route === "teaching") {
+      assert.equal(await page.locator('input[name="consent"]').isChecked(), true);
+      assert.equal(await page.locator('input[name="material"]').evaluate(input => input.files[0]?.name), "synthetic.pdf");
+    }
+    // The delivered shared UI intentionally focuses its status heading, which
+    // contains a visible role=alert; do not regress to silent or unfocused errors.
+    assert.equal(await status.evaluate(element => element === document.activeElement), true);
+    assert.equal(await save.isEnabled(), true);
+    assert.equal(h.state.completions.length, callsBefore);
+    await page.screenshot({ path: join(screenshots, `${route}-start-error-mobile.png`), fullPage: true });
+    h.state.missing = false;
+    await save.focus(); await page.keyboard.press("Enter");
+    await resume.waitFor();
+    await page.getByRole("heading", { name: "Saved generation drafts", exact: true }).waitFor();
+    assert.equal(h.state.completions.length, callsBefore, "both route starts must save without inference");
+    const id = (await h.db.query("select id from forge_lesson_generations where kind=$1", [route === "teaching" ? "import" : "studio"])).rows[0].id;
+    const draft = (await h.actions.loadLessonGeneration(id)).draft;
+    assert.deepEqual(draft.selection, {
+      subject: "AI Coding-Agent Skills",
+      metadata: { version: 1, topic: "coding-agents", audience: "learners", difficulty: "foundation", outcomes: ["Evaluate a proposed change"], prerequisites: [] },
+    });
+    assert.equal(draft.objective, "Explain a synthetic software change");
+    assert.deepEqual(draft.parts, []);
+    assert.equal(draft.kind, route === "teaching" ? "import" : "studio");
+    if (route === "teaching") assert.equal(draft.source_text, h.state.source);
+    h.state.failure = true;
+    await resume.focus(); await page.keyboard.press("Enter");
+    await page.getByRole("alert").waitFor();
+    assert.match(await page.getByRole("alert").innerText(), /Load saved state first/);
+    assert.equal((await page.getByRole("alert").innerText()).includes("PRIVATE"), false);
+    assert.equal(await status.evaluate(element => element === document.activeElement), true);
+    assert.equal(await resume.isDisabled(), true);
+    assert.equal(h.state.completions.length, callsBefore + 1);
+    assert.deepEqual((await h.actions.loadLessonGeneration(id)).draft.parts, []);
+    await page.screenshot({ path: join(screenshots, `${route}-stage-error-mobile.png`), fullPage: true });
+    h.state.failure = false;
+    await status.focus(); await page.keyboard.press("Tab");
+    assert.equal(await reload.evaluate(element => element === document.activeElement), true, "disabled Resume is skipped by keyboard");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent === "Resume / Retry explicitly" && !button.disabled));
+    assert.equal(await status.evaluate(element => element === document.activeElement), true);
+    let release; h.state.gate = new Promise(resolve => { release = resolve; });
+    try {
+      await page.keyboard.press("Tab");
+      assert.equal(await resume.evaluate(element => element === document.activeElement), true);
+      await page.keyboard.press("Enter");
+      await page.getByRole("button", { name: "Pause after current request", exact: true }).click();
+    } finally { release(); h.state.gate = null; }
+    await page.getByText(/1 saved parts/).waitFor();
+    assert.equal(h.state.completions.length, callsBefore + 2);
+    const resumed = (await h.actions.loadLessonGeneration(id)).draft;
+    assert.deepEqual(resumed.selection, draft.selection, "retry preserves the exact curriculum instead of relabeling it");
+    assert.equal(resumed.parts.length, 1);
+    assert.equal(resumed.attempts.length, 2);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({ path: join(screenshots, `${route}-saved-paused-mobile.png`), fullPage: true });
   }
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.evaluate(() => curriculumUi.renderRoute("catalog"));
@@ -206,4 +304,5 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   await page.screenshot({ path: join(screenshots, "catalog-desktop.png"), fullPage: true });
   assert.deepEqual(errors, []);
   assert.deepEqual(requests, []);
+  assert.deepEqual(fetches, []);
 });

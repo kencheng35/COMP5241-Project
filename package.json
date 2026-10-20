@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test": "node --experimental-strip-types --test --test-concurrency=1 tests/*.test.mjs",
     "check:setup": "node scripts/check-setup.mjs",
     "check:ai": "node --experimental-strip-types scripts/check-ai.mjs",
     "test:e2e": "node tests/e2e.mjs",

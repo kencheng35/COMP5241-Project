@@ -18,8 +18,6 @@ const recommendations = await import("../src/lib/recommendations.ts");
 const permissions = await import("../src/lib/permissions.ts");
 const resume = await import("../src/lib/resume.ts");
 const curriculum = await import("../src/lib/curriculum.ts");
-const eligibility = await import("../src/lib/eligibility.ts");
-const providerClient = await import("../src/lib/openrouter-client.ts");
 const require = createRequire(import.meta.url);
 const transpile = path => ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), {
   compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
@@ -51,7 +49,7 @@ const fixture = {
 };
 const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8").replace('@import "tailwindcss";', "");
 
-test("mounted real studio: blank manual creation and AI generation persistence contracts", async context => {
+test("mounted real studio: manual creation, same-ID editing and retained uncertain-save contracts", async context => {
   const unexpectedFetches = [];
   context.mock.method(globalThis, "fetch", async url => {
     unexpectedFetches.push(String(url));
@@ -60,9 +58,8 @@ test("mounted real studio: blank manual creation and AI generation persistence c
   const rows = new Map(), calls = [];
   const user = { id: "00000000-0000-4000-8000-000000000001", app_metadata: {} };
   let signedIn = true, failSave = false, gate = null, loseAcknowledgement = false, aiAllowed = true, insertOutcome = null;
-  let realGeneration = false, configured = true, profileError = null, insertError = null, quotaError = null, quotaAllowed = true, providerStatus = 200;
-  let providerConfigured = true, revokeAfterProvider = false;
-  const fetchCalls = [], quotaCalls = [];
+  let configured = true, profileError = null, insertError = null, quotaError = null, quotaAllowed = true;
+  const quotaCalls = [];
   const providerCalls = [];
   const server = {
     ...permissions, currentUser: async () => { if (!signedIn) throw new Error("Please log in again."); return user; },
@@ -116,41 +113,14 @@ test("mounted real studio: blank manual creation and AI generation persistence c
     }, async rpc(name, parameters) { quotaCalls.push({ name, parameters }); return { data: quotaAllowed, error: quotaError }; } };
     },
   };
-  function loadServer(path, dependencies) {
-    const mod = { exports: {} };
-    new Function("require", "module", "exports", transpile(path))(
-      name => { assert.ok(name in dependencies, name); return dependencies[name]; }, mod, mod.exports);
-    return mod.exports;
-  }
-  const guard = loadServer("../src/lib/ai-eligibility-server.ts", {
-    "server-only": {}, "@/lib/learning-server": server, "@/lib/eligibility": eligibility,
-  });
-  const realProvider = loadServer("../src/lib/openrouter.ts", {
-    "server-only": {}, zod: { z }, "@/lib/learning": learning, "@/lib/curriculum": curriculum,
-    "@/lib/openrouter-client": { completion: (messages, schema) => providerClient.completion(messages, schema, {
-      env: providerConfigured ? { OPENROUTER_API_KEY: "synthetic-only", OPENROUTER_MODEL: "synthetic/model:free" } : {},
-      fetch: async (url, options) => {
-        fetchCalls.push({ url, options });
-        if (url.endsWith("/models")) return Response.json({ data: [{ id: "synthetic/model:free", pricing: { prompt: "0", completion: "0" } }] });
-        if (providerStatus !== 200) return new Response("PRIVATE_PROVIDER_ERROR", { status: providerStatus });
-        const request = JSON.parse(options.body);
-        const selected = JSON.parse(request.messages[1].content);
-        if (revokeAfterProvider) aiAllowed = false;
-        return Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({
-          ...fixture, subject: selected.subject, metadata: selected.metadata,
-          slides: fixture.slides.map(slide => ({ ...slide, topic: selected.metadata.topic })),
-        }) } }] });
-      },
-    }) },
-  });
   const dependencies = {
     "next/cache": { revalidatePath() {} }, zod: { z },
     "@/lib/learning-server": server, "@/lib/learning": learning,
     "@/lib/recommendations": recommendations, "@/lib/resume": resume,
     "@/lib/curriculum": curriculum,
-    "@/lib/openrouter": { coachReply: async (...args) => { providerCalls.push(args); return "Synthetic coach reply"; },
-      generateLesson: async (objective, selection) => { providerCalls.push([objective, selection]); return realGeneration ? realProvider.generateLesson(objective, selection) : { ...fixture, ...selection }; } },
-    "@/lib/ai-eligibility-server": { requireAiAccess: async account => { if (!aiAllowed) throw new Error("AI access denied"); if (realGeneration) await guard.requireAiAccess({ ...account, app_metadata: { ai_access: true } }); } },
+    "@/lib/openrouter": { coachReply: async (...args) => { providerCalls.push(args); return "Synthetic coach reply"; } },
+    "@/lib/lesson-generation-server": { startGeneration: async () => { throw new Error("Staged generation is covered by the real-helper/PGlite and mounted-generation suites."); } },
+    "@/lib/ai-eligibility-server": { requireAiAccess: async () => { if (!aiAllowed) throw new Error("AI access denied"); } },
   };
   const mod = { exports: {} };
   new Function("require", "module", "exports", transpile("../src/app/learning/actions.ts"))(
@@ -180,6 +150,7 @@ test("mounted real studio: blank manual creation and AI generation persistence c
     function load(name) {
       if (name === "@/components/learning-controls") return load("editor");
       if (name === "@/components/lesson-metadata") return load("./lesson-metadata");
+      if (name === "@/components/lesson-generation") return { LessonGeneration: () => { throw new Error("Use the mounted staged-generation suite for this branch."); } };
       if (name === "@/components/learner-shell") return { LearnerShell: ({ children }) => load("react").createElement("main", {}, children) };
       if (name === "@/lib/learning-server") return { requireUser: async () => ({ id: "synthetic" }), displayName: async () => "Synthetic author", isAdmin: () => false, isInstructor: () => false, canPublishLessons: () => false };
       if (name === "next/navigation") return { notFound() { throw new Error("Not found"); } };
@@ -449,151 +420,21 @@ test("mounted real studio: blank manual creation and AI generation persistence c
       await page.close();
     }
   });
-  async function generationPage(width = 320) {
-    const page = await mount(undefined, false, undefined, {});
-    await page.setViewportSize({ width, height: 900 });
-    await page.locator('select[name="subject"]').selectOption(fixture.subject);
-    await page.locator('select[name="curriculumTopic"]').selectOption(fixture.metadata.topic);
-    await page.locator('select[name="audience"]').selectOption(fixture.metadata.audience);
-    await page.locator('select[name="difficulty"]').selectOption(fixture.metadata.difficulty);
-    await page.getByLabel("Learning outcomes", { exact: true }).fill("Write testable requirements\n\nCheck an example\n");
-    await page.getByLabel("Learning objective", { exact: true }).fill("Describe testable software requirements");
-    return page;
-  }
-  await context.test("actual AI form -> action -> generator -> client -> save, retained failure and keyboard recovery", async () => {
-    realGeneration = true;
-    try {
-      for (const width of [320, 1440]) {
-        const page = await generationPage(width);
-        const before = calls.length, beforeQuota = quotaCalls.length;
-        providerStatus = 429;
-        await page.getByRole("button", { name: "Generate private lesson", exact: true }).focus();
-        await page.keyboard.press("Enter");
-        await page.getByRole("alert").filter({ hasText: "quota is exhausted" }).waitFor();
-        assert.equal(calls.length, before);
-        assert.equal(await page.getByRole("status").count(), 0);
-        assert.equal(await page.getByRole("alert").evaluate(element => element === document.activeElement), true);
-        assert.equal(await page.getByLabel("Learning objective", { exact: true }).inputValue(), "Describe testable software requirements");
-        assert.equal(await page.locator('select[name="subject"]').inputValue(), fixture.subject);
-        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-        await page.screenshot({ path: join(screenshots, `ai-error-${width}.png`) });
-        providerStatus = 200;
-        await page.getByRole("button", { name: "Generate private lesson", exact: true }).focus();
-        await page.keyboard.press("Enter");
-        await page.getByRole("status").filter({ hasText: "Your private lesson is ready" }).waitFor();
-        assert.equal(calls.length, before + 1);
-        assert.equal(quotaCalls.length, beforeQuota + 2, "no hidden local quota retries");
-        const saved = rows.get(calls.at(-1).id);
-        assert.equal(saved.owner_id, user.id);
-        assert.equal(saved.visibility, "private");
-        assert.equal(await page.getByRole("link", { name: "Open lesson" }).getAttribute("href"), `/courses/${saved.id}`);
-        assert.deepEqual(saved.content.metadata.outcomes, ["Write testable requirements", "Check an example"]);
-        learning.lessonSchema.parse(saved.content);
-        curriculum.validateCurriculumContent(saved.content);
-        const request = JSON.parse(fetchCalls.at(-1).options.body);
-        const input = JSON.parse(request.messages[1].content);
-        assert.equal(input.topic, "Describe testable software requirements");
-        assert.equal(input.metadata.topic, "requirements");
-        assert.equal(Object.hasOwn(request, "provider"), false);
-        assert.equal(Object.hasOwn(request, "reasoning"), false);
-        assert.equal(request.model, "synthetic/model:free");
-        assert.equal(Object.hasOwn(request, "models"), false);
-        assert.equal(request.response_format.type, "json_schema");
-        assert.equal(request.response_format.json_schema.name, "learning_lesson");
-        assert.equal(request.response_format.json_schema.strict, true);
-        assert.equal(request.response_format.json_schema.schema.type, "object");
-        assert.ok(!JSON.stringify(request).includes(user.id));
-        await page.getByRole("link", { name: "Open lesson" }).scrollIntoViewIfNeeded();
-        await page.screenshot({ path: join(screenshots, `ai-saved-${width}.png`) });
-        await page.close();
-      }
-    } finally { realGeneration = false; providerStatus = 200; }
-  });
-  await context.test("AI missing config/schema, provider unavailable and revoked grant never return success", async () => {
-    realGeneration = true;
-    const page = await generationPage();
-    const entries = await page.locator("form").evaluate(form => [...new FormData(form).entries()]);
-    const form = new FormData(); for (const [key, value] of entries) form.set(key, value);
-    try {
-      const before = calls.length, beforeFetch = fetchCalls.length, beforeQuota = quotaCalls.length;
-      configured = false;
-      assert.match((await mod.exports.createLesson({}, form)).error, /AI eligibility could not be checked/);
-      const manualForm = new FormData(); manualForm.set("content", JSON.stringify(fixture));
-      const manualMissingConfig = await mod.exports.createManualLesson({}, manualForm);
-      assert.equal(manualMissingConfig.error, "Learning services are not configured.");
-      assert.equal(manualMissingConfig.saveUncertain, undefined);
-      configured = true; profileError = { code: "42703", message: "PRIVATE missing age" };
-      assert.match((await mod.exports.createLesson({}, form)).error, /AI eligibility could not be checked/);
-      profileError = null; quotaError = { code: "PGRST202", message: "PRIVATE missing RPC" };
-      assert.equal((await mod.exports.createLesson({}, form)).error, "Generation is unavailable. Check the learning database migration.");
-      quotaError = null; quotaAllowed = false;
-      assert.match((await mod.exports.createLesson({}, form)).error, /five daily generation/);
-      quotaAllowed = true;
-      assert.equal(fetchCalls.length, beforeFetch);
-      assert.equal(quotaCalls.length, beforeQuota + 2);
-      providerConfigured = false;
-      assert.equal((await mod.exports.createLesson({}, form)).error, "Lesson generation is not configured.");
-      providerConfigured = true; providerStatus = 404;
-      assert.match((await mod.exports.createLesson({}, form)).error, /No free AI endpoint currently meets/);
-      providerStatus = 200; revokeAfterProvider = true;
-      assert.equal((await mod.exports.createLesson({}, form)).error, "AI access denied");
-      aiAllowed = true; revokeAfterProvider = false;
-      assert.equal(calls.length, before);
-      for (const code of ["42P01", "42703", "PGRST204", "PGRST205"]) {
-        insertError = { code, message: "PRIVATE missing lesson storage" };
-        for (const [action, input] of [["createLesson", form], ["createManualLesson", new FormData()]]) {
-          if (action === "createManualLesson") input.set("content", JSON.stringify(fixture));
-          const result = await mod.exports[action]({}, input);
-          assert.equal(result.error, "Lesson storage is unavailable. Check the learning database migrations and schema cache, then try again. Nothing was saved.");
-          assert.equal(result.saveUncertain, undefined);
-          assert.equal(result.success, undefined);
-        }
-      }
-      assert.equal(calls.length, before);
-    } finally {
-      realGeneration = false; configured = true; profileError = null; quotaError = null; quotaAllowed = true;
-      providerConfigured = true; providerStatus = 200; revokeAfterProvider = false; aiAllowed = true; insertError = null;
-      await page.close();
+  // Staged AI persistence/response loss is exercised by lesson-generation*.test.mjs
+  // against the real server helpers, complete migrations and network-blocked UI.
+  await context.test("manual storage configuration and definite schema rejections remain retryable", async () => {
+    const form = new FormData(); form.set("content", JSON.stringify(fixture));
+    configured = false;
+    assert.equal((await mod.exports.createManualLesson({}, form)).error, "Learning services are not configured.");
+    configured = true;
+    for (const code of ["42P01", "42703", "PGRST204", "PGRST205"]) {
+      insertError = { code, message: "PRIVATE missing lesson storage" };
+      const result = await mod.exports.createManualLesson({}, form);
+      assert.equal(result.error, "Lesson storage is unavailable. Check the learning database migrations and schema cache, then try again. Nothing was saved.");
+      assert.equal(result.saveUncertain, undefined);
     }
+    insertError = null;
   });
-  for (const outcome of ["throw-after-commit", "returned-error-after-commit", "missing-data-after-commit", "malformed-data-after-commit", "transport-after-action"]) {
-    await context.test(`AI ${outcome}: retain form, reconcile canonical ID and block repeat generation`, async () => {
-      realGeneration = true;
-      const page = await generationPage();
-      const before = calls.length, beforeQuota = quotaCalls.length;
-      insertOutcome = outcome; loseAcknowledgement = outcome === "transport-after-action";
-      try {
-        await page.getByRole("button", { name: "Generate private lesson", exact: true }).click();
-        await page.getByRole("alert").filter({ hasText: "Save outcome is unknown" }).waitFor();
-        assert.equal(await page.getByRole("status").count(), 0);
-        assert.equal(await page.getByRole("link", { name: "Open lesson", exact: true }).count(), 0);
-        assert.equal(await page.getByRole("button", { name: "Generate private lesson", exact: true }).isDisabled(), true);
-        assert.equal(await page.getByLabel("Learning objective", { exact: true }).inputValue(), "Describe testable software requirements");
-        const recovery = page.getByRole("link", { name: "Check my private lessons (new tab)", exact: true });
-        assert.equal(await recovery.getAttribute("href"), "/catalog?visibility=private");
-        assert.equal(await recovery.getAttribute("target"), "_blank");
-        await page.locator("form").evaluate(form => form.requestSubmit());
-        assert.equal(calls.length, before + 1);
-        assert.equal(quotaCalls.length, beforeQuota + 1);
-        assert.ok(!(await page.getByRole("alert").innerText()).includes("PRIVATE"));
-        if (outcome === "missing-data-after-commit") {
-          await recovery.scrollIntoViewIfNeeded();
-          await page.screenshot({ path: join(screenshots, "ai-uncertain-320.png") });
-          insertOutcome = null;
-          const saved = rows.get(calls[before].id);
-          const reconciled = await mount(saved.content, false, { id: saved.id, version: saved.version });
-          await reconciled.getByLabel("Title", { exact: true }).fill("Reconciled generated lesson");
-          await reconciled.getByRole("button", { name: "Save lesson", exact: true }).click();
-          await reconciled.getByRole("status").filter({ hasText: "Lesson saved." }).waitFor();
-          assert.deepEqual(calls.slice(before).map(call => call.kind), ["insert", "update"]);
-          assert.equal(calls.at(-1).id, saved.id);
-          assert.equal(rows.get(saved.id).version, 2);
-          assert.equal(await page.getByRole("button", { name: "Generate private lesson", exact: true }).isDisabled(), true);
-          await reconciled.close();
-        }
-      } finally { realGeneration = false; insertOutcome = null; loseAcknowledgement = false; await page.close(); }
-    });
-  }
   await context.test("failed save retains input, focuses error and allows explicit retry; stale version cannot overwrite", async () => {
     const page = await mount();
     failSave = true;
@@ -762,12 +603,13 @@ test("mounted real studio: blank manual creation and AI generation persistence c
     assert.ok((await mod.exports.updateLesson({}, formFor(fixture, { lessonId: row.id, version: row.version, publish: "on" }))).success);
     delete user.app_metadata.role;
   });
-  await context.test("actual generation/coach actions resolve each family and deny private access, unsupported scope or revoked AI", async () => {
+  await context.test("coach actions resolve each family and deny private access, unsupported scope or revoked AI", async () => {
     for (const [family, subject] of Object.entries(curriculum.FAMILIES)) {
       const form = formFor();
       const topic = family === "sdlc" ? "testing" : family;
       for (const [key, value] of Object.entries({ subject, curriculumTopic: topic, audience: "learners", difficulty: "foundation", outcomes: "Apply a software skill", prerequisites: "", topic: "Synthetic objective" })) form.set(key, value);
-      const result = await mod.exports.createLesson({}, form);
+      form.set("content", JSON.stringify({ ...fixture, subject, metadata: { ...fixture.metadata, topic } }));
+      const result = await mod.exports.createManualLesson({}, form);
       assert.ok(result.success);
       assert.ok((await mod.exports.askCoach(result.lessonId, [{ role: "user", content: "Explain the example" }])).reply);
       assert.equal(providerCalls.at(-1)[0].subject, subject);
@@ -775,7 +617,6 @@ test("mounted real studio: blank manual creation and AI generation persistence c
       assert.equal("questions" in providerCalls.at(-1)[0], false);
       aiAllowed = false;
       const before = providerCalls.length;
-      assert.ok((await mod.exports.createLesson({}, form)).error);
       assert.ok((await mod.exports.askCoach(result.lessonId, [{ role: "user", content: "Explain" }])).error);
       assert.equal(providerCalls.length, before);
       aiAllowed = true;

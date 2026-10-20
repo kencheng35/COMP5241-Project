@@ -160,7 +160,7 @@ export async function completion(messages: Message[], schema?: Record<string, un
     const fetchRequest = options.fetch ?? fetch;
     reason = "invalid_timeout";
     const timeoutMs = options.timeoutMs ?? 30000;
-    if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) throw new OpenRouterError("Invalid AI request timeout.");
+    if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new OpenRouterError("Invalid AI request timeout.");
     // Python len(text): total Unicode code points in all outgoing message content, not UTF-16 units.
     const characterCount = messages.reduce((total, { content }) => total + [...content].length, 0);
     const deadline = new Promise<never>((_, reject) => {
