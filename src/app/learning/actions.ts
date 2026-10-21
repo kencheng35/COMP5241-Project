@@ -5,12 +5,12 @@ import { z } from "zod";
 import { accessibleLesson, currentUser, database, enrolledLesson, isAdmin, canEditLesson, canPublishLessons } from "@/lib/learning-server";
 import { coachReply } from "@/lib/openrouter";
 import { startGeneration } from "@/lib/lesson-generation-server";
-import { gradeQuiz, lessonSchema } from "@/lib/learning";
+import { gradeQuiz, lessonSchema, versionEvidence, type VersionEvidence } from "@/lib/learning";
 import { resumeSchema, type ResumeState } from "@/lib/resume";
 import { requireAiAccess } from "@/lib/ai-eligibility-server";
 import { FAMILIES, readMetadata, selectionFromForm, subjectSelection, validateCurriculumContent } from "@/lib/curriculum";
 
-export type ActionState = { error?: string; saveUncertain?: true; generationId?: string; success?: string; lessonId?: string; version?: number; attemptId?: string; score?: number; feedback?: { prompt: string; correct: string; explanation: string }[] };
+export type ActionState = { error?: string; progress?: VersionEvidence; saveUncertain?: true; generationId?: string; success?: string; lessonId?: string; version?: number; attemptId?: string; score?: number; feedback?: { prompt: string; correct: string; explanation: string }[] };
 
 function failure(error: unknown): ActionState {
   if (error instanceof z.ZodError) return { error: `Please check ${error.issues[0]?.path.join(".") || "your input"}: ${error.issues[0]?.message ?? "Invalid input."}` };
@@ -75,15 +75,32 @@ export async function saveBookmark(id: string, saved: boolean): Promise<ActionSt
   } catch (error) { return failure(error); }
 }
 
-export async function attend(id: string): Promise<ActionState> {
+async function acknowledgeProgress(id: string, version: number, kind: "reviewed_at" | "attended_at"): Promise<ActionState> {
   try {
     const user = await currentUser();
     const lesson = await enrolledLesson(z.uuid().parse(id), user);
-    const { error } = await database().from("forge_enrollments").update({ attended_at: new Date().toISOString(), attendance_kind: lesson.visibility }).eq("user_id", user.id).eq("lesson_id", id).is("attended_at", null);
-    if (error) throw new Error("Could not record attendance. Please try again.");
-    revalidatePath("/progress");
-    return { success: "Attendance recorded." };
+    if (lesson.version !== z.number().int().positive().parse(version)) throw new Error("This lesson has been updated. Reload before recording evidence.");
+    const unknown = { error: `${kind === "reviewed_at" ? "Review" : "Attendance"} acknowledgement is unconfirmed; it may have saved. Retry safely for this version, or reload if the lesson changed.` };
+    try {
+      const { data, error } = await database().rpc("forge_record_progress", {
+        request_user: user.id, request_lesson: id, expected_version: version, evidence_kind: kind,
+      });
+      const parsed = z.object({
+        version: z.literal(version), reviewedAt: z.iso.datetime({ offset: true }).nullable(), attendedAt: z.iso.datetime({ offset: true }).nullable(),
+      }).safeParse(data);
+      if (error || !parsed.success || !(kind === "reviewed_at" ? parsed.data.reviewedAt : parsed.data.attendedAt)) return unknown;
+      revalidatePath("/progress"); revalidatePath("/dashboard"); revalidatePath(`/courses/${id}`);
+      return { progress: parsed.data, success: kind === "reviewed_at" ? "Review acknowledgement saved." : "Attendance recorded." };
+    } catch { return unknown; }
   } catch (error) { return failure(error); }
+}
+
+export async function reviewLesson(id: string, version: number): Promise<ActionState> {
+  return acknowledgeProgress(id, version, "reviewed_at");
+}
+
+export async function attend(id: string, version: number): Promise<ActionState> {
+  return acknowledgeProgress(id, version, "attended_at");
 }
 
 export async function submitQuiz(id: string, version: number, answers: number[]): Promise<ActionState> {
@@ -91,16 +108,21 @@ export async function submitQuiz(id: string, version: number, answers: number[])
     const user = await currentUser();
     const lesson = await enrolledLesson(z.uuid().parse(id), user);
     if (lesson.version !== version) throw new Error("This lesson has been updated. Reload the lesson before taking the quiz.");
-    const { data: enrollment } = await database().from("forge_enrollments").select("attended_at").eq("user_id", user.id).eq("lesson_id", id).single();
-    if (!enrollment?.attended_at) throw new Error("Reach the final quiz before submitting.");
+    const { data: enrollment, error: enrollmentError } = await database().from("forge_enrollments").select("progress_evidence").eq("user_id", user.id).eq("lesson_id", id).single();
+    if (enrollmentError || !versionEvidence(enrollment, version).attendedAt) throw new Error("Reach the final quiz for this lesson version before submitting.");
     const result = gradeQuiz(lesson.content.questions, answers);
-    const { data, error } = await database().from("forge_attempts").insert({
-      user_id: user.id, lesson_id: id, original_lesson_id: id, lesson_title: lesson.title, lesson_version: lesson.version,
-      certificate_kind: lesson.visibility, answers: result.answers, questions: lesson.content.questions, score: result.score,
-    }).select("id").single();
-    if (error) throw new Error("Could not save your quiz result. Please try again.");
+    const unknown = "Quiz save is unconfirmed; it may have saved. Check quiz history before retrying.";
+    let attemptId: string;
+    try {
+      const { data, error } = await database().from("forge_attempts").insert({
+        user_id: user.id, lesson_id: id, original_lesson_id: id, lesson_title: lesson.title, lesson_version: lesson.version,
+        certificate_kind: lesson.visibility, answers: result.answers, questions: lesson.content.questions, score: result.score,
+      }).select("id").single();
+      if (error || !z.uuid().safeParse(data?.id).success) throw new Error(unknown);
+      attemptId = data.id;
+    } catch { throw new Error(unknown); }
     revalidatePath("/progress"); revalidatePath("/dashboard");
-    return { score: result.score, attemptId: data.id, success: result.passed ? "Passed. Your certificate is ready." : "Keep practicing. You can retry as often as you need.", feedback: lesson.content.questions.map(question => ({ prompt: question.prompt, correct: question.options[question.correct], explanation: question.explanation })) };
+    return { version: lesson.version, score: result.score, attemptId, success: result.passed ? "Passed. Your certificate is ready." : "Keep practicing. You can retry as often as you need.", feedback: lesson.content.questions.map(question => ({ prompt: question.prompt, correct: question.options[question.correct], explanation: question.explanation })) };
   } catch (error) { return failure(error); }
 }
 

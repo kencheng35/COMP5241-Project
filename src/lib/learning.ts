@@ -24,6 +24,30 @@ export const lessonSchema = z.object({
 
 export type LessonContent = z.infer<typeof lessonSchema>;
 
+const evidenceSchema = z.object({
+  reviewed_at: z.iso.datetime({ offset: true }).optional(),
+  attended_at: z.iso.datetime({ offset: true }).optional(),
+});
+export type VersionEvidence = { version: number; reviewedAt: string | null; attendedAt: string | null };
+
+// Enrollment/bookmark/resume activity is not review evidence. Legacy attendance
+// has no known lesson version and must not be attributed to the current version.
+export function versionEvidence(enrollment: { progress_evidence?: unknown } | undefined, version: number): VersionEvidence {
+  const history = enrollment?.progress_evidence;
+  const parsed = evidenceSchema.safeParse(history && typeof history === "object" && !Array.isArray(history)
+    ? (history as Record<string, unknown>)[String(version)] : null);
+  return { version, reviewedAt: parsed.success ? parsed.data.reviewed_at ?? null : null, attendedAt: parsed.success ? parsed.data.attended_at ?? null : null };
+}
+
+export function lessonProgress(
+  enrollment: { progress_evidence?: unknown } | undefined,
+  attempts: { original_lesson_id: string; lesson_version: number; score: number }[],
+  id: string, version: number,
+) {
+  return { ...versionEvidence(enrollment, version), passed: attempts.some(attempt =>
+    attempt.original_lesson_id === id && attempt.lesson_version === version && attempt.score >= 6 && attempt.score <= 10) };
+}
+
 export async function collectRows<Row>(readPage: (start: number, end: number) => PromiseLike<{ data: Row[] | null; error: unknown }>) {
   const rows: Row[] = [];
   for (let offset = 0; ; offset += 500) {

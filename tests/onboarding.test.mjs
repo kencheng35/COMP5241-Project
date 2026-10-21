@@ -7,6 +7,7 @@ import ts from "typescript";
 
 const require = createRequire(import.meta.url);
 const sourcePaths = {
+  "@/lib/learning": "src/lib/learning.ts",
   "@/lib/diagnostic": "src/lib/diagnostic.ts", "@/lib/onboarding": "src/lib/onboarding.ts",
   "@/lib/onboarding-server": "src/lib/onboarding-server.ts",
   onboarding: "src/app/onboarding/actions.ts", diagnostic: "src/app/diagnostic/actions.ts",
@@ -39,7 +40,8 @@ function fixture(options = {}) {
     } },
     "@/lib/learning-server": {
       isInstructor: user => user.app_metadata.role === "instructor", isAdmin: () => false,
-      displayName: async () => "Synthetic", visibleLessons: async () => [], userRecords: async () => ({ attempts: [], enrollments: [] }),
+      displayName: async () => "Synthetic", visibleLessons: async () => options.lessons ?? [],
+      userRecords: async () => options.records ?? { attempts: [], enrollments: [] },
       database() {
         if (options.databaseThrows) throw new Error("private database");
         return { from(table) {
@@ -203,6 +205,28 @@ test("actual dashboard gates first entry, permits return entry and leaves accoun
   assert.match(html, /href="\/profile"/);
   assert.match(html, /href="\/login"/);
   assert.doesNotMatch(html, /Welcome/);
+});
+
+test("actual dashboard integrates shared version-specific progress after onboarding", async () => {
+  const lesson = { id: "synthetic-lesson", owner_id: "owner", version: 2, title: "Synthetic versioned lesson", subject: "Testing", summary: "Synthetic lesson evidence.", visibility: "private" };
+  const stamp = "2026-10-21T00:00:00Z";
+  const enrollment = { lesson_id: lesson.id, attended_at: stamp };
+  const oldPass = { original_lesson_id: lesson.id, lesson_version: 1, score: 10 };
+  const records = { enrollments: [enrollment], attempts: [oldPass] };
+  const f = fixture({ lessons: [lesson], records });
+  await f.load("onboarding").saveOnboarding(input());
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const html = async () => renderToStaticMarkup(await f.load("dashboard").default());
+  assert.match(await html(), /<strong>Version 2 · Continue<\/strong>/);
+  assert.match(await html(), /1 passed \(any version\)/);
+  enrollment.progress_evidence = { 1: { reviewed_at: stamp, attended_at: stamp } };
+  assert.match(await html(), /<strong>Version 2 · Continue<\/strong>/);
+  enrollment.progress_evidence[2] = { reviewed_at: stamp };
+  assert.match(await html(), /<strong>Version 2 · Reviewed · Continue<\/strong>/);
+  enrollment.progress_evidence[2].attended_at = stamp;
+  assert.match(await html(), /<strong>Version 2 · Attended · Continue<\/strong>/);
+  records.attempts.push({ ...oldPass, lesson_version: 2, score: 6 });
+  assert.match(await html(), /<strong>Version 2 · Passed<\/strong>/);
 });
 
 test("actual middleware protects both new routes without onboarding-gating profile/recovery", async () => {

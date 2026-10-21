@@ -156,6 +156,22 @@ test("profiles.* export includes only the owner's onboarding and latest diagnost
   assert.deepEqual(fixture.queries.find(query => query.table === "profiles").filters, [["id", user.id]]);
 });
 
+test("enrollment export includes explicit multi-version review evidence without adding legacy evidence or leaking another owner", async () => {
+  const rows = Object.fromEntries(tables.map(([table]) => [table, ownerRows(table)]));
+  const progress_evidence = {
+    1: { reviewed_at: "2026-10-21T00:00:00Z" },
+    2: { attended_at: "2026-10-21T01:00:00Z" },
+  };
+  rows.forge_enrollments = [
+    { lesson_id: "explicit", user_id: user.id, progress_evidence },
+    { lesson_id: "legacy", user_id: user.id, attended_at: "2026-09-01T00:00:00Z", progress_evidence: {} },
+    { lesson_id: "foreign", user_id: "synthetic-other-owner", progress_evidence: { 1: { reviewed_at: "PRIVATE" } } },
+  ];
+  const response = await loadExport({ rows }).GET();
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).records.forge_enrollments, rows.forge_enrollments.slice(0, 2));
+});
+
 const pageFailures = [
   ["returned error", () => ({ data: null, error: { message: "Private database detail" } })],
   ["data with error", () => ({ data: [{ private: "partial-row" }], error: new Error("Private database detail") })],

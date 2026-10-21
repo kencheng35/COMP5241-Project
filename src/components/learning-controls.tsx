@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, Bookmark, Check, ChevronLeft, ChevronRight, LoaderCircle, Plus, Save, Trash2 } from "lucide-react";
-import { attend, saveBookmark, saveResume, submitQuiz, updateLesson, type ActionState } from "@/app/learning/actions";
-import type { LessonContent } from "@/lib/learning";
+import { attend, reviewLesson, saveBookmark, saveResume, submitQuiz, updateLesson, type ActionState } from "@/app/learning/actions";
+import type { LessonContent, VersionEvidence } from "@/lib/learning";
 import type { ResumeState } from "@/lib/resume";
 import { LessonPreview } from "./lesson-preview";
 import { MetadataFields } from "./lesson-metadata";
@@ -46,8 +46,26 @@ export function BookmarkButton({ id, initial }: { id: string; initial: boolean }
 }
 
 type PlayerContent = Omit<LessonContent, "questions"> & { questions: { prompt: string; options: string[] }[] };
+type ProgressEvidence = VersionEvidence & { passed: boolean };
+type PlayerProps = { id: string; ownerId?: string; version: number; content: PlayerContent; saved: ResumeState | null; revision: number; resumeAvailable: boolean; evidence?: ProgressEvidence };
 
-export function LessonPlayer({ id, version, content, saved, revision, resumeAvailable }: { id: string; version: number; content: PlayerContent; saved: ResumeState | null; revision: number; resumeAvailable: boolean }) {
+export function EvidenceSummary({ evidence }: { evidence: ProgressEvidence }) {
+  return <section className="progress-evidence" aria-label={`Version ${evidence.version} evidence`}>
+    <h2>Version {evidence.version} evidence</h2>
+    <ul><li><strong>REVIEWED</strong> — {evidence.reviewedAt ? "Acknowledgement saved" : "No acknowledgement recorded"}</li>
+      <li><strong>ATTENDED</strong> — {evidence.attendedAt ? "Final quiz reached" : "No version-specific attendance recorded"}</li>
+      <li><strong>PASSED</strong> — {evidence.passed ? "Saved quiz score ≥ 6/10" : "No saved passing quiz result"}</li></ul>
+    <p>Review is optional self-acknowledgement, not a quiz gate or an award. Historical review is unknown unless explicitly recorded.</p>
+  </section>;
+}
+
+export function LessonPlayer(props: PlayerProps) {
+  // Reset both UI and in-flight response ownership when the server supplies a
+  // different account, lesson or version. Resume remains independently saved.
+  return <PlayerSession key={`${props.ownerId ?? ""}:${props.id}:${props.version}`} {...props} />;
+}
+
+function PlayerSession({ id, version, content, saved, revision, resumeAvailable, evidence: loadedEvidence }: PlayerProps) {
   const initial = saved && saved.slide < content.slides.length && saved.ordering.length === content.activity.steps.length && new Set(saved.ordering).size === saved.ordering.length && saved.ordering.every(index => index < saved.ordering.length) ? saved : null;
   const [slide, setSlide] = useState(initial?.slide ?? 0);
   const [stage, setStage] = useState<"slides" | "activity" | "quiz">(initial?.stage ?? "slides");
@@ -59,6 +77,36 @@ export function LessonPlayer({ id, version, content, saved, revision, resumeAvai
   const [resumeError, setResumeError] = useState("");
   const [resumeConflict, setResumeConflict] = useState(false);
   const [savingProgress, setSavingProgress] = useState(false);
+  const [evidence, setEvidence] = useState<ProgressEvidence>(loadedEvidence ?? { version, reviewedAt: null, attendedAt: null, passed: false });
+  const [reviewNotice, setReviewNotice] = useState<ActionState>({});
+  const [reviewPending, startReview] = useTransition();
+  const reviewInFlight = useRef(false);
+  const restoredQuizAttendance = useRef(initial?.stage === "quiz" && !loadedEvidence?.attendedAt);
+  const live = useRef(true);
+  const reviewStatus = useRef<HTMLParagraphElement>(null);
+  const actionError = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+  useEffect(() => { if (reviewNotice.error || reviewNotice.success) reviewStatus.current?.focus(); }, [reviewNotice]);
+  useEffect(() => { if (result.error) actionError.current?.focus(); }, [result]);
+  const mergeEvidence = useCallback((next: VersionEvidence | undefined) => {
+    if (next?.version === version) setEvidence(previous => ({
+      ...previous, reviewedAt: previous.reviewedAt ?? next.reviewedAt, attendedAt: previous.attendedAt ?? next.attendedAt,
+    }));
+  }, [version]);
+  const acknowledgeReview = () => {
+    if (reviewInFlight.current || evidence.reviewedAt) return;
+    reviewInFlight.current = true;
+    startReview(async () => {
+      let outcome: ActionState;
+      try { outcome = await reviewLesson(id, version); }
+      catch { outcome = { error: "Review acknowledgement is unconfirmed; it may have saved. Retry safely or reload to check." }; }
+      finally { reviewInFlight.current = false; }
+      if (!live.current) return;
+      if (!outcome.error && outcome.progress?.version === version && outcome.progress.reviewedAt) {
+        mergeEvidence(outcome.progress); setReviewNotice({ success: "Review acknowledgement saved for this version." });
+      } else setReviewNotice({ error: outcome.error ?? "Review acknowledgement is unconfirmed. Retry safely or reload to check this version." });
+    });
+  };
   const stageHeading = useRef<HTMLHeadingElement>(null);
   const resultHeading = useRef<HTMLHeadingElement>(null);
   const firstStage = useRef(true);
@@ -111,17 +159,34 @@ export function LessonPlayer({ id, version, content, saved, revision, resumeAvai
     [reordered[index], reordered[index + direction]] = [reordered[index + direction], reordered[index]];
     setOrder(reordered); setChecked(false);
   };
-  const startQuiz = () => startTransition(async () => {
-    const response = await attend(id);
+  const startQuiz = useCallback(() => startTransition(async () => {
+    let response: ActionState;
+    try { response = await attend(id, version); }
+    catch { response = { error: "Attendance acknowledgement is unconfirmed; it may have saved. Try reaching the quiz again." }; }
+    if (!live.current) return;
     if (response.error) setResult(response);
-    else setStage("quiz");
-  });
-  return <div className="learning-player">{!resumeAvailable && <p role="alert" className="form-notice notice-error">Progress saving is unavailable. You can continue this lesson, but your place will not be saved. Please contact the site administrator.</p>}{resumeError && <p role="alert" className="form-notice notice-error">{resumeError} {resumeConflict ? <button type="button" onClick={() => location.reload()}>Reload lesson</button> : <button type="button" disabled={savingProgress} onClick={() => void flush()}>Retry saving progress</button>}</p>}
+    else if (response.progress && response.progress.version !== version) setResult({ error: "Attendance response belongs to another version. Reload this lesson." });
+    else { mergeEvidence(response.progress); setResult({}); setStage("quiz"); }
+  }), [id, version, mergeEvidence]);
+  useEffect(() => {
+    // Restoring the quiz means reaching it now, not backfilling an old visit.
+    // Keep all restored answers/place; review acknowledgement is never required.
+    if (restoredQuizAttendance.current) { restoredQuizAttendance.current = false; startQuiz(); }
+  }, [startQuiz]);
+  return <div className="learning-player"><EvidenceSummary evidence={evidence} />{!resumeAvailable && <p role="alert" className="form-notice notice-error">Progress saving is unavailable. You can continue this lesson, but your place will not be saved. Please contact the site administrator.</p>}{resumeError && <p role="alert" className="form-notice notice-error">{resumeError} {resumeConflict ? <button type="button" onClick={() => location.reload()}>Reload lesson</button> : <button type="button" disabled={savingProgress} onClick={() => void flush()}>Retry saving progress</button>}</p>}
     <nav className="learning-tabs" aria-label="Lesson sections"><button aria-current={stage === "slides" ? "step" : undefined} onClick={() => setStage("slides")}>Slides</button><button aria-current={stage === "activity" ? "step" : undefined} onClick={() => setStage("activity")}>Practice</button><button disabled={pending} aria-current={stage === "quiz" ? "step" : undefined} onClick={startQuiz}>Final quiz</button></nav>
-    {result.error && <p role="alert" className="form-notice notice-error">{result.error}</p>}
-    {stage === "slides" && <section className="slide-stage"><div className="slide-number" aria-hidden="true">{String(slide + 1).padStart(2, "0")}</div><div><span className="eyebrow">{slide + 1} / {content.slides.length}</span><h2 ref={stageHeading} tabIndex={-1}>{content.slides[slide].title}</h2><p>{content.slides[slide].body}</p><blockquote>{content.slides[slide].example}</blockquote></div><div className="player-navigation"><button className="secondary-button" disabled={slide === 0} onClick={() => setSlide(slide - 1)}><ChevronLeft size={18} />Previous</button><button className="auth-submit" onClick={() => slide + 1 < content.slides.length ? setSlide(slide + 1) : setStage("activity")}>{slide + 1 < content.slides.length ? "Next" : "Practice"}<ChevronRight size={18} /></button></div></section>}
+    {result.error && <p ref={actionError} tabIndex={-1} role="alert" className="form-notice notice-error">{result.error}</p>}
+    {stage === "slides" && <section className="slide-stage"><div className="slide-number" aria-hidden="true">{String(slide + 1).padStart(2, "0")}</div><div><span className="eyebrow">{slide + 1} / {content.slides.length}</span><h2 ref={stageHeading} tabIndex={-1}>{content.slides[slide].title}</h2><p>{content.slides[slide].body}</p><blockquote>{content.slides[slide].example}</blockquote>{slide === content.slides.length - 1 && <section className="review-acknowledgement" aria-label="Optional slide review acknowledgement"><h3>Finished reviewing this version&apos;s slides?</h3><p>Only acknowledge if you have reviewed the slides. You can continue to practice or the final quiz without acknowledging.</p><button type="button" className="secondary-button" disabled={reviewPending || Boolean(evidence.reviewedAt)} onClick={acknowledgeReview}>{reviewPending ? "Saving acknowledgement..." : evidence.reviewedAt ? "Review acknowledged" : "Acknowledge slide review"}</button>{(reviewNotice.error || reviewNotice.success) && <p ref={reviewStatus} tabIndex={-1} role={reviewNotice.error ? "alert" : "status"} className={`form-notice${reviewNotice.error ? " notice-error" : ""}`}>{reviewNotice.error ?? reviewNotice.success}</p>}</section>}</div><div className="player-navigation"><button className="secondary-button" disabled={slide === 0} onClick={() => setSlide(slide - 1)}><ChevronLeft size={18} />Previous</button><button className="auth-submit" onClick={() => slide + 1 < content.slides.length ? setSlide(slide + 1) : setStage("activity")}>{slide + 1 < content.slides.length ? "Next" : "Practice"}<ChevronRight size={18} /></button></div></section>}
     {stage === "activity" && <section className="activity-stage"><span className="eyebrow">PUT IT IN ORDER</span><h2 ref={stageHeading} tabIndex={-1}>{content.activity.prompt}</h2><ol className="ordering-list">{order.map((step, index) => <li key={step}><span>{content.activity.steps[step]}</span><button className="icon-button" title="Move up" aria-label={`Move step ${index + 1} up`} disabled={index === 0} onClick={() => moveStep(index, -1)}><ArrowUp size={17} /></button><button className="icon-button" title="Move down" aria-label={`Move step ${index + 1} down`} disabled={index === order.length - 1} onClick={() => moveStep(index, 1)}><ArrowDown size={17} /></button></li>)}</ol><div className="player-navigation"><button className="secondary-button" onClick={() => setChecked(true)}><Check size={17} />Check order</button><button className="auth-submit" disabled={pending} onClick={startQuiz}>Start final quiz<ChevronRight size={17} /></button></div>{checked && <p role="status">{order.every((value, index) => value === index) ? "Correct order." : "Not quite. Try another order or revisit the slides."}</p>}</section>}
-    {stage === "quiz" && <section><div className="section-title"><h2 ref={stageHeading} tabIndex={-1}>Final quiz</h2><span>10 questions · Pass: 6 correct</span></div><form onSubmit={event => { event.preventDefault(); startTransition(async () => setResult(await submitQuiz(id, version, answers))); }}><fieldset disabled={pending || result.score !== undefined} className="quiz-fields">{content.questions.map((question, index) => <fieldset key={index} className="quiz-question"><legend>{index + 1}. {question.prompt}</legend>{question.options.map((option, optionIndex) => <label key={optionIndex}><input type="radio" name={`question-${index}`} required checked={answers[index] === optionIndex} onChange={() => setAnswers(answers.map((answer, answerIndex) => answerIndex === index ? optionIndex : answer))} />{option}</label>)}</fieldset>)}{result.score === undefined && <button className="auth-submit" type="submit" disabled={answers.includes(-1) || pending}>{pending ? "Saving result..." : "Submit quiz"}<Check size={17} /></button>}</fieldset></form>{result.score !== undefined && <div className="quiz-result" role="status"><h3 ref={resultHeading} tabIndex={-1}>{result.score} / 10 ({result.score * 10}%)</h3><p>{result.success}</p>{result.score >= 6 && <a className="auth-submit" href={`/api/certificates/${result.attemptId}`}>Download certificate</a>}<button className="secondary-button" onClick={() => { setAnswers(Array(10).fill(-1)); setResult({}); stageHeading.current?.focus(); }}>Retry quiz</button>{result.feedback?.map((feedback, index) => <details key={index}><summary>{index + 1}. {feedback.prompt}</summary><strong>{feedback.correct}</strong><p>{feedback.explanation}</p></details>)}</div>}</section>}
+    {stage === "quiz" && <section><div className="section-title"><h2 ref={stageHeading} tabIndex={-1}>Final quiz</h2><span>10 questions · Pass: 6 correct</span></div><form onSubmit={event => { event.preventDefault(); startTransition(async () => {
+      let outcome: ActionState;
+      try { outcome = await submitQuiz(id, version, answers); }
+      catch { outcome = { error: "Quiz save is unconfirmed; it may have saved. Check quiz history before retrying." }; }
+      if (!live.current) return;
+      if (outcome.version !== undefined && outcome.version !== version) { setResult({ error: "Quiz response belongs to another version. Reload and check quiz history." }); return; }
+      setResult(outcome);
+      if (!outcome.error && outcome.attemptId && outcome.score !== undefined && outcome.score >= 6) setEvidence(previous => ({ ...previous, passed: true }));
+    }); }}><fieldset disabled={pending || result.score !== undefined} className="quiz-fields">{content.questions.map((question, index) => <fieldset key={index} className="quiz-question"><legend>{index + 1}. {question.prompt}</legend>{question.options.map((option, optionIndex) => <label key={optionIndex}><input type="radio" name={`question-${index}`} required checked={answers[index] === optionIndex} onChange={() => setAnswers(answers.map((answer, answerIndex) => answerIndex === index ? optionIndex : answer))} />{option}</label>)}</fieldset>)}{result.score === undefined && <button className="auth-submit" type="submit" disabled={answers.includes(-1) || pending}>{pending ? "Saving result..." : "Submit quiz"}<Check size={17} /></button>}</fieldset></form>{result.score !== undefined && <div className="quiz-result" role="status"><h3 ref={resultHeading} tabIndex={-1}>{result.score} / 10 ({result.score * 10}%)</h3><p>{result.success}</p>{result.score >= 6 && <a className="auth-submit" href={`/api/certificates/${result.attemptId}`}>Download certificate</a>}<button className="secondary-button" onClick={() => { setAnswers(Array(10).fill(-1)); setResult({}); stageHeading.current?.focus(); }}>Retry quiz</button>{result.feedback?.map((feedback, index) => <details key={index}><summary>{index + 1}. {feedback.prompt}</summary><strong>{feedback.correct}</strong><p>{feedback.explanation}</p></details>)}</div>}</section>}
   </div>;
 }
 
