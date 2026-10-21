@@ -50,7 +50,7 @@ async function fixture(context) {
   await db.query("insert into auth.users(id,raw_user_meta_data) values($1,'{\"age\":22}'),($2,'{\"age\":22}')", [owner, other]);
   await db.query("insert into forge_lessons(id,owner_id,title,subject,summary,content) values($1,$2,$3,$4,$5,$6)", [lesson, owner, canonical.title, canonical.subject, canonical.summary, JSON.stringify(canonical)]);
   await db.query("insert into forge_enrollments(user_id,lesson_id,attended_at) values($1,$2,'2026-09-01T00:00:00Z')", [owner, lesson]);
-  await db.exec(source("supabase/migrations/20261021_progress_evidence.sql"));
+  await db.exec(source("supabase/migrations/20261021_progress_evidence_ran.sql"));
   const state = { user: { id: owner, app_metadata: {} }, rpcCalls: [], lose: false, malformed: false, beforeRpc: null, fail: false, insertAck: true };
   function query(table) {
     assert.match(table, /^forge_[a-z_]+$/);
