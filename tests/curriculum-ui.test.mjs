@@ -92,6 +92,7 @@ test("real curriculum routes and components: combined filters, legacy, player, p
         return query;
       } }),
     };
+    const auth = { createClient: async () => ({ auth: { getUser: async () => ({ data: { user }, error: null }) } }) };
     const generationActions = new Proxy({}, { get: (_, name) => async (...args) => {
       if (name === "createLesson" || name === "importTeachingMaterial") {
         return window.invokeCurriculumGeneration(name, [...args[1].entries()].map(([key, value]) => [key, typeof value === "string" ? value : { filename: value.name }]));
@@ -107,6 +108,7 @@ test("real curriculum routes and components: combined filters, legacy, player, p
     function load(name) {
       if (name.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
       if (name === "@/lib/learning-server") return server;
+      if (name === "@/lib/supabase/server") return auth;
       if (name === "@/lib/ai-eligibility-server") return { requireAiAccess: async () => {} };
       if (name === "@/components/learner-shell") return { LearnerShell: ({ children }) => load("react").createElement("main", {}, children) };
       if (name === "@/components/learner-import" || name === "@/components/lesson-coach") return new Proxy({}, { get: () => () => null });

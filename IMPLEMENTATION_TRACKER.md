@@ -2,6 +2,641 @@
 
 Last reviewed: 2026-10-22
 
+## 22 October 2026 — independent frozen paths + ONE fresh full integration gate: LOCAL PASS
+
+**Decision/scope:** no substantive functional/privacy/reliability defect reproduced.
+Independent QA read the complete six-file packet, actual currentUser/database/visibleLessons,
+requireAiAccess/isAiEligible, canonical recommendations and shared-client contracts, and
+nearby harnesses. Curriculum UI diff is exactly the two auth I/O-boundary additions.
+Required sibling skills were absent; loaded existing `.github/skills` equivalents.
+No agents, application/test/script/CSS/SQL/manifest repairs, assertion weakening or timeout
+changes. Prior dirty work, all six writer hashes below, `_ran` filenames (application
+UNVERIFIED), shared20Oct no-overrides policy/current free model and six deferrals preserved.
+QA repository edits are **only README.md and this tracker**.
+
+**Safety established before execution:** existing Node25.2.1, offline Chromium153.0.8010.12,
+in-memory PGlite and installed dependencies only. Inspected package/tests and prior safe
+runner/guard/snapshot pattern; new temp-only runner uses the same OS-only allowlist/fixed
+Windows+Node PATH and inherited `NODE_OPTIONS` fetch/http/https/socket/TLS denial, including
+child processes. No actual `.env*` opened/copied/imported, app setting inherited or actual
+environment loader run. Setup tests adapt the loader inside a synthetic VM only.
+Browser synthetic document is locally fulfilled; unexpected requests aborted/service workers
+blocked, zero unexpected requests/page errors asserted. No Supabase/catalog/provider/SMTP/
+quota/model probe, setup CLI, connected e2e/instructor suite, account read, server, install,
+migration, commit or deployment. Actual local code is exercised with framework/I/O adapters,
+not fabricated live-provider evidence.
+
+From repository root, aliases:
+`$node='C:\Program Files\nodejs\node.exe'`;
+`$qa='C:\Users\SOLUSER\AppData\Local\Temp\forge-independent-path22-20261022-QA'`;
+`$gate="$qa\gate.mjs"`;
+`$git='C:\Users\SOLUSER\AppData\Local\github-copilot-git-2.53.0-4\cmd\git.exe'`.
+The gate creates the OS-only guarded child, captures bounded console summaries and retains
+synthetic-only transcripts/command metadata; it refuses a duplicate command-label execution.
+
+| Exact fresh invocation / child command | Independent result |
+| --- | --- |
+| `& $node $gate probe` → `node --test --test-concurrency=1 "$qa\path-probe.cjs"` | **1/1**, seven scenarios, exit0, wall0.919s; before the full suite |
+| `& $node $gate test` → `node "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" test` | Standard package script `node --experimental-strip-types --test --test-concurrency=1 tests/*.test.mjs`: **340/340**,31 files,0 failed/cancelled/skipped/todo, exit0; Node168.685173s/wall169.221s. **ONE run, no full rerun** |
+| `& $node $gate lint` → `node node_modules/eslint/bin/eslint.js src/app/paths/actions.ts src/app/paths/page.tsx src/components/learning-path.tsx tests/recommendations.test.mjs tests/learning-path-ui.test.mjs tests/curriculum-ui.test.mjs` | Exit0,8.526s, no diagnostics |
+| `& $node $gate tsc` → `node node_modules/typescript/bin/tsc --noEmit --incremental false` | Exit0,6.928s; direct repo check only |
+| `& $node $gate snapshot` → snapshot-only `node node_modules/next/dist/bin/next typegen` | Exit0,.924s |
+| Same serialized snapshot gate: `node node_modules/typescript/bin/tsc --noEmit --incremental false` | Exit0,4.636s |
+| Same serialized snapshot gate: `node node_modules/next/dist/bin/next build --webpack` | **Exit0**,31.988s; Next16.3.5 webpack, compile/types/static generation/traces complete;24 static-page tasks; accumulated paths/reports/reflections/studio/teaching routes included |
+| `& $node "$qa\cleanup.mjs"`; `& $node $gate verify`; `& $git --no-pager diff --check` | Owned snapshot removed after unlinking junction; source/Next freeze identical; whitespace exit0 |
+
+**Independent path findings:** temp probe loads the actual action/auth/eligibility/
+recommendation helpers and pauses a real Promise at the provider I/O boundary. Entry
+user+error produces only auth, zero service/quota/provider calls. While pending, replacing
+the User object with same-owner grant=false rejects the entire path, leaves the original
+grant true, and performs no post-failure catalog/attempt reads. Changed owner, expired auth
+or returned user+error cause only fresh auth after inference, no further service reads.
+One now-noncurriculum candidate rejects the entire two-item result; a next valid request
+recovers. Payload excludes fixture profile text/email/user/course IDs. This does **not**
+claim atomic external-call revocation: already-started inference may consume allowance.
+
+Fresh full-suite actual-action tests additionally cover minors/unknown/ungranted adults,
+invalid selections/consent/no candidates, quota/profile/catalog/passed/provider failures,
+fresh same-owner success, malicious IDs and post-inference age/title/metadata/visibility/
+passed invalidation without partial acceptance, persistence or enrollment. Actual page
+rejects user+autherror before privileged reads and changes its client key for owner/coarse
+preferences. Native SSR and mounted actual client cover sharing controls, local-only
+recommendations, same-tick duplicate-submit guard/no queued replay, explicit Enter retry,
+transport/returned errors with retained selections and focus, success focus, whole stale
+path discard, pending-context/late-old-owner completion and no inference on reload/props.
+Existing desktop/mobile native keyboard workflows also pass in the full suite. The earlier
+legacy manual-authoring timeout did **not** recur; no diagnostic rerun or timeout increase.
+
+**Fresh images ACTUALLY opened:** all paths are under
+`C:\Users\SOLUSER\AppData\Local\Temp\`:
+- `forge-path-Wf8zty\pending-320.png`, `error-320.png`, `success-1440.png`, `local-320.png`.
+- `forge-reports-bPDFLY\reports-320.png`, `reports-1440.png`.
+- `forge-reflections-20261022-am0imy\unconfirmed-create-320.png`, `validation-focus-1440.png`.
+- `forge-manual-qa01-KuSGnw\starter-review-sdlc-small-change-320.png`.
+Consent/quota-uncertainty/retained input text wraps, local access remains visible, result/
+native detail focus is visible, report long IDs wrap and statuses are textual. Visual
+contrast/readability spot-check only, no computed contrast-ratio/full WCAG/screen-reader
+approval. Path mounts use actual client/CSS with framework icon/link/action adapters,
+not a connected full-shell screenshot. Other full-suite images were captured, not all opened.
+
+**Freeze/evidence/cleanup:** `$qa\freeze.json` fingerprints **2,244 entries**, including
+src/tests/scripts/schema/config/manifests/showcase and existing repository `.next`; existing
+links recorded, not traversed. Aggregate SHA256 before/after:
+`6c87c3cceb27b4530f7098e4e4ea7240751430f0077816fbeb10fcf5f70ee4ba`.
+All six packet SHA256s match the writer table below. Snapshot physically copied selected
+src/config only, no env files; sole dependency junction referenced existing repo modules.
+`snapshot-final-hashes.json` retains362 snapshot file hashes; aggregate:
+`4c477a03f6d3a809244451183f34a516ed2f3de74d25397f7b3675d328f8c3dc`.
+Retained `$qa\{path-independent-probe,npm-test,packet-eslint,repo-direct-tsc,snapshot-typegen,snapshot-direct-tsc,snapshot-build}.{txt,json}`,
+runner/guard/repro, hashes and `cleanup.json`; images retained above. Initial freeze helper
+refused an existing generated Next link before tests; temp helper was corrected to record
+link identity without traversal, not an application/test failure. Owned snapshot and
+junction gone, repository node_modules/Next files intact; test teardown closes owned
+browsers/contexts/PGlite. No connected fixture/service or cleanup failure.
+
+**Remaining work / limits:** selected local code now has a fresh integration checkpoint;
+next critical step is planned shared-screen acceptance, not adding deferred features or
+requesting login now. Still **THREE connected DEMO FLOWS** (core author/learner/quiz/
+certificates/reports; private4D CRUD/export/delete; one genuine eligible free-AI generation)
+**plus TWO non-flow approval packages** (owner curriculum/reflection/source-fact/answer-key/
+pedagogy review; final rehearsal/accessibility/submission) = existing **FIVE workstreams**.
+All three locally implemented, connected acceptance pending; optional paths are not a
+fourth flow. Owner-approved10–12-minute TARGET unchanged, rehearsal NOT RUN/duration
+UNMEASURED;31Oct supervised HK13+ and six deferrals unchanged. Actual Next action transport,
+Postgres races/atomicity, target schema/grants/cache/app version and genuine provider truth
+remain untested. Future login alone does not authorize writes/AI; target/action scope
+approval still required. Coordinator owns final acceptance, not whole-demo/production/
+academic certification. `PROJECT_SHOWCASE.md:57–60` needs writer synchronization of the
+writer-only/QA-requested/no-fresh-suite wording; read-only here, not a functional blocker.
+Earlier305/report37+6/reference61/diagnostic40+41 and writer59/22 remain dated history.
+
+## 22 October 2026 — existing optional paths: bounded reliability repair / frozen writer handoff
+
+**Owner/scope:** approved optional-maintenance slice only, `src/app/paths/{actions.ts,page.tsx}`,
+`src/components/learning-path.tsx`, existing recommendations tests, new path UI tests,
+curriculum UI I/O mapping and these three status documents. No other source/CSS/helper/
+policy/schema/dependency/package edits. Initial worktree already contained report/setup
+source, tests and documentation changes; preserved, including user migration `_ran`
+renames (application UNVERIFIED). Applicable delivery/security/verification skills were
+found under `.github/skills`; requested sibling skill paths were absent. Git absent on
+PATH; used existing bundled Git. No agents.
+
+**Current count/decision reconciliation:** **THREE connected DEMO FLOWS** (core
+author/learner/quiz/certificates/**reports**; private daily4D CRUD/export/delete; one genuine
+eligible free-AI generation) **plus TWO non-flow gates** (owner review of three lesson
+sources/keys/pedagogy; final rehearsal/accessibility/submission approval) = old **FIVE
+workstreams**. All three flows have local implementations, actual connected acceptance
+PENDING. Optional paths add no fourth required flow/module/reactivated scope. Six deferrals
+unchanged: coding runner, binary PPT, student slide assistant, planner, genuine tailoring,
+targeted AI revisions. Deadline31Oct, supervised HK13+. Owner14:04 approves10–12-minute
+TARGET; rehearsal NOT RUN/duration UNMEASURED.09:54 local-first/shared-screen-later remains;
+no login request now. Reports37/37+6/6 and diagnostic40/40+41 are previously accepted bounded
+LOCAL evidence; showcase current sync is done. QA-pending statements below are dated
+history, not current status. Earlier305/build/reference61 are not fresh all-app acceptance.
+
+**Falsifiable hypothesis and RED before repair:** original `requireUser` ignores a returned
+auth error if user exists; both eligibility checks reuse the same User snapshot. The
+existing post-request test changed age, not a replacement trusted-user grant. Actual
+`currentUser` rejects error/no-user; actual eligibility reads fresh profile age plus the
+supplied user's trusted grant. Added synthetic getUser-boundary regressions: initial
+user+error and replacement object with same ID/grant=false after completion. Original
+action accepted both. Initial red recommendations run:16 pass,3 failures (two failed
+subtests plus parent), exit1. Actual page/client red:0/2, exit1; page failed to reject
+user+error, transport rejection produced no alert (existing5000ms assertion timeout).
+No timeout changed, manual retry hack or canned permission answer used.
+
+**Repair:** action catches auth/operational failures with fixed feedback/no path, refreshes
+trusted identity before privileged entry reads and once after inference, requires same
+owner before further catalog/passed reads, then uses actual fresh grant/profile age.
+Exactly two auth calls on success; no speculative extra refreshes. Fresh acceptance
+revalidates visibility, canonical title/topic/metadata and new passes. No atomic lock
+across external requests is claimed. Page independently rejects user+autherror/missing
+user before profile/catalog reads, preserving login redirect/config/failed-load UX.
+Client key is owner ID plus bounded coarse preferences, not full catalog JSON.
+
+Client uses synchronous submit ref plus controlled topic/goal/sharing, explicit-only
+retry, sanitized transport rejection (possible allowance use/no automatic retry),
+error/result focus and canonical `validatePathResponse` reuse. Entire stale result is
+discarded on catalog/passed/title/metadata/selection/owner/preferences/eligibility change;
+context revision/unmount guard rejects late completions. No automatic inference on
+mount/props/reload. Local recommendations always remain; no enrollment/durable path,
+new quota/table/write, provider field, model/budget/fallback or20Oct policy change.
+Existing report CSS was untouched.
+
+**Harness boundaries/safety:** actual auth/eligibility/recommendation helpers/action and
+actual page/client, synthetic auth/Supabase/provider I/O only. Recommendations loader
+now executes real `currentUser`, `database` and `visibleLessons` with synthetic module
+environment and real eligibility policy. Curriculum UI change is **only** a new
+`@/lib/supabase/server.createClient().auth.getUser()` boundary mapping consumed by the
+actual paths page; no original assertions weakened. Browser offline/service workers
+blocked; all unexpected requests aborted. Actual mounted React uses existing installed
+Chromium153.0.8010.12,320/1440 and unchanged5000ms assertions. Existing eligibility/
+curriculum tests use disposable local in-memory PGlite only. OS-only child allowlist:
+SystemRoot,WINDIR,COMSPEC,TEMP,TMP,OS,PATHEXT,USERPROFILE,LOCALAPPDATA,APPDATA,
+PROCESSOR_ARCHITECTURE,NUMBER_OF_PROCESSORS; fixed Windows/Node PATH. Existing safe
+runner/network guard were read before reuse. No app settings inherited/read/copied;
+no `.env*`, provider/catalog/Supabase/SMTP/quota, setup/check-ai/e2e/instructor run,
+server/install/migration/commit/deploy. Only synthetic fixture strings in output.
+
+Command aliases from repo root:
+`$node='C:\Program Files\nodejs\node.exe'`;
+`$qa='C:\Users\SOLUSER\AppData\Local\Temp\forge-independent-task22-QA22c719'`;
+`$safe="$qa\safe-run.mjs"`; `$guard="$qa\network-guard.cjs"`;
+`$git='C:\Users\SOLUSER\AppData\Local\github-copilot-git-2.53.0-4\cmd\git.exe'`.
+Aliases describe exact commands; no environment loader/Next startup.
+
+| Command (all local) | Actual writer result |
+| --- | --- |
+| `& $node $safe --require $guard --experimental-strip-types --test --test-concurrency=1 tests/recommendations.test.mjs` | RED16 pass/3 fail, exit1,1.224s; after action repair GREEN19/19, exit0,1.113s |
+| `& $node $safe --require $guard --experimental-strip-types --test --test-concurrency=1 tests/learning-path-ui.test.mjs` | RED0/2, exit1,8.644s; auth-page rejection and transport feedback reproduced |
+| `& $node $safe --require $guard --experimental-strip-types --test --test-concurrency=1 tests/learning-path-ui.test.mjs tests/recommendations.test.mjs` | After page/client repair21/21, exit0,6.344s |
+| `& $node $safe --require $guard --experimental-strip-types --test --test-concurrency=1 tests/recommendations.test.mjs tests/learning-path-ui.test.mjs` | Expanded real DB/service-error boundaries22/22, exit0,5.888s; final extra age/title/metadata/keyboard/reload coverage22/22, exit0,6.056s |
+| `& $node $safe --require $guard --experimental-strip-types --test --test-concurrency=1 tests/recommendations.test.mjs tests/learning-path-ui.test.mjs tests/curriculum-ui.test.mjs tests/eligibility.test.mjs tests/openrouter.test.mjs` | Requested serial combo59/59,0 failures/skips/cancellations, exit0; Node21.942940s/wall22.059s; before final test-only extensions above |
+| `& $node $safe node_modules/eslint/bin/eslint.js src/app/paths/actions.ts src/app/paths/page.tsx src/components/learning-path.tsx tests/recommendations.test.mjs tests/learning-path-ui.test.mjs tests/curriculum-ui.test.mjs` | Initial exit0,10.655s; final post-extension exit0,4.460s, no diagnostics |
+| `& $node $safe node_modules/typescript/bin/tsc --noEmit --incremental false` | Exit0,7.437s; direct only, no Next typegen/build/env loader |
+| `& $git --no-pager diff --check` | Exit0 before and after status docs; separate new UI test trailing-whitespace/conflict-marker check passed |
+
+**Coverage:** entry user+error/expired/config; replaced fresh grant/owner/session/autherror/
+auth throw; ages12/13/17/unknown/no grant; fresh same-owner success/two auth reads;
+invalid topic/no consent/profile/age/quota/no candidates => zero inference; actual catalog/
+passed read failures before/after, post age failure and provider/transport errors => no
+accepted/stale/partial path or raw details. Only existing quota RPC is writable; table
+adapters support reads, no enrollment/persistence methods. Payload still excludes profile
+text, IDs, grades and private extra fields. Pure validator rejects malicious output and
+metadata/title/visibility/new-pass changes. Browser checks duplicate same-tick submits
+do not queue another call, explicit Enter retry, returned-error recovery/focus/retained
+inputs, success-heading focus, all changed contexts, pending late completion, actual-page
+new-owner keyed unmount and reload/remount/prop changes without automatic inference.
+No unexpected browser requests/page errors; no horizontal overflow320/1440.
+
+**Images captured/opened:** initial green `forge-path-EuEBzN` pending-320,error-320,
+success-1440,local-320 were opened. Final extended run images retained under
+`C:\Users\SOLUSER\AppData\Local\Temp\forge-path-lc99zD\` with the same four filenames
+(`.png`), opened for final inspection. Representative pending/error/success/local only,
+not full WCAG/screenreader approval. Earlier red artifact `forge-path-l5bTaE` and green
+WQORnd/MJwl1r artifacts are historical, not independent QA. Focus/assertion results are
+actual browser checks, not inferred from images.
+
+**Frozen source/test SHA256 (before status-doc edits):**
+
+| File | SHA256 |
+| --- | --- |
+| `src/app/paths/actions.ts` | `8a0a661feacbd8e568c52ed74461363103f8d96dabf7e55ea1af5eb1ac354f97` |
+| `src/app/paths/page.tsx` | `3e8f21b9ee1a86a7551ad21795798ed936ee5148eab525c074dcd7cd08da407a` |
+| `src/components/learning-path.tsx` | `c2b4675665290dcc2019b1b0e4b581130ba8a8a80f1c2b55f616492ad81d13cb` |
+| `tests/recommendations.test.mjs` | `827f3fe9640bcbee6d482dfa842493722b0c4c2d7ad0a3769d2b0304c65e1e01` |
+| `tests/learning-path-ui.test.mjs` | `f51fc6be19fe7525e55bd4d0fe6db78a44a0818ba5cc789487b11326a1b19953` |
+| `tests/curriculum-ui.test.mjs` | `4d1e4cdb69caeb87c57d2d5f9c4b8a701e178e0aba1b76cc2fecaaceb2c8426b` |
+
+**Cleanup/open gates:** owned browser contexts/browsers and local fixture handles closed
+through test teardown; bounded processes exited, no services or connected fixtures.
+No cleanup failure. Non-failing Node typeless-package warnings remain unchanged.
+Post-documentation SHA256 recheck matched all six frozen source/test hashes above.
+**Independent integration QA requested after this freeze:** one fresh full serial suite
+and isolated environment-free Next build, plus independent review of this bounded repair.
+No full suite/build was run here. Actual Next transport, connected schema/grants/races,
+genuine AI/provider truth, owner sources/keys/pedagogy, broader accessibility and final
+rehearsal/submission remain unverified/open. Coordinator owns final acceptance; no
+self-certified release, atomic Postgres/grant guarantee or production claim.
+
+*The checkpoints below are dated history. Current reports/showcase reconciliation and
+remaining-flow count are as above.*
+
+## 22 October 2026 — independent Task09/12 reports: bounded LOCAL PASS
+
+**Disposition:** no substantive defect reproduced in the frozen functional/report/privacy/
+role slice; Coordinator retains final acceptance. This is not a vulnerability audit,
+whole-project certification or connected acceptance. Read the report packet, original
+HEAD report boundary, nearby actual auth/roles/canonical evidence/player/actions, schema
+constraints and existing harnesses before execution. Required skills resolved to existing
+`.github/skills` after supplied sibling paths were absent. Git absent on PATH; used the
+existing absolute bundled Git. No source/test/script/CSS/SQL or assertion/timeout edits.
+Earlier dirty diagnostic/starter/reflection/reference work and `_ran` filenames preserved.
+
+**Safety/environment:** repository cwd, existing Node25.2.1, Chromium153.0.8010.12 and
+in-memory PGlite. Inspected existing `$qa\safe-run.mjs` and `network-guard.cjs` unchanged;
+OS-only child allowlist/PATH as recorded in the writer entry below. No actual app settings
+inherited, environment files read/imported/copied or environment loader executed.
+Report/auth/permissions/evidence/shell are actual modules; only I/O/framework boundaries
+are synthetic. Browser contexts offline, service workers blocked, requests aborted;
+zero browser requests/page errors. Report adapters are read-only; existing progress tests
+write only disposable in-memory PGlite fixtures, never actual Supabase.
+
+Aliases from repository root: `$node = 'C:\Program Files\nodejs\node.exe'`;
+`$qa = 'C:\Users\SOLUSER\AppData\Local\Temp\forge-independent-task22-QA22c719'`;
+`$safe = "$qa\safe-run.mjs"`; `$guard = "$qa\network-guard.cjs"`;
+`$git = 'C:\Users\SOLUSER\AppData\Local\github-copilot-git-2.53.0-4\cmd\git.exe'`.
+
+| Exact fresh command | Independent result |
+| --- | --- |
+| `& $node $safe --require $guard --experimental-strip-types --test --test-concurrency=1 tests/reports.test.mjs tests/reports-ui.test.mjs tests/progress.test.mjs tests/learning.test.mjs` | **37/37**,0 failed/cancelled/skipped/todo, exit0; Node17.004869s, wall17.125s |
+| `& $node $safe node_modules/eslint/bin/eslint.js src/app/reports/page.tsx src/lib/reporting.ts tests/reports.test.mjs tests/reports-ui.test.mjs tests/instructor-e2e.mjs` | Exit0,5.861s, no diagnostics |
+| `& $node $safe node_modules/typescript/bin/tsc --noEmit --incremental false` | Exit0,6.044s; direct only, no Next/typegen/build/env loader |
+| `& $node $safe --check tests/instructor-e2e.mjs` | Parse-only exit0,.107s; connected instructor suite **NOT EXECUTED** |
+| `& $node $safe --require $guard --experimental-strip-types --test --test-concurrency=1 "$qa\reports-supplement.cjs"` | Initial five functional cases5/5; after adding genuine Tab-driven native details/UUID case, final **6/6**,0 failed/cancelled/skipped/todo, exit0; Node4.072622s, wall4.163s |
+| `& $git --no-pager diff --check -- src/app/reports/page.tsx src/app/globals.css tests/instructor-e2e.mjs README.md IMPLEMENTATION_TRACKER.md PROJECT_SHOWCASE.md` | Exit0; explicit new reporting/helper-test whitespace/conflict-marker/final-newline checks also pass |
+
+**What passed:** fresh user+autherror denies before service creation; trusted instructor
+ownership/admin published/reviewer-grant scoping; forged metadata/parameters add nothing;
+next-request role/grant revocation and unpublishing remove data. Required public-kind and
+authorized-ID filters, no private/reflection/transcript/directory reads and no private
+sentinels in actual rendered HTML. All four report datasets paginate1051 rows with stable
+orders; failures at0/500/1000 reject the whole report, not empty grants or partial success.
+Strict required columns/types/versions/evidence/result validation uses a sanitized fixed
+error and normal boundary. Canonical learner-route/player key-stripping/progress contract
+passes unchanged; answer keys appear only in authorized public report snapshots.
+
+Supplement reuses the existing actual-route harness without importing its tests or
+duplicating business helpers. Independently asserts: empty authorized IDs cause **zero
+attempt/enrollment reads**; an ordinary reviewer's grant on page3 works and late failure/
+revocation fail closed; instructor grants cannot widen ownership; next valid request
+recovers after denial/corruption.13 additional wrong-type/evidence/result cases fail closed.
+Saved5 remains5 even with all-correct saved answers (no regrading); private membership and
+removed learners' public snapshots remain history, outside current counts; repeated current
+passes count one roster learner. Legacy timestamp is unknown-version; review/attendance/pass
+remain independent, not a funnel. No grading/certificate/retention inference or side effects.
+
+**Fresh images actually opened:** `C:\Users\SOLUSER\AppData\Local\Temp\forge-reports-uX5mJf\reports-320.png`
+and `reports-1440.png` (fresh independent execution of mounted actual shell/report harness);
+`$qa\reports-keyboard-320.png` and `reports-keyboard-1440.png` (independent actual native SSR
+HTML, genuine Tab traversal to Version1 detail, Enter/Space, next-summary focus, UUID
+wrapping). Current-version/current-roster/all-version headings, non-color-only statuses,
+long ID wrapping, saved scores/selected/correct details and visible focus inspected.
+No horizontal overflow at320/1440. Earlier writer B8yDXr images are not reused as independent
+evidence. Progress artifacts `forge-progress-20261021-A3N69f` retained, not visually approved.
+
+**Evidence/freeze/cleanup:** tool transcripts314/315/317/318/319; sanitized commands/results/
+image hashes retained in `$qa\reports-verification-summary.json`, supplemental cases and
+146-file source/test/script/SQL inventory in `$qa\reports-independent-results.json`.
+All six individual writer hashes in the table below matched before execution and after
+QA/docs;146-file inventory captured before QA doc edits remains unchanged afterward.
+Only README/tracker edited; showcase remains read-only. Owned contexts/browsers/PGlite
+closed, bounded processes exited, no service started or connected fixture created;
+no cleanup failure. Existing user browser untouched. Non-failing typeless-package warnings
+are not new product failures; historical writer red regressions/order failure remain below.
+
+**Read-only showcase handoff:** current reports-QA-open statements (lines30,314,362,383
+at inspection) need writer/Coordinator synchronization to this bounded independent LOCAL
+pass while preserving all connected gates; QA did not silently edit the showcase.
+
+**Untested/open, separately from passes:** no full suite/Next build, actual Next transport,
+target schema/cache/grants, connected persistence/publication/revocation races or atomic
+multi-query guarantee; no provider/catalog/SMTP/quota, login, server/install, migration,
+commit/deploy or agents.20Oct provider policy/AI code unchanged. Coordinator already
+accepted diagnostic40/40+41 native probes; earlier305/build/reference61 remain dated,
+not fresh reports-wide acceptance. Exactly FIVE selected-demo workstreams stay OPEN:
+connected core; owner review of three lessons/sources; genuine eligible free-AI showcase;
+connected private4D lifecycle; demo package/rehearsal/accessibility/submission approval.
+Not five unbuilt modules; shared prerequisites are not a sixth. Six deferrals unchanged.
+Owner14:04 approved10–12-minute TARGET; actual rehearsal NOT RUN/duration UNMEASURED.
+Deadline31Oct, supervised HK13+ prototype; no paid-service/privacy/source-review relaxation.
+
+## 22 October 2026 — 14:04 owner-approved continuation; Task09/12 reports LOCAL writer handover
+
+**Current decision reconciliation (dated logs below preserved):** owner explicitly
+**APPROVED the 10–12 minute TARGET walkthrough** at14:04 and continued local development.
+Actual rehearsal **NOT RUN**; duration **UNMEASURED**. Coordinator already directly
+verified showcase's corrected former line289 against actual `updateLesson:132–145` and
+accepted the diagnostic LOCAL packet (**40/40 + 41 native probes**). Original version
+wording finding is **closed**; that reconciliation required no diagnostic/application
+source change. Earlier pending-Coordinator/assumption statements below are historical.
+The explicit20Oct provider policy controls; AI/default/model/request code is untouched.
+
+**Scope/ownership:** sole writer, no agents. Loaded delivery/security/verification skills
+from existing `.github/skills` after supplied sibling paths were absent. Inspected status,
+owned diffs, complete report route, actual auth/permissions, canonical evidence/player/
+progress consumers, migration definition and nearby test conventions before implementation.
+Preserved prior uncommitted setup/docs work and user `_ran` filenames. Changed only:
+`src/app/reports/page.tsx`, new `src/lib/reporting.ts`, tightly scoped report CSS in
+`src/app/globals.css`, new `tests/reports.test.mjs` and `tests/reports-ui.test.mjs`,
+label-only `tests/instructor-e2e.mjs`, README/tracker/showcase. **No ownership exceptions.**
+No global auth/helper, learner/actions/certificates/export/grants/schema/package changes.
+
+**Falsifiable hypothesis / red behavior:** old reports reads only lesson id/title and
+unversioned attendance, mixes historical results, and `requireUser` accepts user+autherror.
+Actual-route SSR/fresh-auth tests initially **0/2**, missing current-version label and
+missing expected rejection. Chosen fix is local fresh `getUser` with both error/no-user
+denial before service creation (login redirect; existing configuration boundary preserved),
+not a global `requireUser` refactor. Tests execute actual `currentUser` contract and actual
+trusted permission helpers; only auth/Supabase I/O and framework boundaries are synthetic.
+
+### Persistent behavior / Task09 + Task12
+
+- New small typed leaf validates complete grant/lesson/enrollment/public-attempt datasets
+  with Zod, reuses actual `lessonProgress` (and its `versionEvidence`) rather than duplicating
+  evidence semantics. No backfill, regrade, writes or provider. New-data parse/query errors
+  are sanitized as **Reports are unavailable**, reaching the standard error boundary.
+- Report sections name **Current lesson version**, **CURRENT PUBLIC ENROLLMENT ROSTER**:
+  per-learner review acknowledgement / final-quiz reach / public saved pass, each explicitly
+  recorded or “no record.” Denominator is current public enrollment only; repeats count once.
+  Only same learner+lesson+current version public saved6–10/10 passes. Five/old/private do not.
+  Review is optional; no inference from visits/bookmarks/enrollment/failed or passing quizzes.
+  Legacy unversioned attendance never becomes current-version evidence. Independent counts,
+  not a funnel or comprehension proof; pass without ack can show no review/no attendance.
+- **Public attempt history (all versions)** retains all authorized public attempts, saved
+  titles/questions/answers/scores, version labels, old fails/passes/retries and removed
+  enrollees. Removed enrollees are excluded only from current-roster counts; each passing
+  attempt/certificate remains independent. No retention/grade/certificate change.
+- Published lessons only: trusted instructors owned only; admins all published; ordinary
+  reviewers explicit fresh `forge_reviewers` lesson grants only. Forged metadata/query
+  parameters add nothing; next-request role/grant revocation/unpublishing removes content.
+  Private/unsubmitted lessons and private enrollments/attempts excluded; no reflection/
+  transcript queries or new profile directory. Existing display name reads current user only.
+- All four report datasets use checked500-row pagination/stable ordering, tested with1051
+  each and first/500/1000-offset failures. No quiet1000 cap, partial counts or failure-as-no-
+  grants. Ordering is applied once on the reused lesson builder. **No atomic cross-query
+  snapshot guarantee**: multi-session publication/revocation races and transport remain open.
+- Responsive scoped non-color-only status text, wrapping IDs and native keyboard details
+  retain the actual learner shell. Existing connected instructor suite expectations now
+  distinguish seeded legacy attendance (0 current attendance) from current saved pass.
+  That suite was **NOT EXECUTED**; only parse/lint checked.
+
+### Actual local commands / results / iterations
+
+Repository cwd; existing Windows Node25.2.1, Chromium153.0.8010.12/PGlite. `$node` =
+`C:\Program Files\nodejs\node.exe`; `$safe` =
+`C:\Users\SOLUSER\AppData\Local\Temp\forge-independent-task22-QA22c719\safe-run.mjs`;
+`$git` = `C:\Users\SOLUSER\AppData\Local\github-copilot-git-2.53.0-4\cmd\git.exe`.
+Inspected existing launcher, no edit: child allowlist only
+`SystemRoot,WINDIR,COMSPEC,TEMP,TMP,OS,PATHEXT,USERPROFILE,LOCALAPPDATA,APPDATA,PROCESSOR_ARCHITECTURE,NUMBER_OF_PROCESSORS`
+and OS/Node PATH. No application settings inherited or environment loader invoked.
+
+| Command (`& $node $safe ...`) | Actual result |
+| --- | --- |
+| `--experimental-strip-types --test --test-concurrency=1 tests/reports-ui.test.mjs` initial two regressions | **0/2** intended red: user+error reached DB and no current-version label |
+| Same immediately after smallest implementation | **2/2** |
+| `--experimental-strip-types --test --test-concurrency=1 tests/reports.test.mjs tests/reports-ui.test.mjs` expanded checks | **10/11**; pagination ordering assertion exposed repeated `.order` on reused lesson builder |
+| `--experimental-strip-types --test --test-concurrency=1 --test-name-pattern='every report query paginates' tests/reports-ui.test.mjs` after applying order once | **1/1** |
+| `--experimental-strip-types --test --test-concurrency=1 tests/reports.test.mjs tests/reports-ui.test.mjs tests/progress.test.mjs tests/learning.test.mjs` first combined | **37/37**, Node18.102s; includes existing actual instructor-permissions offline contract in learning tests, no standalone instructor offline test exists |
+| `--experimental-strip-types --test --test-concurrency=1 --test-name-pattern='offline mounted actual shell' tests/reports-ui.test.mjs` after screenshot stabilization | **1/1**; waited for responsive inert state, finished CSS transitions, captured from page top; no app repair |
+| Same four-file combined packet, final frozen code/tests | **37/37**,0 failed/cancelled/skipped/todo; Node**18.273s**, wall**18.370s**, exit0 |
+| `node_modules/eslint/bin/eslint.js src/app/reports/page.tsx src/lib/reporting.ts tests/reports.test.mjs tests/reports-ui.test.mjs tests/instructor-e2e.mjs` | Final exit0,6.286s; earlier scoped run also passed |
+| `node_modules/typescript/bin/tsc --noEmit --incremental false` | Final exit0,8.294s; direct only, no Next env-loading/typegen/build |
+| `--check tests/instructor-e2e.mjs` | Parse-only exit0,.140s; no connected suite execution |
+
+Tests exercise real report SSR and actual shared auth/permission/evidence contracts, not
+canned authorization answers. Report I/O is a filtering/paginating synthetic Supabase
+adapter; existing progress tests use only in-memory PGlite with actual migrations/actions.
+Browser contexts offline, service workers blocked, every request aborted; zero requests/
+page errors. Covered reviewed-only, quiz-without-submit,5 fail,6 pass/retry, old/legacy
+unknown, private/removed records, forged roles and next-request revocation; missing
+version/evidence/malformed rows and standard unavailable boundary; long IDs/text and
+Tab/Enter/Space/native historical details plus mobile Escape/focus at320/1440.
+
+**Images actually opened:** first combined `forge-reports-cfObpZ/reports-{320,1440}.png`
+showed a screenshot-time sidebar transition/sticky position; test-only stabilization above.
+Final `C:\Users\SOLUSER\AppData\Local\Temp\forge-reports-B8yDXr\reports-320.png` and
+`reports-1440.png` opened, settled shell, current roster/status wrapping and focused expanded
+Version1 saved detail visible. These are synthetic writer evidence, not independent visual
+approval. Final existing progress test artifacts:
+`C:\Users\SOLUSER\AppData\Local\Temp\forge-progress-20261021-Oi2maj` (not opened here).
+Earlier local synthetic report folders `forge-reports-gBt2Zx`, `forge-reports-Fs3Muk` and
+progress `forge-progress-20261021-rKGZOf` retained as test artifacts, not acceptance.
+Browsers/contexts and PGlite closed by test cleanup; no connected fixtures were created.
+
+**Source/test freeze before independent QA request:** six files, SHA-256 below. A first
+inline Node `-e` hash probe failed because Windows stripped string quotes; no file changed.
+Used PowerShell `Get-FileHash -Algorithm SHA256` instead (metadata-only), then rechecked
+after documentation. Git is not on PATH; absolute bundled git used. No test assertion,
+timeout or authorization behavior was weakened to pass.
+
+| Frozen path | SHA-256 |
+| --- | --- |
+| `src/app/reports/page.tsx` | `89cfe0791a000d8c0e810ac0e515cd4dfda5658d68d8e574f38a58fc0f5f9ec1` |
+| `src/lib/reporting.ts` | `a824ceb5b1edf3ae6d111a490cb62d1907ab45ba46f437cb1d98575e9ebc16df` |
+| `src/app/globals.css` | `4ebdcd5f084ed9320b36d724aa6dbea21009d167fe2670d7c47cf0bf4f092604` |
+| `tests/reports.test.mjs` | `98e50336ad6cbbda7e95d3ae63238dd1e97cc82da528bbfafaae4a496b340189` |
+| `tests/reports-ui.test.mjs` | `730902992e24ee3d6bf47c3bcb3cd69f1f6e35ac9acc6f3adc206d3c4f76c606` |
+| `tests/instructor-e2e.mjs` | `f934eeddc5e1ad1648e0b2ddb1ea38a623e9e7c830af479d021c1c11fc3499f3` |
+
+**Validation/handoff:** owned `git --no-pager diff --check` and explicit new-file
+whitespace/final-newline checks; source freeze rechecked after docs. Independent focused
+reports QA is requested against this frozen slice, **not self-certified release**.
+Coordinator owns acceptance; owner retains final content/submission approval.
+
+**Still open:** exactly FIVE selected-demo workstreams: connected core; owner review of
+three canonical-family lessons; one genuine eligible free-AI showcase; connected daily4D
+reflection lifecycle; demo package/rehearsal/accessibility/submission approval. These are
+not five unbuilt modules; common target/schema/version/operation prerequisites are not a
+sixth. Six deferrals unchanged: coding runner, binary PPT, student slide assistant, planner,
+genuine tailoring, targeted AI revisions. Deadline31Oct, supervised HK13+, not public
+release. Earlier305/Next webpack build and61 reference tests remain dated local baselines,
+not reports acceptance. `_ran` migration filenames preserved, application **UNVERIFIED**;
+no actual schema query. No `.env` read/import/copy, remote/catalog/provider/SMTP, install,
+server, connected e2e/accounts, full suite/build, migration application, deployment/commit
+or nested agents. Shared-screen/login/connected-later sequencing remains; no target question.
+
+*Earlier checkpoints below are dated history, including superseded acceptance requests.*
+
+## 22 October 2026 — independent diagnostic implementation PASS; narrow documentation correction
+
+**Scope/owner:** documentation-only follow-up after independent diagnostic QA; owned
+paths are `PROJECT_SHOWCASE.md`, `README.md`, `IMPLEMENTATION_TRACKER.md`. Source,
+tests, scripts, assertions and timeouts are frozen. No agents or connected operations.
+Coordinator owns LOCAL-packet acceptance; owner retains academic/content/submission review.
+
+**Retained independent evidence:** **40/40** setup/OpenRouter/public-config tests and
+**41 synthetic native-ESM actual-CLI/shared-client boundary/recovery cases passed**;
+scoped lint, direct TypeScript, parse-only syntax, whitespace and doc-link/route checks
+also passed. Evidence: `C:\Users\SOLUSER\AppData\Local\Temp\forge-independent-setup-20261022`
+(`verification-summary.json`, `native-cli-results.json`, before/after fingerprints).
+These are the independent run's results, not fresh code checks in this follow-up.
+
+**Historical initial independent disposition: BLOCKED (documentation only).**
+Finding `SETUP-QA-DOC-01` identified showcase line289's “same ID/version” wording;
+diagnostic implementation passed and QA edited nothing. Independent QA instrumentation
+attempts remain separate from product results: asynchronous `--import` guards let a
+Node warning collide with the existing JSON-only `console.error` mock (initial40/41,
+file-level failure). A synchronous `--require` offline guard resolved this with warnings
+visible and all assertions retained, yielding40/40. The temporary native adapter first
+failed to parse; its extra brace was corrected before all41 cases passed. No repository
+source/test repair was involved.
+
+**Inspected source / falsifiable hypothesis:** `updateLesson` in
+`src/app/learning/actions.ts:139,143` updates the existing ID, writes
+`expectedVersion + 1` and returns that version. Replacing only the rehearsal's version
+claim should resolve the sole doc blocker without behavior changes. **Correction made:**
+“next save updates the same lesson ID and advances its version, not a duplicate starter.”
+README/tracker record the independent evidence; historical timestamps/gallery are retained.
+
+**Focused follow-up validation:** inspect the exact corrected sentence; run
+`git --no-pager diff --check -- PROJECT_SHOWCASE.md README.md IMPLEMENTATION_TRACKER.md`;
+rehash the frozen files using sorted relative UTF-8 path + NUL + raw bytes + NUL.
+Pre-edit hashes match the supplied setup/test aggregate
+`2821d5d4888e1fd7fde7bffa10ab232fcbde36f516b5555a631e4cbed0ab0c76`
+and other141-file aggregate
+`c1bbe9d54313d08d54a0dc71bb679942b556ca69b5195a0c74f0da000c8930c9`.
+No fresh test/lint/tsc/syntax/full-suite/build checks are needed or run for wording only;
+no `.env` contents read or actual environment loader, network/provider/quota,
+server/install, connected test/rehearsal, migration, commit or deploy executed.
+
+**Acceptance still pending:** Coordinator will directly verify this exact documentation
+correction before accepting the LOCAL packet; this is not a self-certified release.
+Current shared-model default and explicit20Oct request policy are unchanged.
+Suggested10–12 minutes remains an unmeasured assumption pending owner confirmation.
+Exactly five open demo workstreams and six deferrals below remain unchanged, including
+owner lesson/source review, authorized connected core/reflections, genuine eligible AI
+proof and demo/rehearsal/accessibility/submission gates.
+
+*The initial writer checkpoint below is retained as history, including its QA request.*
+
+## 22 October 2026, 12:10 continuation — diagnostic alignment / showcase rehearsal preparation (writer LOCAL; independent QA requested)
+
+**Actor/action scope:** sole local writer, no nested agents. User22Oct12:10 continuation
+and the assigned diagnostic/documentation slice only; Coordinator owns planning/acceptance.
+Owner09:54 defers shared-screen login/connected work. No credentials/target login requested.
+Loaded repository-local delivery/verification/security skills after sibling paths were
+absent; explicit20Oct shared-client no-overrides policy supersedes historical strict ZDR
+wording, without authorizing another policy change.
+
+**Inspected before editing:** existing setup/check-ai scripts, full shared OpenRouter
+client, actual public-config helper, package scripts and nearby VM/real-client tests;
+generation migration/row helpers and progress/reflection fields. Then inspected actual
+Studio/editor/player/catalog/teaching/reports/progress/reflections/profile/export/generation
+UI and actions before writing the runbook. No `.env*` contents, real learner rows, grants
+ledger or remote/provider metadata read.
+
+**Falsifiable hypothesis / focused red check:** old setup can pass an old schema without
+saved generation/progress fields, and its handbuilt AI request is not an app-availability
+proxy. Added `tests/setup.test.mjs`, executing the **actual CLI plus full actual transpiled
+shared client/configured helper/public-config module** in isolated VM contexts. Only
+synthetic process/console/nextEnv/Supabase/fetch boundaries are supplied; no completion or
+business-helper answers are stubbed, no host application environment is inherited.
+Smallest selector first fails on absent `progress_evidence` and one handbuilt request
+instead of the expected catalog+completion pair.
+
+**Persistent changes (only assigned five paths):**
+
+- `scripts/check-setup.mjs`: validates CLI before environment load; fixed sanitized
+  environment-loader failure; retains public/service/key checks and zero-row DB reads.
+  Adds full required saved-generation projection and progress field; retains reflections.
+  Actual `configuredFreeModels`/`completion` supplies current default, aliases, ordered
+  free models, catalog verification and shared deadline/token/body/abort/redirect/log
+  behavior. No duplicated provider request/tuning, paid fallback, manual model-call loop
+  or app/client/default change. Probe uses strict Zod `{ok:true}`, fails false/wrong/
+  malformed/extra output without printing content. All failed configuration/DB checks
+  block inference; default flag-false path makes zero AI requests.
+- `tests/setup.test.mjs`: nine focused tests covering invalid CLI with zero env/DB/network,
+  normal zero-AI metadata mode, actual default/override/key-alias/ordered-model request
+  shapes (one GET+one POST, no provider/reasoning overrides), verified zero pricing,
+  paid/unverified/key/config failure before completion, HTTP429/404/401 without retries,
+  strict probe output, every required generation/reflection column plus progress,
+  infrastructure exceptions and sentinel non-disclosure in captured CLI stdout/stderr.
+- `PROJECT_SHOWCASE.md`: current22Oct features/status, three review-ready (not reviewed)
+  starters, reviewed/attended/passed semantics, private daily4D reflections, clickable
+  **unverified** HTTPS resources. Existing seven20Oct gallery images/captions remain
+  explicitly historical; no new image/recording claim. Added actual-route/button
+  rehearsal with expected observations, all connected steps **NOT RUN**, exact actor/
+  target/schema/version/scope prerequisites, manual fallback vs genuine AI distinction,
+  optional explicit staged recovery/private finalization and exact-owned-fixture cleanup.
+  Suggested10–12 minutes is an **ASSUMPTION**, not measured/owner-confirmed.
+- README and this tracker: operating side effects, current migration paths/status,
+  evidence/limits and QA handoff. No new planning file/framework/feature. `check-ai` unchanged.
+
+### Fresh local commands, results and iterations
+
+Windows / existing Node25.2.1; no installs. Exact aliases used from repository root:
+`$node = 'C:\Program Files\nodejs\node.exe'`;
+`$safe = 'C:\Users\SOLUSER\AppData\Local\Temp\forge-independent-task22-QA22c719\safe-run.mjs'`;
+`$git = 'C:\Users\SOLUSER\AppData\Local\github-copilot-git-2.53.0-4\cmd\git.exe'`.
+Existing safe launcher was inspected, not edited. It spawns with OS-only
+`SystemRoot,WINDIR,COMSPEC,TEMP,TMP,OS,PATHEXT,USERPROFILE,LOCALAPPDATA,APPDATA,PROCESSOR_ARCHITECTURE,NUMBER_OF_PROCESSORS`
+and fixed PATH `C:\Windows\System32;C:\Windows;C:\Program Files\nodejs`, no application secrets.
+All HTTP/DB/env-loader behavior below is synthetic; no real service creation or `.env` load.
+
+| Exact command / check | Actual result |
+| --- | --- |
+| `& $node $safe --experimental-strip-types --test --test-concurrency=1 --test-name-pattern='setup default\|setup --ai uses' tests/setup.test.mjs` | First0/2 failed due to the test's nextEnv default-import adapter (not product evidence). Fixed adapter only; rerun **0/2**, exit1, correctly exposes missing progress field and missing shared-client catalog request. Production edit followed only after those reds |
+| `& $node $safe --experimental-strip-types --test --test-concurrency=1 tests/setup.test.mjs` | Immediately after diagnostic alignment **9/9**, exit0; Node0.953s/wall1.032s |
+| `& $node $safe --experimental-strip-types --test --test-concurrency=1 --test-name-pattern='infrastructure exceptions' tests/setup.test.mjs` | Added loader-throw case exposes uncaught environment-load exception: **0/1**, exit1. The runner displayed a deliberately synthetic sentinel/stack, no real setting. Minimal fixed-message loader catch added; subsequent final packet covers this case |
+| `& $node $safe --experimental-strip-types --test --test-concurrency=1 tests/setup.test.mjs tests/openrouter.test.mjs tests/public-config.test.mjs` | **40/40**,0 failed/cancelled/skipped/todo, exit0; Node1.991s/wall2.068s. Setup9 + existing real-client28 + public-config3. No full suite |
+| `& $node $safe node_modules/eslint/bin/eslint.js scripts/check-setup.mjs tests/setup.test.mjs` | Exit0,5.851s |
+| `& $node $safe node_modules/typescript/bin/tsc --noEmit --incremental false` | Exit0,6.030s; direct compiler only, no Next env loader/typegen/build. CLI integration is additionally exercised by actual-module runtime tests, not a claim that tsc checks all `.mjs` |
+| `& $node $safe --check scripts/check-setup.mjs`; `& $node $safe --check tests/setup.test.mjs` | Parse-only, both exit0 (0.094s/0.098s), no script execution |
+| `& $git --no-pager diff --check -- scripts/check-setup.mjs README.md IMPLEMENTATION_TRACKER.md PROJECT_SHOWCASE.md`; `& $git --no-pager diff --no-index --check -- NUL tests/setup.test.mjs` | No whitespace diagnostics; tracked exit0, untracked exit1 means new-file difference. Explicit trailing-whitespace/new-file newline check passes. An initial extra scan incorrectly required a final newline on existing setup: exit1; HEAD also has none, preserved. New test has final newline |
+
+Two exploration-only command issues were not code failures: Git absent on PATH (resolved
+with installed absolute Git), and a broad UI-label Python print hit Windows cp1252 Unicode
+encoding (rerun bounded UTF-8 reads). No network or connected command was used to diagnose.
+Existing non-failing Node typeless-package warnings remain; no package change.
+
+### Freeze, cleanup and independent acceptance handoff
+
+Owned implementation aggregate SHA256 (sorted relative UTF-8 path + NUL + raw bytes + NUL):
+**`2821d5d4888e1fd7fde7bffa10ab232fcbde36f516b5555a631e4cbed0ab0c76`**.
+Individual setup **`d3459d78652878aa20841165e56c30d44837f55280dd1a07a3512f3ed6a7f5d2`**;
+test **`a7c53f4428cf2b2cf36769e7ec9c8210e20d5131f07720724f61b5b6bb7bed60`**.
+All141 other files under `src`, `tests`, `scripts`, `supabase` retain
+**`c1bbe9d54313d08d54a0dc71bb679942b556ca69b5195a0c74f0da000c8930c9`**.
+Earlier starters/reflections/reference code and user migration renames preserved, including
+`20261022_daily_reflections_ran.sql`; **application unverified by this work**.
+No helper service/browser/DB/connected fixture or generated repository artifact was created;
+bounded child processes exited, no owned cleanup failure. Only tools' local transcripts remain.
+
+**Not run / not proved:** no `check:setup`, `check:ai`, connected browser suites, app server,
+Next/full build, full test suite, `.env` contents, Supabase/provider/catalog/SMTP network,
+remote migration/grant, quota consumption, owner content review, rehearsal, commit/deploy
+or agents. Fresh **40/40 is writer LOCAL evidence only**. Latest61/61 accepted reference
+packet and Task22's earlier305/build stay historical LOCAL evidence, not rerun claims.
+Later `check:setup` is a remote zero-row metadata read; `--ai` adds free catalog and one
+quota-consuming completion. `check:ai` reads provider catalog/account-quota data and its
+probe flags add inference. Column passes prove no grants/RPCs/cache/concurrency/eligibility/
+provider quality; no successful live AI is claimed.
+
+**Exactly FIVE OPEN demo workstreams unchanged:** core connected journey; owner review of
+three canonical-family lessons; one actual eligible free-AI showcase (prefer existing saved
+generation); connected reflection lifecycle; demo/rehearsal/accessibility/submission approval.
+Target/schema/app-version/operation authorization are shared prerequisites, not a sixth
+feature, five unbuilt modules or25 old tasks. Six deferrals unchanged: coding runner24,
+binaryPPT19 (demo PDF/PPTX), student slide assistant19, private planner23, genuine tailoring18,
+targeted AI revisions14/16. Privacy/role/key/upload/server-grading/free-only/adult-grant
+controls remain. Deadline31Oct, supervised HK13+ demo, not public launch.
+
+**Request independent focused QA** of the frozen actual-CLI/client/schema coverage,
+sanitization and source-inspected runbook; Coordinator owns acceptance. Owner must confirm
+demo duration later and retain final academic/content/submission responsibility.
+No self-certified release, fabricated AI output/findings/contributions/user studies.
+
 ## 22 October 2026 — independent encoded-Unicode follow-up: LOCAL PASS
 
 **Boundary:** independently reverified only the frozen encoded-Unicode reference repair. Loaded repository-local delivery/security/verification skills after the sibling paths proved absent; inspected all four file hunks, nearby actual-consumer harnesses and package scripts. No repository source/tests/CSS/SQL edits, original permission/quiz/scheduler assertion or timeout changes. No external URLs opened. Coordinator retains final acceptance; this does not close connected/content/live-AI/submission gates.
@@ -95,7 +730,7 @@ No arbitrary retries, full `npm test`, build, repository Next command or direct 
 | 1. Core learning journey | Developer; owner/Coordinator connected acceptance | Locally implemented | Authorized connected create/edit/publish → enroll/slides/resume → ten-question server grading6/10, unlimited retry, result/per-pass certificate |
 | 2. Three canonical-family authored starters | Author/owner | Locally implemented; supplied reference display improved in this slice | Owner factual/pedagogical/answer-key/source/supervised13+ suitability review; not reviewed or endorsed by link rendering |
 | 3. One actual eligible free-AI showcase | Owner + developer | Local code exists; prefer saved generation | Live free-provider success/quality not proven; separately authorized eligible operation/review later |
-| 4. Private daily4D reflections | Developer; owner/Coordinator | Locally implemented and independently locally accepted | Source migration unapplied; actual connected CRUD/export/cascade pending |
+| 4. Private daily4D reflections | Developer; owner/Coordinator | Locally implemented and independently locally accepted | Migration application unverified by this work; actual connected CRUD/export/cascade pending |
 | 5. Demo/submission package | Owner + Coordinator | Documentation and local evidence exist | Artifact package/rehearsal/accessibility/owner academic final approval incomplete |
 
 Target/schema/app-version/authorization are **shared prerequisites, not a sixth feature**. The supplied **Task22 independent LOCAL packet is now Coordinator-accepted** (305/305 full suite, scoped lint/directtsc, env-free Next webpack snapshot build). Historical dated “acceptance requested” and writer303/304/repairer28/30 entries below are retained, not current acceptance requests or relabelled passes. The original manual5s timeout cause remains unresolved; diagnostic21/21 and full305/305 passed, not a proved product fix. This slice did not rerun305 or build.
@@ -1005,10 +1640,10 @@ Priorities below retain historical tracker labels; **22 October demo ordering/de
 | 06 | P1 | Open | Player entry/Continue implemented; durable restore needs verified 09 schema/grants and connected persistence. |
 | 07 | P1 | Complete | Recorded search shortcut, combined filters and keyboard scope passed; retain in connected regression. |
 | 08 | P0 | Open/Partial | Canonical three-family metadata/filtering accepted locally;22Oct three review-ready authored starters independently accepted LOCAL, owner content and source review pending; connected boundaries remain. |
-| 09 | P0 | Open | Serialized resume and 21 Oct reviewed/attended/passed evidence accepted for bounded offline/local scope after test-only loader repair; fresh independent serial suite283/283. Historical281/282 failure retained. Connected migration/grants/durability/conflicts/export/unload remain Open. |
+| 09 | P0 | Open | Serialized resume and21Oct evidence retain bounded independent LOCAL acceptance (283/283, dated).22Oct current-version public-roster reports now integrated with canonical evidence; writer37/37, independent reports QA open. Connected migration/grants/durability/conflicts/export/unload remain Open. |
 | 10 | P1 | Complete | Recorded owner-scoped bookmark/saved-lessons scope passed; retain in connected regression. |
 | 11 | P1 | Open | Unfinished-answer state implemented; connected reload/retry/version-change acceptance depends on 09. |
-| 12 | P1 | Partial | 21 Oct distinct player/history/current-version dashboard evidence accepted for bounded offline/local scope with09; fresh independent suite283/283 after loader repair. Old/unknown evidence and certificate snapshots preserved. Connected/report/release boundaries remain Open; other award/credential extensions remain deferred. |
+| 12 | P1 | Partial | 21Oct player/history/dashboard independent LOCAL baseline retained.22Oct report current-public-roster/current-version counts separated from version-labelled all-version public snapshots, including removed enrollees; writer37/37, independent reports QA/connected/release gates open. Private records excluded; awards/credential extensions still deferred. |
 | 13 | P2 | Verification | File/removal/text retention, uncertain email handling and cancellation focus accepted locally; controlled inbox and real session confirmation remain. |
 | 14 | P1 | Partial | Manual same-ID editing, uncertain-save reconciliation and activity validation accepted locally;22Oct starters exercise manual actions. Targeted AI revision preview/accept/reject/versioning is demo-deferred, unmet; connected core QA remains. |
 | 15 | P1 | Blocked | Three-family session-only coach implemented; working eligible free provider, meaningful tailoring and live quality/context isolation remain. Generic coach is not Task25. |
@@ -1167,6 +1802,11 @@ Implemented: search, subject/visibility filters, no-results state and explicit e
 Acceptance: filters combine correctly, keyboard users can find and enroll in lessons, and repeated enrollment remains idempotent.
 
 ### 09 - Durable in-lesson progress
+
+**22Oct14:04 current reports integration:** bounded canonical current-version/public-roster
+consumer delivered locally (writer37/37); independent reports QA and connected durability/
+schema/transport acceptance remain open. No new evidence, backfill or DDL. See current
+handover above; dated21Oct statements below are retained, not a new acceptance request.
 
 Implemented locally: version-aware private resume storage, authenticated reads and optimistic revision writes for slide, stage, ordering and unfinished answers. Isolated migration, policy, concurrency and cascade tests passed in recorded work. Fresh Forge QA empty reads this turn confirm `forge_resume` is present. This does not establish application/service-role grants or durable writes; `20260930_resume_grant.sql` application and full live persistence remain pending. Missing profile age blocks the full profile/resume/export flow; the repaired harness is locally ready.
 
@@ -1375,6 +2015,12 @@ Completed approved slice (recorded September 25 instructor regression): instruct
 Deferred slice: roster-file uploads, account creation, invitation mail, broader assignment/cohort management and notifications require a new scope decision. They are not part of the completed email-selection workflow. Independent release regression remains under 21.
 
 ### 12 - Progress presentation and optional reporting/certificate expansion
+
+**22Oct14:04 current report integration:** public current-roster/version acknowledgement,
+quiz reach and saved pass counts are independent, once per learner; all-version public
+history/versioned snapshots remain separate, including removed public enrollees. Private
+enrollments/results/reflections/transcripts excluded. Writer37/37 only; independent report
+QA and connected/revocation-race/transport acceptance remain open. No award/retention change.
 
 The agreed result history, statistics and private/public printable HTML certificates are implemented. Durations, timezone streaks, additional award types and signed/PDF credentials are deferred and require approved definitions and eligibility rules before implementation.
 

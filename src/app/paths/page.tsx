@@ -1,13 +1,18 @@
 import { LearnerShell } from "@/components/learner-shell";
 import { LearningPath } from "@/components/learning-path";
-import { isInstructor, database, isAdmin, requireUser, visibleLessons } from "@/lib/learning-server";
+import { isInstructor, database, isAdmin, visibleLessons } from "@/lib/learning-server";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { requireAiAccess } from "@/lib/ai-eligibility-server";
 import { collectRows } from "@/lib/learning";
 import { derivePreferences, lessonTopic } from "@/lib/recommendations";
 import { readMetadata } from "@/lib/curriculum";
 
 export default async function Paths() {
-  const user = await requireUser();
+  // Keep protected-route/configuration UX; reject user-plus-error before service reads.
+  const auth = await createClient();
+  const { data: { user }, error } = await auth.auth.getUser();
+  if (error || !user) redirect("/login");
   const client = database();
   const [profileResult, catalog, passed, aiAvailable] = await Promise.all([
     client.from("profiles").select("display_name,learning_level,preferred_subjects,learning_goals").eq("id", user.id).maybeSingle(),
@@ -29,7 +34,7 @@ export default async function Paths() {
   return <LearnerShell active="/paths" name={String(profile?.display_name ?? "Learner")} admin={isAdmin(user)} instructor={isInstructor(user)}>
     <div className="portal-page">
       <header className="portal-heading"><div><span className="eyebrow">SOFTWARE DEVELOPMENT CURRICULUM</span><h1>Learning paths</h1><p>Optional recommendations. Enrollment is always your choice.</p></div></header>
-      <LearningPath catalog={lessons} completedIds={completedIds} initialPreferences={preferences} aiAvailable={aiAvailable} />
+      <LearningPath key={`${user.id}:${JSON.stringify(preferences)}`} ownerId={user.id} catalog={lessons} completedIds={completedIds} initialPreferences={preferences} aiAvailable={aiAvailable} />
     </div>
   </LearnerShell>;
 }

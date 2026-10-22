@@ -6,6 +6,230 @@ For a presentation-ready overview of features, design choices and prototype scre
 
 Track remaining work, blockers, acceptance criteria and verification updates in [IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md).
 
+## 22 October 2026 — independent paths + fresh integration checkpoint: LOCAL PASS
+
+The frozen optional-path repair passed independent functional/privacy/reliability checks.
+One temp-only actual-action probe passed **1/1 (seven scenarios)**, including replacement
+of the trusted User/grant during a genuine deferred provider wait, auth loss/account switch,
+whole-result scope rejection and recovery. The original User was not mutated.
+
+**One fresh standard serial `npm test`: 340/340 across 31 test files**, zero failures,
+skips or cancellations. Scoped six-file ESLint and direct TypeScript passed. In a physical,
+environment-file-free snapshot only, serialized **Next typegen → direct TypeScript →
+`next build --webpack` passed**. Existing dependencies/offline Chromium/PGlite only;
+OS-only child environment and network denial throughout, no actual environment loader,
+server, connected fixture, provider/quota operation or migration. Fresh path320/1440 and
+representative report/reflection/starter images were actually opened; keyboard/focus,
+wrapping and visual readability spot-checks are not full accessibility approval.
+
+No product defect reproduced; no source/test/script/CSS/SQL/manifest change by QA.
+All six frozen hashes and the broader 2,244-entry source/config/test/schema/existing-Next
+freeze match before/after. Owned snapshot removed after unlinking its dependency junction;
+repository dependencies intact, no cleanup failure. Commands, timings, fingerprints,
+sanitized transcripts/probe and exact image paths are in the tracker.
+
+**Still THREE connected demo flows + TWO approval packages = FIVE workstreams.**
+All three are locally implemented, not unbuilt screens; optional paths add no fourth flow.
+Next critical step is planned shared-screen connected acceptance, not deferred features
+or a login request now. Real Next action transport/Postgres races, target schema/grants/
+cache/app version, one genuine eligible free-AI generation, owner curriculum/reflection/
+source-fact/pedagogy review and final rehearsal/accessibility/submission remain open.
+The approved **10–12-minute TARGET** is unchanged: rehearsal **NOT RUN**, duration
+**UNMEASURED**. Coordinator owns final acceptance; this is not complete-demo, production
+or academic-content certification. Six deferrals and the20Oct provider policy are unchanged.
+The writer-only checkpoint below is dated history. `PROJECT_SHOWCASE.md:57–60` still
+needs writer status synchronization; it was intentionally read-only for this QA.
+
+## 22 October 2026 — optional learning-path reliability repair (LOCAL writer evidence; QA requested)
+
+**Remaining demo count: THREE connected DEMO FLOWS plus TWO non-flow approval gates =
+the existing FIVE workstreams**, not five unbuilt modules:
+
+1. Connected core author/learner journey, quiz, certificates **and reports**.
+2. Connected private daily 4D reflection CRUD, export and deletion.
+3. One genuine eligible free-AI generation.
+4. **Non-flow gate:** owner review of three lesson sources, answer keys and pedagogy.
+5. **Non-flow gate:** final rehearsal, accessibility and submission approval.
+
+All three flows have local implementations; actual connected acceptance remains
+**PENDING**. This bounded repair of **existing optional paths is not a fourth required
+flow, new module or reactivated deferred scope**. The six existing deferrals are unchanged.
+The 31 October supervised Hong Kong 13+ demo remains the target. Owner14:04 approved
+the **10–12-minute TARGET**; rehearsal **NOT RUN**, duration **UNMEASURED**. The09:54
+local-first/shared-screen-later sequence stands; no login is requested now.
+
+Paths now fail closed on fresh entry auth (including user plus auth error), refresh
+auth after inference, reject a different owner before further reads, and recheck the
+fresh trusted grant/profile age. The existing form prevents same-tick duplicate submits,
+retains inputs on failure, catches transport rejection with fixed allowance/no-auto-retry
+feedback, focuses errors/results and discards whole stale paths using canonical validation.
+The page keys private client state by owner/coarse preferences; late old-context responses
+cannot populate a new owner. Local recommendations remain available without inference.
+Nothing is persisted/enrolled; consent, anonymized candidate tokens, shared quota and
+the20Oct shared free-client policy/model/budget remain unchanged.
+
+**Actual writer evidence:** reproduced auth/grant red regressions and page/transport reds;
+then focused serial recommendations/path-UI/curriculum-UI/eligibility/OpenRouter **59/59**
+passed. Final expanded age/metadata/keyboard/reload checks **22/22** passed; scoped ESLint,
+direct TypeScript and whitespace passed. Offline Chromium320/1440 pending/error/success/
+local images were captured and opened. Exact commands, iterations, freeze hashes and
+cleanup are in the tracker. No full suite/build, environment-file access, remote service,
+quota/provider operation, migration or server startup. **Independent integration QA is
+requested**, including one fresh full serial suite and isolated environment-free Next
+build after freeze. This is not connected/provider, atomic grant-lock, full accessibility,
+content-review or production acceptance; Coordinator owns final acceptance.
+
+Previous reports **37/37 + 6/6** remain bounded independently accepted LOCAL evidence;
+the showcase's current status is synchronized. Earlier305/build, reference61 and
+diagnostic40/41 are dated evidence, not fresh all-app acceptance. User migration `_ran`
+filenames remain preserved; application is **UNVERIFIED**. Dated QA-pending notes below
+are historical, not a reversal of the accepted reports/diagnostic status.
+
+## 22 October 2026 — independent Task09/12 reports QA: bounded LOCAL PASS
+
+Fresh OS-only, network-guarded serial reports/reports-UI/progress/learning checks passed
+**37/37**, with zero failures/skips, plus **6/6 temp-only independent probes** reusing
+the actual-route harness, not copied reporting logic. Scoped ESLint, direct TypeScript,
+instructor-harness **syntax only** and whitespace checks passed. Auth/role/grant denial,
+current-version independent roster evidence, retained public history, stable pagination
+beyond1000, sanitized failure/recovery and private-content exclusion passed locally.
+Fresh mounted/native report images at320/1440 were opened; Tab/Enter/Space historical
+details, visible focus, wrapped IDs/UUIDs and textual statuses passed. Exact commands,
+images and sanitized evidence inventory are in the tracker.
+
+Six writer-frozen source/test hashes match before/after; QA changes only README/tracker.
+Owned browsers/PGlite closed; no connected fixtures or cleanup failures. No full suite,
+Next build, login, environment-file access, remote/provider operation or AI code change.
+Coordinator owns final acceptance; connected publication/revocation races, target schema,
+transport, owner review, genuine eligible AI and broader accessibility remain untested/open.
+All **five demo workstreams** and six deferrals remain open/unchanged. Owner-approved
+10–12-minute **target** stands; rehearsal **NOT RUN**, duration **UNMEASURED**.
+The showcase's reports status has since been synchronized, without a connected/whole-project
+completion claim. Writer evidence below remains dated history.
+
+## 22 October 2026, 14:04 approved continuation — Task09/12 reports integration (writer LOCAL)
+
+**Owner approved the 10–12 minute TARGET walkthrough at 14:04**, and continued local
+development. Rehearsal is **NOT RUN** and duration **UNMEASURED**. The 09:54 sequence
+remains local features first, shared-screen connected testing later; no login/target
+question now. Coordinator owns acceptance; owner owns final content/submission approval.
+
+**Reconciliation:** Coordinator already directly checked the corrected showcase sentence
+(formerly line289) against `updateLesson:132–145` and accepted the diagnostic **LOCAL**
+packet: **40/40 + 41 native probes**. The original version-wording finding is closed;
+that reconciliation changed no diagnostic/application source. Pending/assumption language
+in dated entries below is history, not the current decision. The explicit20Oct provider
+policy and AI implementation are untouched.
+
+`/reports` now separates **CURRENT PUBLIC ENROLLMENT ROSTER** evidence for each
+**current lesson version** from **Public attempt history (all versions)**:
+
+- Rows show explicit review acknowledgement, final-quiz reach and saved public pass,
+  each independently or “no record.” Counts use current public enrollments, once per
+  learner. Only the same learner/lesson/current version with saved public score **6–10/10**
+  passes; five, old-version and private results do not. Review is optional, not a quiz/pass
+  gate or comprehension proof. Legacy unversioned attendance is never backfilled.
+- All authorized public attempt snapshots remain in history, with version and saved title,
+  including removed public enrollees. They are excluded from current-roster counts;
+  repeated passes retain independent attempts/certificates. No grading/retention changes.
+- Fresh auth rejects error **or** missing user before service DB creation. Instructors see
+  only owned published lessons, admins published lessons, ordinary reviewers explicit
+  lesson grants. Private/unsubmitted lessons, private enrollments/results and private
+  reflections/transcripts are not exposed. No reflection query or new profile directory.
+- Checked pagination reads all rows; query failures/missing columns/malformed new data
+  throw a sanitized unavailable error to the standard boundary, not zero/partial success.
+  This is **not** an atomic snapshot across publication/revocation or separate queries.
+
+**Fresh writer evidence:** requested serial reports/reports-UI/progress/learning packet
+**37/37**, scoped ESLint and direct `tsc --noEmit --incremental false` pass. Real report SSR,
+actual permission/evidence helpers, synthetic auth/Supabase I/O, offline mounted actual
+shell/native details, long IDs/status text and keyboard at320/1440 were checked. No full
+suite/build or connected command; `instructor-e2e.mjs` only has aligned labels, **not run**.
+Independent reports QA and connected acceptance remain open; exact commands, iterations,
+images/cleanup and source freeze are recorded in the tracker.
+
+Exactly **five open demo workstreams** remain (connected core; owner review of three
+lessons; one genuine eligible free-AI showcase; connected private4D reflections; demo
+package/rehearsal/accessibility/submission approval), not five unbuilt modules. Common
+prerequisites are not a sixth. Six deferrals remain: coding runner, binary PPT, student
+slide assistant, planner, genuine tailoring, targeted AI revisions. Earlier305/build
+and61 reference checks are **dated local baselines**, not current reports acceptance.
+User migration `_ran` filenames are preserved; application is **UNVERIFIED**, not queried.
+Deadline31Oct, supervised Hong Kong13+ prototype, not public release.
+
+*The following diagnostic checkpoints are retained as dated history.*
+
+## 22 October 2026 — independent diagnostic implementation PASS; documentation correction pending Coordinator
+
+Independent diagnostic QA passed **40/40** setup/OpenRouter/public-config tests and
+**41 synthetic native-ESM actual-CLI/shared-client boundary/recovery probes**. Scoped
+lint, direct TypeScript, parse-only syntax, whitespace and doc-link/route checks also
+passed in that independent run, not rerun here. Sanitized evidence is retained at
+`C:\Users\SOLUSER\AppData\Local\Temp\forge-independent-setup-20261022`.
+
+**Historical initial QA disposition: BLOCKED on documentation only.** The sole
+source-truth correction is now made in the showcase rehearsal: the next save
+**updates the same lesson ID and advances its version**, matching
+`src/app/learning/actions.ts:139,143`. Independent QA's failed async `--import`
+instrumentation hit a Node-warning/JSON-console-mock collision, resolved with a
+synchronous `--require` offline guard; its temporary adapter's initial syntax error
+was fixed before the 41 cases. These were QA instrumentation notes, not product
+failures; repository source/tests were unchanged.
+
+This follow-up edits only the three owned documents. **No fresh code checks are needed
+or run for wording only**; validation is limited to whitespace and frozen-file hashes.
+No actual `.env` loading, network/provider/quota access, connected rehearsal, full suite
+or build was executed. The current shared-model default and explicit20Oct request
+policy remain unchanged. Suggested10–12 minutes remains an assumption pending the
+owner; all five workstreams and six deferrals remain open/unchanged. **Coordinator
+will directly verify this exact correction before accepting the LOCAL packet**;
+owner review, connected/AI proof and rehearsal gates remain, not a self-certified release.
+
+*The initial writer checkpoint below is retained as history, including its QA request.*
+
+## 22 October 2026, 12:10 continuation — setup alignment and demo runbook (LOCAL; independent QA requested)
+
+The existing setup diagnostic now uses the **actual shared OpenRouter client**, deriving
+the configured model list/default rather than hardcoding a probe model or request policy.
+The owner-selected app default and all app/client settings are **unchanged**. No provider
+or reasoning overrides were added; the explicit20Oct policy still controls.
+The tiny strict `{ok:true}` probe is locally validated with Zod; false/wrong/malformed/extra
+output fails and content is never printed. Invalid CLI arguments exit before environment
+loading, database creation or network. Required zero-row checks now also include saved
+generation columns and enrollment `progress_evidence`, retaining reflection checks.
+
+**Side effects when later authorized:** `npm run check:setup` loads local configuration
+and reads remote DB column metadata (no learner rows); it is **not fully offline**.
+Without `--ai` there is **no AI catalog or inference**. `npm run check:setup -- --ai`
+uses the shared client's single catalog GET and at most **one quota-consuming completion
+POST** (singular model or ordered models, no manual per-model retries); failed
+configuration/DB checks block inference. This is not proof of grants/RPCs/cache,
+concurrency, account eligibility, provider quality or successful lesson generation.
+`check:ai` also contacts provider catalog/quota services; its probe flags consume quota.
+None of these connected commands was run here.
+
+[Showcase rehearsal guide](PROJECT_SHOWCASE.md#suggested-academic-demonstration) now
+uses actual routes/buttons and marks all connected steps **NOT RUN**. Suggested10–12
+minutes is an **ASSUMPTION**, not measured or owner-confirmed. It covers manual learning,
+review/attendance/pass distinctions, private reflections and an optional separately
+authorized genuine saved-AI demonstration. Historical20Oct synthetic images are not AI
+proof. Manual fallback does not count as completed AI.
+
+**Fresh writer checks only:** offline actual-CLI/shared-client VM regressions plus existing
+client/public-config tests **40/40**; scoped ESLint and direct TypeScript pass. Exact
+commands, red/fixture failures, freeze and limits are in the tracker. No fresh full suite,
+Next build, screenshots, owner review or connected rehearsal. Latest independently accepted
+reference packet remains61/61; Task22's earlier305/305/build remains dated LOCAL evidence.
+
+Exactly **five open demo workstreams** remain: connected core; owner review of three
+canonical-family lessons; one actual eligible free-AI showcase; connected reflection
+lifecycle; demo/rehearsal/accessibility/submission approval. Target/schema/version and
+action-scope authorization are shared prerequisites, not a sixth feature. All six demo
+deferrals below remain. Owner09:54 connected-later sequencing stands; no login/credentials
+requested. Deadline31Oct, supervised Hong Kong13+ demo, not public launch. Owner owns final
+academic review/submission; Coordinator owns acceptance. **Independent focused QA requested
+for this frozen diagnostic/tests/docs slice; no self-certified release.**
+
 ## 22 October 2026 — encoded-Unicode repair independently reverified: LOCAL PASS
 
 The original retained ASCII-escaped independent probe now passes against **both actual player and full preview**: literal `資料` and equivalent `%E8%B3%87%E6%96%99` yield two anchors in each, with exact original text/href and zero external requests/page errors. Fresh OS-only, offline five-file serial packet: **61/61**,0 failed/cancelled/skipped/todo; scoped four-file ESLint, direct TypeScript and changed/new-file whitespace checks passed. A separate temp-only actual-consumer probe passed four equivalent CJK/emoji path/query/fragment pairs and30 rejected malformed/control tokens at both320/1440px, including keyboard Tab/Enter/Escape, focus restoration, unverified-reference hints and no horizontal overflow. No source/test changes were made.
@@ -45,7 +269,7 @@ Original assertions and manual5s timeout remain; no recurrence or timeout diagno
 | 1. Core learning journey — developer + owner/Coordinator | Core is locally implemented | Authorized connected instructor create/edit/publish → learner enroll/slides/resume → ten-question **server-graded** quiz, **6/10**, unlimited retries, result and **per-pass certificate** still pending |
 | 2. Three canonical-family authored starters — author/owner | Local starters and source text; this slice improves reference usability | Owner factual, pedagogical, answer-key, source and supervised13+ suitability review pending; local tests do not review lessons |
 | 3. One actual eligible free-AI showcase — owner + developer | Local generation code exists; prefer a saved generation | Actual eligible free-provider success and quality not proven; later separately authorized probe/review, no AI code/client/provider-policy changes now |
-| 4. Private daily 4D reflections — developer + owner/Coordinator | Locally implemented; independent local packet accepted | Source migration **unapplied**; actual connected CRUD/export/cascade still pending |
+| 4. Private daily 4D reflections — developer + owner/Coordinator | Locally implemented; independent local packet accepted | Migration application **unverified by this work**; actual connected CRUD/export/cascade still pending |
 | 5. Demo/submission package — owner + Coordinator | Existing documentation/local evidence | Artifacts, rehearsal, accessibility and owner academic final approval incomplete |
 
 Target/schema/app-version/authorization are **shared prerequisites, not a sixth feature**. Coordinator has accepted the supplied **Task22 independent LOCAL packet only**: earlier305/305 full suite, scoped lint/direct TypeScript and environment-free Next webpack snapshot build. That reconciles the historical “Coordinator acceptance requested” wording below, not connected or whole-demo readiness. The original manual five-second save timeout's cause remains unresolved; diagnostic21/21 and full305/305 passed, and historical failures remain recorded.
@@ -289,7 +513,8 @@ Use Node.js 22.18+ (or Node.js 24 LTS). Configure the variables listed in [.env.
 
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `NEXT_PUBLIC_SITE_URL` are required for authenticated access. Set the site URL to the canonical deployment origin (no path, query or credentials); use HTTPS except for local loopback development. Set `NEXT_PUBLIC_SITE_URL` to your deployed HTTPS origin in Vercel's environment variables; keep `.env.local` pointed at your local server. `.env.prod` is not loaded automatically by Next.js or Vercel. Misconfigured protected pages return a retryable 503 screen, and APIs return a 503 JSON error. The setup diagnostic checks these settings without printing their values.
 
-In the Supabase SQL editor, apply these files in order:
+Only after separate target/operation authorization, review actual application status and
+apply any outstanding files in order in the Supabase SQL editor (not performed here):
 
 1. [supabase/schema.sql](supabase/schema.sql), only for a new database. Do not rerun it over an existing installation.
 2. [supabase/migrations/20260923_learning_ran.sql](supabase/migrations/20260923_learning_ran.sql).
@@ -304,24 +529,44 @@ In the Supabase SQL editor, apply these files in order:
 11. [supabase/migrations/20261015_onboarding_diagnostic_ran.sql](supabase/migrations/20261015_onboarding_diagnostic_ran.sql).
 12. [supabase/migrations/20261020_lesson_generation_ran.sql](supabase/migrations/20261020_lesson_generation_ran.sql).
 13. [supabase/migrations/20261021_progress_evidence_ran.sql](supabase/migrations/20261021_progress_evidence_ran.sql) — progress evidence; connected application/acceptance unverified.
-14. [supabase/migrations/20261022_daily_reflections_ran.sql](supabase/migrations/20261022_daily_reflections_ran.sql) — source-only daily reflections; **not applied by this work; application status unverified**, connected target authorization/application/acceptance pending.
+14. [supabase/migrations/20261022_daily_reflections_ran.sql](supabase/migrations/20261022_daily_reflections_ran.sql) — daily reflections; **application unverified by this work**, connected target authorization/acceptance pending.
 
-These are the current filenames; `_ran` is a filename suffix, **not evidence of applied status**. No migration was renamed or remotely applied in these local packets. Interviews require their migration; saved lesson generation and **account exports** require the lesson-generation migration (15th export table) and exports now additionally require daily reflections (16th). Missing migration/access fails the entire export rather than silently omitting private records. Setup diagnostics check reflection columns, not connected transactional behavior; existing diagnostics do not prove generation RPC permissions.
+These are the current filenames; `_ran` is a filename suffix, **not evidence of applied status**. User/external renames are preserved; this work did not rename or apply migrations, and application is unverified. Historical dated filenames remain history, not current operator paths. Interviews require their migration; saved lesson generation and **account exports** require the lesson-generation migration (15th export table) and exports now additionally require daily reflections (16th). Missing migration/access fails the entire export rather than silently omitting private records. Setup diagnostics check generation/progress/reflection columns with zero-row projections, not connected transactional behavior or generation RPC permissions.
 
 The progress-evidence migration is required for new review/attendance writes and current-version quiz attendance checks. It adds no export table: enrollment `*` exports include the new version-keyed field automatically once applied. Before enabling these writers on an authorized target, refresh schema cache and verify service-role RPC/table grants and browser-role denial. Existing setup diagnostics do not verify this RPC. Do not infer applied status or backfill review/attendance from old enrollment, bookmarks or saved places.
 
-The onboarding/diagnostic migration adds nullable `onboarding_completed_at`, `onboarding_background`, `diagnostic_summary`, and integer `learning_setup_revision` (initially 0) to `profiles`, with bounded JSON checks, protected setup writes and a revision trigger. It is required for **dashboard onboarding, diagnostic actions and ordinary profile editing**. Both browser harness scopes require this schema and numeric-age eligibility. It makes no historical completion/background/age backfill; existing unknown-age rows may still fail prior age constraints until explicitly reviewed. `profiles.*` owner export includes the fields and the existing Auth-user cascade removes them. Application of this migration remains outstanding/unverified in the connected target; local PGlite checks are not deployment evidence.
+The onboarding/diagnostic migration adds nullable `onboarding_completed_at`, `onboarding_background`, `diagnostic_summary`, and integer `learning_setup_revision` (initially 0) to `profiles`, with bounded JSON checks, protected setup writes and a revision trigger. It is required for **dashboard onboarding, diagnostic actions and ordinary profile editing**. Both browser harness scopes require this schema and numeric-age eligibility. It makes no historical completion/background/age backfill; existing unknown-age rows may still fail prior age constraints until explicitly reviewed. `profiles.*` owner export includes the fields and the existing Auth-user cascade removes them. Application of this migration is unverified by this work; local PGlite checks are not deployment evidence.
 
-Apply all outstanding migrations in order. Never rerun the base schema on an existing database. The resume table is present in the development project as of 25 September; its explicit service-role grant migration still needs application and verification. Age/profile checks use `NOT VALID` to preserve historical rows during upgrades, but apply to new writes. Existing ages are deliberately left unknown, not inferred from an age range; review legacy profiles and record their ages before validating constraints. Numeric age 13-120 is required for new signup/profile writes. Source changes alone do not create tables. Old prototype records remain available in exports but are not converted to new lesson results or certificates.
+After authorization, compare actual target status and apply only outstanding migrations in order. Never rerun the base schema on an existing database. The 25 September resume-table observation is historical; current table/service-role-grant application and behavior are unverified by this work. Age/profile checks use `NOT VALID` to preserve historical rows during upgrades, but apply to new writes. Existing ages are deliberately left unknown, not inferred from an age range; review legacy profiles and record their ages before validating constraints. Numeric age 13-120 is required for new signup/profile writes. Source changes alone do not create tables. Old prototype records remain available in exports but are not converted to new lesson results or certificates.
 
-After applying the migrations, verify the configuration:
+When the owner later authorizes the target and these **connected read/probe scopes**,
+verify configuration (commands shown for future use; not run in this local slice):
 
 ```bash
 npm run check:setup
 npm run check:setup -- --ai
 ```
 
-The first command checks required database columns using empty reads and checks that AI configuration is present. The optional `--ai` command makes one quota-consuming synthetic request through the **separate legacy `scripts/check-setup.mjs` probe**, which still sends strict provider filters and disabled reasoning; it was not changed in this bounded client task and does not represent the new shared-client request settings. Neither command applies migrations or prints credentials or learner records. Failed checks return a nonzero exit code. These checks do not verify database grants, request-limit functions, full lesson generation, or provider eligibility; those require the tests and deployment checks below.
+Both commands load local configuration and perform remote database **zero-row column
+reads**, including `forge_lesson_generations`, `forge_enrollments.progress_evidence` and
+`forge_reflections`; neither reads learner records or mutates/applies schema. The first
+checks public/DB/key/model configuration but makes **zero AI requests**. Invalid arguments
+are rejected before environment loading or client/network creation.
+
+With `--ai`, successful configuration/column checks allow the **actual shared client**
+to verify all selected free IDs/zero pricing with one catalog GET, then make **one**
+quota-consuming completion POST. The actual configured helper supplies the default and
+ordered fallbacks/aliases; no hardcoded setup model, provider/reasoning overrides, duplicate
+catalog validation, per-model POST loop or paid/unverified fallback. Shared deadlines,
+content-based token budget, bounded bodies, abort/redirect handling and sanitized diagnostics
+are retained. The strict tiny `{ok:true}` output is validated locally; false, wrong,
+malformed or extra keys fail. No keys, raw URLs/settings, prompts or response content are
+printed; failure reports use fixed text/status metadata (shared-client allowlisted
+model IDs and diagnostic UUIDs may appear). Failed checks exit nonzero.
+
+A column/probe pass does **not** prove service/browser grants, RPCs, schema cache,
+request-limit behavior, concurrency, account/provider eligibility, full lesson generation
+or pedagogical quality. Those require separate authorized verification, not this check.
 
 Open [http://localhost:3000](http://localhost:3000).
 

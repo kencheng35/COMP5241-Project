@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, LoaderCircle, Sparkles } from "lucide-react";
 import { generateLearningPath, type PathState } from "@/app/paths/actions";
-import { GOALS, TOPICS, recommendLessons, type CatalogLesson, type Goal, type Preferences, type Recommendation, type Topic } from "@/lib/recommendations";
+import { GOALS, TOPICS, recommendLessons, validatePathResponse, type CatalogLesson, type Goal, type Preferences, type Recommendation, type Topic } from "@/lib/recommendations";
 import { TOPIC_LABELS as topicLabels } from "@/lib/curriculum";
 
 const goalLabels: Record<Goal, string> = {
@@ -22,22 +22,74 @@ function LessonList({ lessons }: { lessons: Recommendation[] }) {
   </li>)}</ol>;
 }
 
-export function LearningPath({ catalog, completedIds, initialPreferences, aiAvailable }: {
-  catalog: CatalogLesson[]; completedIds: string[]; initialPreferences: Preferences; aiAvailable: boolean;
+const changedNotice = "Your learning context changed. No previous AI path is shown. Explicitly generate a new path if you wish; local recommendations remain available.";
+type ClientResult = PathState & { contextKey?: string; notice?: string };
+
+export function LearningPath({ ownerId, catalog, completedIds, initialPreferences, aiAvailable }: {
+  ownerId: string; catalog: CatalogLesson[]; completedIds: string[]; initialPreferences: Preferences; aiAvailable: boolean;
 }) {
   const [topic, setTopic] = useState<Topic | "profile">("profile");
   const [goal, setGoal] = useState<Goal | "profile">("profile");
   const [shareCourseContent, setShareCourseContent] = useState(false);
-  const [state, action, pending] = useActionState(generateLearningPath, {} as PathState);
+  const [state, setState] = useState<ClientResult>({});
+  const [pending, setPending] = useState(false);
+  const inFlight = useRef(false);
+  const mounted = useRef(false);
+  const revision = useRef(0);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const resultRef = useRef<HTMLHeadingElement>(null);
+  // Bounded coarse context only, never the full catalog or provider identifiers.
+  const contextKey = JSON.stringify([ownerId, initialPreferences, aiAvailable]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  useEffect(() => { revision.current += 1; }, [catalog, completedIds, contextKey]);
+  useEffect(() => {
+    if (!pending) { errorRef.current?.focus(); resultRef.current?.focus(); }
+  }, [pending, state]);
   const preferences: Preferences = {
     ...initialPreferences,
     topics: topic === "profile" ? initialPreferences.topics : [topic],
     goal: goal === "profile" ? initialPreferences.goal : goal,
   };
   const recommendations = recommendLessons(catalog, preferences, completedIds);
-  const currentPath = !pending && state.selectionKey === `${topic}:${goal}` ? state.path : undefined;
+  let currentPath: Recommendation[] | undefined;
+  let changed = false;
+  if (state.path) {
+    try {
+      if (!aiAvailable || state.contextKey !== contextKey || state.selectionKey !== `${topic}:${goal}`) throw new Error("Changed context");
+      currentPath = validatePathResponse(
+        JSON.stringify({ lessonIds: state.path.map((_, index) => `candidate-${index + 1}`) }),
+        state.path, catalog, completedIds,
+      );
+    } catch { changed = true; }
+  }
+  // Discard the ENTIRE old result, rather than silently filtering or reviving it later.
+  if (changed) setState({ notice: changedNotice });
 
-  return <form action={action} className="learning-form">
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    // A ref closes the same-tick gap before React commits disabled/pending controls.
+    if (inFlight.current || !aiAvailable || !shareCourseContent || !recommendations.length) return;
+    inFlight.current = true;
+    const requestRevision = revision.current;
+    const form = new FormData(event.currentTarget);
+    setPending(true); setState({});
+    try {
+      const result = await generateLearningPath({}, form);
+      if (!mounted.current) return;
+      setState(requestRevision === revision.current ? { ...result, contextKey } : { notice: changedNotice });
+    } catch {
+      // The action returns fixed auth failures, not redirects. This catch is transport.
+      if (mounted.current) setState({ error: "No AI path was received. The request may have used your shared allowance. No automatic retry was made. Retry only by explicitly submitting again. Local recommendations remain available." });
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) setPending(false);
+    }
+  }
+
+  return <form onSubmit={submit} className="learning-form">
     <section className="learning-section" aria-labelledby="local-path-heading">
       <h2 id="local-path-heading">Local recommendations</h2>
       <p>Rule-based, not AI. Lessons you have passed are excluded.</p>
@@ -62,10 +114,11 @@ export function LearningPath({ catalog, completedIds, initialPreferences, aiAvai
       </button>
       <div aria-live="polite" aria-atomic="true">
         {pending && <p role="status">Generating a path...</p>}
-        {!pending && state.error && <p className="form-notice notice-error" role="alert">{state.error}</p>}
+        {!pending && state.error && <p ref={errorRef} tabIndex={-1} className="form-notice notice-error" role="alert">{state.error}</p>}
+        {!pending && (changed || state.notice) && <p role="status">{changedNotice}</p>}
       </div>
-      {currentPath && <section className="learning-section" aria-labelledby="generated-path-heading">
-        <h3 id="generated-path-heading">Generated path (not saved)</h3>
+      {!pending && currentPath && <section className="learning-section" aria-labelledby="generated-path-heading">
+        <h3 ref={resultRef} tabIndex={-1} id="generated-path-heading">Generated path (not saved)</h3>
         <p>AI-selected order; explanations below use local recommendation rules.</p>
         <LessonList lessons={currentPath} />
       </section>}

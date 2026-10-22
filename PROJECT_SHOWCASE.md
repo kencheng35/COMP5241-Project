@@ -7,7 +7,7 @@ short, structured lessons with practice, server-graded quizzes and instructor ov
 Learners can study without external AI; eligible adults can optionally use AI-assisted
 authoring, coaching, learning-path suggestions and text interview practice.
 
-**COMP5241 project showcase · Snapshot: 20 October 2026 · Planned delivery: 31 October 2026**
+**COMP5241 project showcase · Scope snapshot: 22 October 2026 · Delivery: 31 October 2026**
 
 > **Status:** implemented local prototype with bounded offline evidence, not a certified
 > production release. The intended setting is a supervised Hong Kong demonstration,
@@ -16,7 +16,67 @@ authoring, coaching, learning-path suggestions and text interview practice.
 
 **Explore:** [Features](#features-by-role) · [Learner journey](#a-learner-journey) ·
 [Gallery](#prototype-screenshot-gallery) · [Architecture](#architecture-at-a-glance) ·
-[Delivery status](#implemented-locally-versus-still-open)
+[Rehearsal](#suggested-academic-demonstration) · [Delivery status](#implemented-locally-versus-still-open)
+
+### Current 22 October, 14:04 decision / local report evidence
+
+Owner **APPROVED the 10–12 minute TARGET walkthrough** and local continuation.
+Actual rehearsal **NOT RUN**, duration **UNMEASURED**. Coordinator has accepted the earlier
+diagnostic LOCAL packet (**40/40 + 41 native probes**) after directly checking the corrected
+same-ID/**advancing-version** sentence against `updateLesson:132–145`; the original wording
+finding is closed without a diagnostic/application-source change for that reconciliation.
+
+The bounded Task09/12 `/reports` packet is **locally independently verified: 37/37 + 6/6
+actual-route supplement** and Coordinator-accepted for this reporting LOCAL scope only:
+**current lesson version / CURRENT PUBLIC ENROLLMENT ROSTER**
+counts explicit review, quiz reach and saved public passes independently, once per learner.
+Missing review is unknown and optional; no funnel/comprehension claim. Only a same-learner,
+same-lesson, current-version saved public score6–10/10 passes. Legacy attendance does not
+identify the current version. **Public attempt history (all versions)** retains versioned
+snapshots, repeated passes and removed enrollees separately from current-roster counts.
+Only authorized published lessons/public records appear; private attempts/enrollments,
+reflections and transcripts are excluded. Fresh auth and complete checked reads fail closed.
+No atomic cross-query publication/revocation guarantee or connected evidence is claimed.
+The existing20Oct synthetic gallery remains historical; no new showcase gallery/AI proof.
+
+### Current optional-path maintenance / remaining demo count
+
+**THREE connected DEMO FLOWS + TWO non-flow approval gates = the existing FIVE
+workstreams.** All three have local implementations; connected acceptance is **PENDING**.
+Existing optional-path maintenance is **not a fourth required flow**, new module,
+planner/tailoring feature or reactivated deferral.
+
+The bounded path repair refreshes authenticated identity at entry and after inference,
+checks the same owner and fresh adult/trusted grant, and rejects the whole response after
+auth loss/revocation. Owner/coarse-preference keyed client state, immediate duplicate-submit
+guard, fixed transport feedback, retained controls, focused feedback/results and canonical
+whole-path stale validation are locally implemented. Explicit consent/local recommendations,
+anonymized candidate tokens, shared quota and the20Oct shared-client policy stay unchanged.
+No persistent path/enrollment/history or automatic retry/inference is added.
+
+**22 October independent optional-path + fresh accumulated integration QA: LOCAL PASS;
+Coordinator-accepted LOCAL checkpoint only**, not connected/full-MVP/production or owner
+content approval. One actual-action probe passed **1/1 covering seven auth/grant/owner-context,
+whole-result rejection and recovery scenarios**. One fresh standard serial `npm test` passed
+**340/340 across 31 files**; six-file scoped lint and direct TypeScript passed. Environment-file-free
+isolated **Next typegen → TypeScript → `build --webpack` passed**, all exit0; build **31.988s**.
+Nine fresh local UI images were opened, not added to or claimed as the20Oct gallery.
+Exact evidence, image paths, fingerprints and cleanup are in the
+[README checkpoint](README.md#22-october-2026--independent-paths--fresh-integration-checkpoint-local-pass)
+and [tracker](IMPLEMENTATION_TRACKER.md).
+
+The earlier22Oct writer-only **59/59** focused packet and expanded **22/22** checks remain
+**dated history**, as do their lint/TypeScript/whitespace and synthetic UI evidence;
+their QA-requested wording is superseded by the independent checkpoint above.
+Reports37+6 and diagnostic40/41 retain their bounded LOCAL acceptance. No source, policy,
+schema, model or quota change is part of this status synchronization.
+
+Next critical step is **planned shared-screen connected acceptance**, not adding deferred
+features or a fourth flow. Connected transport, target schema/grants/cache/app version,
+Postgres races, live AI and owner content/source/pedagogy review remain unverified.
+The owner-approved10–12-minute TARGET is unchanged; rehearsal **NOT RUN**, duration
+**UNMEASURED**. Local first/shared screen later; no login request now. Future login alone
+does not authorize writes/provider operations; confirm target and operation scope first.
 
 ## The problem and intended users
 
@@ -42,12 +102,14 @@ All capabilities below describe the **local implementation**, subject to the ope
 | --- | --- | --- |
 | Learner | Role-appropriate onboarding, optional six-question local diagnostic, chosen learning level | The diagnostic suggests a level; adoption or override is explicit. Self-report grants no instructor or AI rights. |
 | Learner | Search/filter the catalog, enroll, bookmark, study slides and complete an ordering activity | Audience and difficulty describe suitability, not permission to access private content. |
-| Learner | Submit quizzes, inspect saved feedback, retry and print passing-attempt certificates | Grading is server-side; attendance is distinct from passing. |
-| Lesson owner | Manually create and edit private lessons, preview content and request review | Private drafts are not readable by administrators merely because they are administrators; the owner must submit a lesson for review. |
+| Learner | Optional slide-review acknowledgement, version-specific attendance and saved passing results; unlimited quiz retries and per-pass certificates | REVIEWED is explicit self-acknowledgement, ATTENDED means reaching the final quiz, PASSED requires a saved server score ≥6/10. Review is not a quiz gate or award; missing historical review is unknown. |
+| Lesson owner | Manually create/edit private lessons, preview content, load three review-ready authored starters and request review | Starters are not AI output or owner-reviewed courseware. Opening one does not save/publish/enroll. Private drafts require explicit owner submission before administrator review access. |
+| Learner / author | Click explicit HTTPS references in slide body/examples and full preview | Links remain **unverified**, not fetched or endorsed by the renderer. Owner source/age-suitability review remains required. |
 | AI-eligible adult | Save/resume staged lesson generation; optionally request coaching, AI paths or text interviews | External inference requires adult age, an administrator grant, applicable consent and available free-provider capacity. |
-| Instructor | Publish/manage instructor-owned lessons, email-filter verified learner enrollment and view owned reports | Enrollment does not create accounts or send invitation emails; instructors do not gain access to others' private drafts. |
+| Instructor | Publish/manage instructor-owned lessons, email-filter verified learner enrollment; current-version public-roster evidence and version-labelled all-version public attempt history | Published owned lessons only; private enrollments/results/reflections/transcripts excluded. Enrollment does not create accounts or send invitations. Historical attempts do not inflate current-roster counts. |
 | Administrator / reviewer | Grant instructor status, AI access and quiz-report reviewer access; review submitted lessons | Reviewer grants concern reports, not learner assignment or unrestricted private-draft access. |
 | Account owner | Maintain profile, export owned data and delete the account; delete individual interviews | Provider/hosting logs and backups need separate retention arrangements. |
+| Account owner | Create/edit/date-select/export/delete private daily **4D reflections**: Delegation, Description, Discernment, Diligence | Plain text, one entry per Hong Kong date; no AI forwarding, sharing, grading, streaks, certificates or progress awards. Export is through account data export. |
 
 ## A learner journey
 
@@ -56,13 +118,16 @@ All capabilities below describe the **local implementation**, subject to the ope
 2. **Find a useful skill.** Filter the catalog by subject family, audience, difficulty
    and visibility. Read the learning outcomes and prerequisites before enrolling.
 3. **Study one focused mini-course.** Each mini-course is **one standalone lesson**:
-   **4–6 slides**, followed by an ordering activity with **3–6 steps**.
+   **4–6 slides**, followed by an ordering activity with **3–6 steps**. Optionally
+   acknowledge slide review; enrollment, bookmarks and a saved place do not prove review.
 4. **Check understanding.** Submit **exactly 10 questions**, each with **four options**.
    The server marks the attempt; **6/10 passes**. Quiz retries are unlimited.
 5. **Keep evidence and continue.** Review saved attempt feedback and print an
    **HTML certificate for each passing attempt**. Attendance alone is not a pass.
 6. **Optionally practise further.** Use local recommendations, or—only when eligible—
    optional AI paths, lesson coaching or private text interview practice.
+7. **Reflect privately without AI.** Record the four D choices, revise the dated entry,
+   export owned data or explicitly delete the entry. This does not award lesson progress.
 
 The diagnostic is a separate, local orientation aid, not the ten-question lesson quiz,
 a credential or proof of mastery. Only its latest bounded summary is retained, not
@@ -100,9 +165,16 @@ state and explicit reconciliation. The current local acceptance does not prove l
 
 | Family | Intended learning emphasis | Current content boundary |
 | --- | --- | --- |
-| **Software Development Life Cycle (SDLC)** | Overview/planning, requirements, design, implementation, testing, deployment and maintenance | Topic registry and explicit lesson metadata are local; reviewed demonstration lessons/resources remain open. |
-| **AI Coding-Agent Skills** | Framing tasks, reviewing proposed changes and verifying outputs | A supported family, not evidence that every topic has a reviewed lesson or that embedded execution exists. |
-| **Software Development Soft and Product Skills** | Collaboration, communication and product trade-offs | A supported family; pedagogical review and a curated resource collection are still required. |
+| **Software Development Life Cycle (SDLC)** | Overview/planning, requirements, design, implementation, testing, deployment and maintenance | Review-ready starter: **SDLC: a small change from need to feedback** (`sdlc-small-change`). |
+| **AI Coding-Agent Skills** | Framing tasks, reviewing proposed changes and verifying outputs | Review-ready starter: **Coding agents: supervise a small change with 4D** (`coding-agent-4d`), including a 4D ordering exercise, not embedded execution. |
+| **Software Development Soft and Product Skills** | Collaboration, communication and product trade-offs | Review-ready starter: **Product skills: explain a small trade-off** (`product-tradeoffs`). |
+
+All three are original authored **five-slide** starters with curriculum metadata,
+an ordering activity and ten four-option questions/explanations. Open through
+**Studio → Authored lesson starters**, or `/studio?manual=1&starter=<id>`.
+Owner factual/pedagogical/answer-key/source and supervised-13+ suitability review is
+**pending**. References survive ordinary saves as slide text; clickable HTTPS resources
+are unverified suggestions, not a curated/approved collection or proof of availability.
 
 Lessons carry explicit audience, difficulty, outcomes and prerequisites. Legacy lessons
 without these fields remain identifiable as **not specified**, rather than being
@@ -110,6 +182,10 @@ silently classified as beginner-friendly. Optional local recommendations and AI 
 help select/order existing lessons; they are not genuine content adaptation.
 
 ## Prototype screenshot gallery
+
+**Historical gallery: 20 October 2026 only.** All seven captions below describe that
+dated capture, not the 22 October starters/progress/reflections or a fresh rehearsal.
+No new screenshot, recording or connected/live-AI evidence is claimed.
 
 **Evidence type:** locally rendered routes/components with synthetic accounts and content,
 captured by offline Chromium harnesses on 20 October 2026. These are actual prototype
@@ -218,7 +294,7 @@ Private records, RLS and RPCs           Verified zero-price :free models only
 | Teaching-material extraction | PDF/PPTX text extraction: **4 MiB**, **60 pages/slides**, **20,000 extracted characters**; originals are not retained |
 
 Extracted import text can be retained while generation is pending, then cleared on
-completion/deletion. Legacy **`.ppt` is explicitly unsupported and remains open**.
+completion/deletion. Legacy **`.ppt` is explicitly unsupported and deferred for the demo** (an unmet original requirement).
 External requests can contain objectives, consented extracted text, relevant lesson or
 interview context; users must not include personal/confidential information.
 The **20 October policy omits `provider` and `reasoning` request overrides**:
@@ -227,37 +303,139 @@ strict request filters. Effective account/provider policies and availability req
 
 ## Suggested academic demonstration
 
-Use synthetic identities and owner-reviewed material in an explicitly approved demo setting.
-This is a proposed presentation sequence, not a claim that a connected rehearsal succeeded.
+### Prerequisites and evidence boundary
 
-1. **Frame the task:** learning to turn an unclear request into testable software requirements.
-2. **Show learner agency:** choose background/goals, take the local diagnostic and explain
-   why its suggestion does not silently replace the selected level.
-3. **Teach without AI:** find/enroll in a prepared standalone lesson, read its slides,
-   complete the ordering activity and submit the ten-question quiz.
-4. **Explain evidence:** distinguish attendance from passing, demonstrate retry and
-   show the printable HTML certificate for a passing attempt.
-5. **Switch to the instructor view:** explain owned authoring/publication,
-   email-filtered enrollment and reporting without exposing unrelated users' records.
-6. **Optional adult-only extension:** use the retained generation captures to explain
-   pause/resume/reconciliation and private finalization. Only demonstrate live AI after
-   separate provider/consent/target authorization; minors stay on the non-AI route.
+**Owner-approved TARGET duration: 10–12 minutes (22Oct14:04)**; actual duration
+**UNMEASURED**, rehearsal **NOT RUN**. This is a source-inspected runbook, not a measured
+connected demonstration. Owner09:54 defers shared-screen login/connected testing until
+later; User22Oct14:04 approves continued local development, not service probes.
+Login alone is not write/AI approval.
+
+Before any real probe/write, owner/Coordinator must confirm the disposable nonproduction
+Supabase target, application origin/version, schema application/cache/grants/RPCs and
+exact permitted operation/cleanup scope. The current
+[generation](supabase/migrations/20261020_lesson_generation_ran.sql),
+[progress](supabase/migrations/20261021_progress_evidence_ran.sql) and
+[reflection](supabase/migrations/20261022_daily_reflections_ran.sql) migrations are required;
+**application is unverified by this work** and `_ran` proves nothing.
+
+Use dedicated **synthetic instructor and learner identities**, separate browser profiles
+and an exact fixture-ID inventory, never an existing owner's account. A trusted administrator
+must grant instructor rights. If AI is used, separately approve data processing/provider
+terms/operation scope and grant AI access to a **recorded adult (18+)**; minor/unknown-age
+accounts stay on the manual route. Owner must review lesson facts, keys, explanations,
+activity order, sources and 13+ suitability **before publication**. Prepare a reviewed
+answer plan for deliberately scoring five, then six; do not expose author answer keys
+through the learner UI.
+
+Later operator commands, **not executed here**:
+
+- `npm run check:setup` loads local configuration and performs remote **zero-row database
+  column reads**; it is not fully offline. No AI catalog/inference without `--ai`.
+- `npm run check:setup -- --ai` additionally verifies the free catalog and attempts **one
+  quota-consuming synthetic completion POST** via the actual shared client. Failures
+  block readiness; a pass proves neither a lesson nor grants/RPCs/concurrency/eligibility/quality.
+- `npm run check:ai` reads provider catalog/account-quota metadata; `--probe=structured`
+  or `--probe=text` adds inference/quota use. These also require separate authorization.
+  Never show keys, raw settings, prompts, provider bodies or account metadata on screen.
+
+### Proposed presentation sequence
+
+Times are flexible allocations, **not promises of connected completion**. Full persistence,
+failure-recovery and AI proof/rehearsal can precede presentation after authorization.
+
+| Suggested slot / actor | Actual route and action | Expected observable outcome | Actual status |
+| --- | --- | --- | --- |
+| 0–1 min · presenter | Explain the supervised HK13+ scope, synthetic roles and chosen lesson; optionally show `/onboarding` or `/diagnostic` already prepared | Chosen level and diagnostic suggestion are distinct; no self-granted privileges or invented learner evidence | **NOT RUN connected** |
+| 1–3 min · instructor | `/teaching` → **Create lesson** (`/studio?manual=1`); choose a reviewed starter, preview, leave **Review and publish this lesson** unchecked and **Save lesson**. Reopen the saved ID using **Edit lesson** / **Edit slides and quiz**, make a bounded edit, save; after owner review select that publication checkbox and save | First save creates a private lesson; next save updates the same lesson ID and advances its version, not a duplicate starter. Publication is a separate instructor decision; catalog/teaching shows the published lesson | **NOT RUN connected; owner review pending** |
+| 3–5 min · learner | `/catalog` → **View and enroll** → **Enroll in lesson** → **Open lesson**. Use **Next** through slides, wait for progress saving to settle, reload and check restored place. On last slide optionally **Acknowledge slide review** | Saved place resumes; REVIEWED changes only after explicit acknowledgement. Unverified HTTPS references are keyboard-focusable with external/new-tab hints; explain rather than open an unapproved external site | **NOT RUN connected** |
+| 5–6 min · learner | **Practice**, move steps using up/down controls, **Check order**, then **Start final quiz** (or **Final quiz**) | Ordering feedback appears; reaching quiz records version-specific ATTENDED independently of optional review or a pass | **NOT RUN connected** |
+| 6–8 min · learner | Answer all ten, **Submit quiz** using the prepared five-correct plan; **Retry quiz**, then six correct; **Download certificate**. Inspect `/progress` and saved feedback | Server saves **5/10 fail**, **6/10 pass**, separate attempts, unlimited retries and an HTML printable certificate for each passing attempt. REVIEWED/ATTENDED/PASSED remain distinct | **NOT RUN connected** |
+| 8–9 min · instructor | `/reports` **Participation & results.** for own published lesson: read **Current lesson version**, **CURRENT PUBLIC ENROLLMENT ROSTER**, then expand a version-labelled **Public attempt history (all versions)** detail. If approved, `/teaching` → **Manage learners** → **Learner email filter** → **Find learners**, select a dedicated verified synthetic account → **Enroll selected learners** | Current-public-roster counts are per learner/current version: acknowledgement, quiz reach and public saved6–10/10 pass are independent, not a funnel. Missing review is unknown/optional; legacy attendance is not current evidence. All-version public snapshots include repeated passes/removed enrollees without inflating current counts. Private lessons/enrollments/results/reflections/transcripts excluded. Email selection creates no account/invitation; duplicate enrollment preserves progress | **NOT RUN connected; reports locally independently verified 37/37 + 6/6** |
+| 9–11 min · learner | `/reflections`: select a date, fill Delegation/Description/Discernment/Diligence, **Create entry**, edit → **Save changes**, reload. `/profile` → **Download my data**; return to the same entry → **Delete entry** → **Confirm deletion** | One private dated entry has a stable identity and increasing revision; owned JSON export includes it; deletion is confirmed and reload shows absence. No AI, sharing, grading, streak or certificate. Handle any uncertain acknowledgement via **Inspect canonical entry**, not blind replay | **NOT RUN connected** |
+| 11–12 min · eligible adult / presenter, optional | `/studio` → **Saved generation drafts** → **Load draft**, preferably genuine prepared output; **Review completed private lesson in editor** if completed | Show actual saved-part counts, private lesson and owner-reviewed provenance, or explicitly mark AI **blocked/not demonstrated**. No guarantee a new multistage run fits this slot | **NOT RUN connected; genuine AI output unproven** |
+
+### Optional AI proof/recovery rehearsal — separately authorized, outside the timed core
+
+Prefer an existing genuine generation. **Prepared actual saved AI output** is usable only
+after authorized generation provenance and owner quality review are proven. The retained
+20 October synthetic gallery is **not live AI output** and cannot satisfy that gate.
+
+If authorized to generate: in `/studio`, choose metadata/objective and **Save generation
+draft (no AI yet)**. Expected: private start identity, zero inference; the saved start still
+uses an application daily-start allowance. **Resume / Retry explicitly** schedules sequential
+parts: outline → individual slides → activity → two five-question batches, then whole-content
+validation/private finalization. **Pause after current request** prevents later scheduling;
+the in-flight part can still save. On reload/uncertainty use **Load saved state / reconcile
+response loss**, inspect confirmed revision/counts, then explicitly retry only if appropriate
+(up to three stage attempts; a 90-second lease may need to expire). Never start a duplicate
+to recover a lost acknowledgement. Expected: saved parts survive, reload does not infer,
+and finalization creates one **private** normal lesson, not automatic publication.
+Use its editor link for owner review before any publication. **Actual status of every
+AI rehearsal operation: NOT RUN connected.**
+
+No promise that all stages finish in two minutes. If the provider is unavailable, stop,
+record **blocked** and retain safe recovery state; do not change policy/models, silently
+retry, pay, or fabricate output. A manual-authored starter fallback demonstrates **manual
+learning**, not completed AI. Full AI proof may precede presentation; omit the live extension
+if unproven. Imports, if selected later, remain consented bounded **PDF/PPTX**, not binary PPT.
+
+### Rehearsal close and cleanup
+
+Record actual outcomes/failures, target/version, fixture IDs and approved actor/action scope
+without secrets or real learner data. Check keyboard focus, narrow layout, readable feedback
+and screenreader behavior during a later approved rehearsal; none is freshly certified here.
+Cleanup is limited to **exact owned synthetic fixtures** and their approved cascades, with
+absence confirmed; no existing owner-account deletion or unrelated records. Deleting a
+generation draft does **not** delete its finalized normal lesson. Remove owned local export
+copies under the agreed retention plan. **Cleanup/connected fixture creation: NOT RUN here
+(no connected fixtures created).** Owner retains final academic review/submission; no invented
+findings, contribution claims, user studies or recording.
 
 ## Implemented locally versus still open
 
-| Implemented local scope | Approved or required work not yet complete |
+| Implemented local scope (22 October) | Remaining selected-demo acceptance, not new must-build modules |
 | --- | --- |
-| Role-aware onboarding, explicit chosen level and separate local diagnostic | Owner pedagogical review; genuine tailored explanations/examples/practice |
-| Curriculum metadata, catalog filters and optional recommendations/AI paths | Reviewed curriculum/tool resources; targeted AI revisions with preview, accept/reject and versioning |
-| Manual private lessons, staged saved generation and owner-scoped publishing | Private project planner and student slide assistant |
-| Enrollment, attendance, quizzes, attempt feedback and printable certificates | Richer reviewed/attended/passed progress, AI-fluency 4D activities and daily reflections |
-| PDF/PPTX text extraction and consented import workflow | Required legacy PPT support |
-| Text-only interviews with private history, delete/export; session-only generic coaching | Connected interview/provider acceptance; no voice/video requirement |
-| Local ownership/eligibility checks and offline regression evidence | Embedded JavaScript/Python execution, including isolation and resource-control design |
+| Onboarding/local diagnostic, metadata/catalog filters, optional recommendations/AI paths | Owner content/pedagogical review and authorized connected core acceptance |
+| Three review-ready authored starters, 4D ordering exercise and clickable unverified HTTPS references | Owner review of all three canonical-family lessons and sources; no reviewed-courseware claim |
+| Manual private create/edit, staged saved generation, owner-scoped publishing/enrollment/reports | Connected create/edit/publish/enroll/resume/results/certificates; one genuine eligible free-AI showcase, preferably saved |
+| Explicit optional REVIEWED, quiz-reached ATTENDED, saved-score PASSED; current-public-roster/version reports separate from all-version public history; unlimited retries/per-pass certificates; reports locally independently verified **37/37 + 6/6** | Real persistence/version/concurrency checks; no historical review inferred |
+| Private daily 4D reflections with CRUD/history, account export and deletion | Owner prompt review; connected lifecycle/export/cascade/privacy acceptance |
+| Bounded PDF/PPTX imports, private text interviews and session-only generic coaching | Connected/provider checks only when selected and separately authorized; no voice/video demo requirement |
+| Existing local auth/role/owner/age/grant/free-only/server-grading/upload safeguards | Authorized connected QA, rehearsal/accessibility and owner submission approval; not production certification |
 
-**Remaining acceptance gates:** real Next action transport; authorized connected migrations,
-schema cache, RLS/RPC and service grants; provider availability and content/terms review;
-screenreader testing; deployment and the actual hosting/proxy time and cost budget.
+**Exactly THREE connected DEMO FLOWS remain pending acceptance:** (1) the core
+author/learner journey, quiz/certificates/**reports**; (2) private daily4D CRUD/export/delete;
+(3) one genuine eligible free-AI generation. All have local implementations.
+**Plus TWO non-flow approval gates:** owner review of three lesson sources/keys/pedagogy;
+final rehearsal/accessibility/submission approval. Together these reconcile the old
+**FIVE workstreams**, not five unbuilt modules or a fourth optional-path flow.
+Target/schema/app-version/operation authorization are common prerequisites, not a sixth
+feature or the old25-task backlog. User migration `_ran` application remains UNVERIFIED.
+
+**Six approved demo deferrals remain unchanged:** coding runner24; binary PPT19
+(PDF/PPTX demo only); student slide assistant19; private planner23; genuine tailoring18;
+targeted AI revisions14/16. They remain unmet original requirements, not current must-build
+demo requirements. Existing implementations and controls are not removed.
+
+**Evidence:** independently accepted local reference packet **61/61** and Task22 earlier
+**305/305 and snapshot build** are dated LOCAL baselines, not reports acceptance. The
+diagnostic LOCAL packet **40/40 + 41 native probes** is Coordinator-accepted following
+the source-checked wording correction. The current reports LOCAL packet is **locally
+independently verified: 37/37 + 6/6 actual-route supplement** and Coordinator-accepted
+for that bounded scope. Scoped ESLint/direct TypeScript, syntax-only instructor-harness
+and whitespace checks passed; four fresh320/1440 report/keyboard images were opened,
+with all six source/test hashes unchanged. The20Oct gallery remains historical.
+Connected transport/schema/grants/publication-revocation races remain open.
+No fresh full suite/Next build, connected probe, genuine AI output, owner content review
+or actual rehearsal occurred in that dated reports slice; the fresh accumulated LOCAL
+integration checkpoint is recorded above.
+
+**Remaining selected-demo acceptance gates:** real Next action transport; authorized target
+schema application/cache, RLS/RPC and service grants; provider availability/content/terms
+review if AI is used; screenreader testing and owner rehearsal/submission approval.
+Any deployment requires separate approval and verification of its hosting/proxy time/cost
+budget; a public launch is not this deadline's scope.
 Privacy/ownership controls are important design features, **not a security certification**.
 No user evaluation, measured pedagogical benefit or successful deployment is claimed.
 

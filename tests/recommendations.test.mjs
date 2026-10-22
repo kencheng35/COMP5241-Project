@@ -133,14 +133,42 @@ test("rejects malicious, duplicate, missing, inaccessible, completed, and excess
 
 test("server action gates AI, minimizes data, and rechecks current catalog and completions without enrollment", async context => {
   const key = Symbol.for("forge.recommendations.test");
+  // Execute actual auth helpers; replace only the getUser I/O boundary, not policy.
+  const authExports = {};
+  const actualLearning = await import("../src/lib/learning.ts");
+  const actualPermissions = await import("../src/lib/permissions.ts");
+  const actualZod = await import("zod");
+  new Function("require", "exports", "process", ts.transpileModule(readFileSync(new URL("../src/lib/learning-server.ts", import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText)(name => {
+    if (name === "@/lib/supabase/server") return { createClient: async () => ({ auth: { getUser: async () => {
+      const state = globalThis[key];
+      state.calls.push(["auth"]);
+      if (state.authThrows) throw new Error("PRIVATE AUTH CONFIG");
+      return { data: { user: state.user }, error: state.authError };
+    } } }) };
+    if (name === "next/navigation") return { redirect() { throw new Error("Redirect /login"); } };
+    if (name === "@supabase/supabase-js") return { createClient: () => {
+      const state = globalThis[key];
+      if (state.dbUnavailable) throw new Error("PRIVATE DATABASE CONFIG");
+      state.calls.push(["database"]); return state.database;
+    } };
+    if (name === "@/lib/learning") return actualLearning;
+    if (name === "@/lib/permissions") return actualPermissions;
+    if (name === "zod") return actualZod;
+    if (name === "server-only") return {};
+    throw new Error(`Unexpected auth dependency ${name}`);
+  }, authExports, { env: { NEXT_PUBLIC_SUPABASE_URL: "https://offline.invalid", SUPABASE_SERVICE_ROLE_KEY: "synthetic" } });
+  globalThis[Symbol.for("forge.path.auth")] = authExports;
   const hooks = registerHooks({
     resolve(specifier, resolveContext, nextResolve) {
       if (specifier === "server-only") return { url: "data:text/javascript,export{}", shortCircuit: true };
       if (specifier === "@/lib/learning-server") return { url: `data:text/javascript,${encodeURIComponent(`
         const state = () => globalThis[Symbol.for("forge.recommendations.test")];
-        export const requireUser = async () => state().user;
-        export const database = () => state().database;
-        export const visibleLessons = async () => state().catalog;
+        export const requireUser = (...args) => globalThis[Symbol.for("forge.path.auth")].requireUser(...args);
+        export const currentUser = (...args) => globalThis[Symbol.for("forge.path.auth")].currentUser(...args);
+        export const database = (...args) => globalThis[Symbol.for("forge.path.auth")].database(...args);
+        export const visibleLessons = (...args) => globalThis[Symbol.for("forge.path.auth")].visibleLessons(...args);
       `)}`, shortCircuit: true };
       if (specifier === "@/lib/openrouter-client") return { url: `data:text/javascript,${encodeURIComponent(`
         export class OpenRouterError extends Error {}
@@ -150,8 +178,11 @@ test("server action gates AI, minimizes data, and rechecks current catalog and c
       return nextResolve(specifier, resolveContext);
     },
   });
-  let generateLearningPath;
-  try { ({ generateLearningPath } = await import("../src/app/paths/actions.ts")); }
+  let generateLearningPath, PathOpenRouterError;
+  try {
+    ({ generateLearningPath } = await import("../src/app/paths/actions.ts"));
+    ({ OpenRouterError: PathOpenRouterError } = await import("@/lib/openrouter-client"));
+  }
   finally { hooks.deregister(); }
 
   function setup(overrides = {}) {
@@ -160,27 +191,32 @@ test("server action gates AI, minimizes data, and rechecks current catalog and c
       user: { id: "user-private-id", app_metadata: { ai_access: true } },
       profile: { age: 18, learning_level: "new", preferred_subjects: ["Software testing"], learning_goals: "Private Name private@example.com wants testing" },
       catalog: [...catalog], passed: [], allowed: true, profileError: false,
-      ...overrides,
+      calls, authError: null, ownerId: "user-private-id", ...overrides,
     };
     state.database = {
       from(table) {
-        assert.ok(["profiles", "forge_attempts"].includes(table));
+        assert.ok(["profiles", "forge_attempts", "forge_lessons"].includes(table));
         let columns;
         const query = {
           select(value) { columns = value; calls.push(["select", table, value]); return query; },
-          eq(column, value) { assert.equal(column, table === "profiles" ? "id" : "user_id"); assert.equal(value, state.user.id); return query; },
+          eq(column, value) { assert.equal(column, table === "profiles" ? "id" : "user_id"); assert.equal(value, state.ownerId, "Never query another owner"); return query; },
+          or(value) { assert.equal(value, `visibility.eq.public,owner_id.eq.${state.ownerId}`); return query; },
           gte(column, value) { assert.equal(column, "score"); assert.equal(value, 6); return query; },
           order() { return query; },
-          async range() { return { data: state.passed.map(original_lesson_id => ({ original_lesson_id })), error: null }; },
-          async maybeSingle() { return { data: state.profile, error: state.profileError && columns !== "age" ? new Error("private db detail") : null }; },
+          async range() {
+            if (state.failTable === table) return { data: null, error: new Error("PRIVATE ROW DETAIL") };
+            return { data: table === "forge_lessons" ? state.catalog : state.passed.map(original_lesson_id => ({ original_lesson_id })), error: null };
+          },
+          async maybeSingle() { return { data: state.profile, error: (columns === "age" ? state.ageError : state.profileError) ? new Error("private db detail") : null }; },
         };
         return query;
       },
-      async rpc(name, args) { assert.equal(name, "forge_claim_request"); assert.deepEqual(args, { request_user: state.user.id }); calls.push(["quota"]); return { data: state.allowed, error: null }; },
+      async rpc(name, args) { assert.equal(name, "forge_claim_request"); assert.deepEqual(args, { request_user: state.ownerId }); calls.push(["quota"]); return { data: state.allowed, error: state.quotaError ? new Error("PRIVATE QUOTA") : null }; },
     };
     state.completion = async (messages, schema) => {
       calls.push(["completion", messages, schema]);
       if (state.afterCompletion) state.afterCompletion();
+      if (state.providerError) throw state.providerError;
       return state.response ?? JSON.stringify({ lessonIds: [JSON.parse(messages[1].content).lessons.find(item => item.title === catalog[1].title).id] });
     };
     globalThis[key] = state;
@@ -190,8 +226,33 @@ test("server action gates AI, minimizes data, and rechecks current catalog and c
   }
 
   try {
+    await context.test("initial auth error with a user fails closed before privileged reads", async () => {
+      const { state, form, calls } = setup();
+      state.authError = new Error("PRIVATE AUTH ERROR");
+      const result = await generateLearningPath({}, form);
+      assert.ok(result.error);
+      assert.equal(result.path, undefined);
+      assert.deepEqual(calls.map(call => call[0]), ["auth"]);
+    });
+    await context.test("replacement grant, owner switch and lost session reject after inference before further reads", async () => {
+      for (const variant of ["grant", "owner", "expired", "user-error", "auth-throw"]) {
+        const { state, form, calls } = setup();
+        let after;
+        state.afterCompletion = () => {
+          after = calls.length;
+          state.user = variant === "expired" ? null : { ...state.user, id: variant === "owner" ? "other-owner" : state.user.id, app_metadata: { ai_access: variant !== "grant" } };
+          if (variant === "user-error") state.authError = new Error("PRIVATE SESSION ERROR");
+          if (variant === "auth-throw") state.authThrows = true;
+        };
+        const result = await generateLearningPath({}, form);
+        assert.ok(result.error, variant);
+        assert.equal(result.path, undefined, variant);
+        assert.equal(calls.filter(call => call[0] === "auth").length, 2, variant);
+        if (variant !== "grant") assert.deepEqual(calls.slice(after).map(call => call[0]), ["auth"]);
+      }
+    });
     await context.test("minor, unknown age, and unapproved adult cannot call external AI", async () => {
-      for (const [age, approved] of [[17, true], [null, true], [18, false]]) {
+      for (const [age, approved] of [[12, true], [13, true], [17, true], [null, true], [18, false]]) {
         const { state, form, calls } = setup();
         state.profile.age = age; state.user.app_metadata.ai_access = approved;
         const result = await generateLearningPath({ path: [{ id: id(99) }] }, form);
@@ -206,9 +267,37 @@ test("server action gates AI, minimizes data, and rechecks current catalog and c
       const result = await generateLearningPath({}, form);
       assert.equal(result.path[0].id, id(2));
       assert.equal(result.selectionKey, "profile:profile");
+      assert.equal(calls.filter(call => call[0] === "auth").length, 2);
+      assert.equal(calls.filter(call => call[0] === "select" && call[2] === "age").length, 2);
+      assert.equal(calls.filter(call => call[0] === "quota").length, 1);
+      assert.equal(calls.filter(call => call[0] === "completion").length, 1);
       const external = JSON.stringify(calls.find(call => call[0] === "completion").slice(1));
       for (const secret of ["user-private-id", "Private Name", "private@example.com", "learning_goals", "score", "answers"]) assert.ok(!external.includes(secret));
       assert.ok(calls.some(call => call[0] === "select" && call[2] === "original_lesson_id"));
+    });
+    await context.test("auth/config/age/quota/read/provider failures are sanitized with no stale path or automatic inference", async () => {
+      for (const variant of ["expired", "auth", "config", "age", "quota", "catalog", "passed", "post-catalog", "post-passed", "post-age", "transport", "provider"]) {
+        const { state, form, calls } = setup();
+        if (variant === "expired") state.user = null;
+        if (variant === "auth") state.authThrows = true;
+        if (variant === "config") state.dbUnavailable = true;
+        if (variant === "age") state.ageError = true;
+        if (variant === "quota") state.quotaError = true;
+        if (variant === "catalog") state.failTable = "forge_lessons";
+        if (variant === "passed") state.failTable = "forge_attempts";
+        state.afterCompletion = () => {
+          if (variant === "post-catalog") state.failTable = "forge_lessons";
+          if (variant === "post-passed") state.failTable = "forge_attempts";
+          if (variant === "post-age") state.ageError = true;
+        };
+        if (variant === "transport") state.providerError = new Error("PRIVATE TRANSPORT");
+        if (variant === "provider") state.providerError = new PathOpenRouterError("PRIVATE PROVIDER KEY");
+        const result = await generateLearningPath({ path: [{ id: id(99) }] }, form);
+        assert.ok(result.error, variant); assert.equal(result.path, undefined, variant);
+        assert.ok(!/PRIVATE|private db|KEY/.test(result.error), variant);
+        const inference = calls.filter(call => call[0] === "completion").length;
+        assert.equal(inference, variant.startsWith("post-") || ["transport", "provider"].includes(variant) ? 1 : 0, variant);
+      }
     });
     await context.test("invalid input, missing sharing consent, failed profile read, quota, or empty catalog never calls AI", async () => {
       for (const variant of ["invalid", "consent", "profile", "quota", "empty"]) {
@@ -223,12 +312,14 @@ test("server action gates AI, minimizes data, and rechecks current catalog and c
       }
     });
     await context.test("revoked visibility, newly passed lessons, revoked eligibility, and malicious outputs reject the entire path", async () => {
-      for (const variant of ["visibility", "passed", "eligibility", "malicious"]) {
+      for (const variant of ["visibility", "passed", "eligibility", "title", "metadata", "malicious"]) {
         const { state, form } = setup();
         state.afterCompletion = () => {
           if (variant === "visibility") state.catalog = [catalog[0]];
           if (variant === "passed") state.passed = [id(2)];
           if (variant === "eligibility") state.profile.age = 17;
+          if (variant === "title") state.catalog = state.catalog.map(item => ({ ...item, title: "Changed title" }));
+          if (variant === "metadata") state.catalog = state.catalog.map(item => ({ ...item, metadata: { version: 1, topic: "testing", audience: "both", difficulty: "advanced", outcomes: ["Test"], prerequisites: [] } }));
         };
         if (variant === "malicious") state.response = JSON.stringify({ lessonIds: [id(2), id(99)] });
         const result = await generateLearningPath({}, form);
@@ -236,7 +327,7 @@ test("server action gates AI, minimizes data, and rechecks current catalog and c
         assert.equal(result.path, undefined);
       }
     });
-  } finally { delete globalThis[key]; }
+  } finally { delete globalThis[key]; delete globalThis[Symbol.for("forge.path.auth")]; }
 });
 
 test("learning-path initial UI exposes local links but requires explicit eligible AI sharing", async () => {
@@ -260,7 +351,7 @@ test("learning-path initial UI exposes local links but requires explicit eligibl
   });
   try {
     const { LearningPath } = await import(componentUrl);
-    const props = { catalog, completedIds: [id(1)], initialPreferences: derivePreferences({}), aiAvailable: false };
+    const props = { ownerId: "synthetic-owner", catalog, completedIds: [id(1)], initialPreferences: derivePreferences({}), aiAvailable: false };
     const minor = renderToStaticMarkup(createElement(LearningPath, props));
     assert.match(minor, /Local recommendations/);
     assert.match(minor, new RegExp(`/courses/${id(2)}`));

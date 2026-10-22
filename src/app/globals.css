@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+.report-section { overflow-wrap: anywhere; }
+.report-roster { list-style: none; padding: 0; }
+.report-roster > li { border-top: 1px solid var(--line); padding: 1rem 0; }
+.report-evidence { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.report-evidence dt { font-weight: 700; }
+.report-evidence dd { margin: .25rem 0 0; }
+.report-section summary { cursor: pointer; }
+.report-section summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+@media (max-width: 600px) { .report-evidence { grid-template-columns: 1fr; } }
+
 .learning-form fieldset, .quiz-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 18px; }
 .learning-form label, .catalog-filters label { display: grid; gap: 7px; font-size: 13px; font-weight: 600; }
 .learning-form input:not([type="checkbox"]), .learning-form textarea, .learning-form select, .catalog-filters input, .catalog-filters select { width: 100%; padding: 12px; border: 1px solid #bdc8c2; border-radius: 4px; background: white; color: #17201d; }
