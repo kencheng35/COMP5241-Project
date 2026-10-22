@@ -96,6 +96,7 @@ try {
     step("full-suite schema preflight");
     for (const [table, columns, requirement] of [
       ["forge_resume", "*", "forge_resume and service-role access (20260927_resume_ran.sql and 20260930_resume_grant_ran.sql)"],
+      ["forge_reflections", "id,owner_id,date,delegation,description,discernment,diligence,revision,created_at,updated_at", "daily reflections required by complete account export (20261022_daily_reflections_ran.sql; source file is not application evidence)"],
     ]) {
       try { checked(await database.from(table).select(columns).limit(0)); }
       catch { throw new Error(`Full E2E requires readable ${requirement}. Have the owner apply outstanding README migrations in order on the approved disposable database, then rerun. No fixtures created; provider details omitted.`); }
@@ -428,6 +429,8 @@ try {
   const records = (await exported.json()).records;
   assert.equal(records.forge_attempts.length, 1);
   assert.ok(records.forge_attempts.every(attempt => attempt.user_id === learner.id));
+  assert.ok(Array.isArray(records.forge_reflections), "Complete export must include private daily reflections");
+  assert.ok(records.forge_reflections.every(entry => entry.owner_id === learner.id));
 
   step("profile fields and validated image upload persist across reloads");
   await learner.page.goto(`${origin}/profile`);

@@ -23,7 +23,7 @@ function add(name, file) {
     compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText;
 }
-for (const name of ["learning", "curriculum", "recommendations", "resume", "lesson-generation"]) add(`@/lib/${name}`, `lib/${name}.ts`);
+for (const name of ["learning", "curriculum", "demo-lessons", "recommendations", "resume", "lesson-generation"]) add(`@/lib/${name}`, `lib/${name}.ts`);
 sources["./learning"] = sources["@/lib/learning"];
 sources["./curriculum"] = sources["@/lib/curriculum"];
 for (const name of ["learning-controls", "lesson-metadata", "lesson-preview", "catalog-search", "learning-path", "lesson-generation"]) {

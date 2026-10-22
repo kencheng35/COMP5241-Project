@@ -1,0 +1,22 @@
+.layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(200px, 1fr); gap: 24px; line-height: 1.6; }
+.editor, .history { min-width: 0; padding: 20px; border: 1px solid #cbd3cc; border-radius: 8px; background: #fff; overflow-wrap: anywhere; }
+.layout label { display: block; font-weight: 650; }
+.layout input, .layout textarea { width: 100%; max-width: 100%; box-sizing: border-box; border: 1px solid #708078; border-radius: 4px; padding: 10px; font: inherit; color: #17201d; background: white; }
+.layout textarea { resize: vertical; }
+.layout fieldset { border: 0; padding: 0; margin: 20px 0; min-width: 0; }
+.field { margin-bottom: 22px; }
+.field p { margin: 4px 0 8px; }
+.hint, .field small { color: #46534d; font-size: .9rem; }
+.buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+.layout button { padding: 10px 14px; border: 1px solid #53675d; border-radius: 4px; background: #f1f4ef; color: #17201d; cursor: pointer; font: inherit; white-space: normal; }
+.layout button:disabled { opacity: .55; cursor: not-allowed; }
+.layout :focus-visible { outline: 3px solid #b14529; outline-offset: 3px; }
+.notice { padding: 12px; background: #fff3cd; border-left: 4px solid #85610b; }
+.history ul { list-style: none; padding: 0; }
+.history li { margin: 10px 0; }
+.history [aria-current] { border-width: 3px; }
+.canonical { border-top: 2px solid #708078; margin-top: 24px; padding-top: 16px; }
+.plain { white-space: pre-wrap; }
+.backdrop { position: fixed; inset: 0; z-index: 100; background: #0009; display: grid; place-items: center; padding: 16px; }
+.dialog { background: white; color: #17201d; padding: 24px; border-radius: 8px; width: min(100%, 480px); max-height: 85vh; overflow: auto; box-sizing: border-box; }
+@media (max-width: 800px) { .layout { grid-template-columns: minmax(0, 1fr); } .editor, .history { padding: 14px; } }

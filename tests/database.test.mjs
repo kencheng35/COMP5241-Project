@@ -3,6 +3,41 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 
+test("daily reflections migration: bounded Unicode text, unique dates, browser denial, service CRUD and owner cascade", async () => {
+  const database = new PGlite();
+  try {
+    await database.exec(`create role anon; create role authenticated; create role service_role bypassrls;
+      create schema auth; create table auth.users(id uuid primary key);`);
+    await database.exec(await readFile(new URL("../supabase/migrations/20261022_daily_reflections_ran.sql", import.meta.url), "utf8"));
+    const owner = "00000000-0000-4000-8000-000000000061", other = "00000000-0000-4000-8000-000000000062";
+    await database.query("insert into auth.users values($1),($2)", [owner, other]);
+    const insert = (id, text = "not used today", date = "2024-02-29") => database.query("insert into forge_reflections(owner_id,date,delegation,description,discernment,diligence) values($1,$2,$3,$3,$3,$3)", [id, date, text]);
+    assert.equal((await database.query("select relrowsecurity from pg_class where relname='forge_reflections'")).rows[0].relrowsecurity, true);
+    assert.equal((await database.query("select * from pg_policies where tablename='forge_reflections'")).rows.length, 0);
+    for (const role of ["anon", "authenticated"]) {
+      await database.exec(`set role ${role}`);
+      for (const sql of ["select * from forge_reflections", "delete from forge_reflections", "update forge_reflections set revision=2"]) await assert.rejects(database.exec(sql), /permission denied/);
+      await assert.rejects(insert(owner), /permission denied/);
+      await database.exec("reset role");
+    }
+    await database.exec("set role service_role");
+    await insert(owner, "😀".repeat(2000));
+    await insert(other);
+    await assert.rejects(insert(owner), /unique constraint/);
+    for (const value of ["", " \t\n", "\u2003\uFEFF", "a".repeat(2001), "😀".repeat(2001)]) await assert.rejects(insert(owner, value, "2026-10-22"), /check constraint/);
+    await assert.rejects(insert(owner, "valid", "2026-02-29"), /out of range/);
+    await insert(owner, "early", "0001-01-01");
+    await assert.rejects(database.query("update forge_reflections set revision=0 where owner_id=$1", [owner]), /check constraint/);
+    assert.equal((await database.query("update forge_reflections set revision=2 where owner_id=$1 and date='2024-02-29' and revision=1 returning id", [owner])).rows.length, 1);
+    assert.equal((await database.query("delete from forge_reflections where owner_id=$1 and date='2024-02-29' and revision=1 returning id", [owner])).rows.length, 0);
+    await database.query("delete from forge_reflections where owner_id=$1 and date='0001-01-01'", [owner]);
+    await database.exec("reset role");
+    await database.query("delete from auth.users where id=$1", [owner]);
+    const retained = (await database.query("select owner_id from forge_reflections")).rows;
+    assert.deepEqual(retained, [{ owner_id: other }]);
+  } finally { await database.close(); }
+});
+
 test("migrations enforce private storage, quotas and durable certificate snapshots", async () => {
   const database = new PGlite();
   try {

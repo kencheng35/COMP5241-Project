@@ -11,6 +11,9 @@
 .lesson-preview header { display: flex; justify-content: space-between; align-items: center; }
 .lesson-preview section { padding-block: 22px; border-top: 1px solid var(--line); }
 .lesson-preview blockquote { padding: 16px; margin-inline: 0; border-left: 3px solid var(--coral); background: var(--paper); }
+.lesson-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.lesson-text a { color: inherit; text-decoration: underline; text-underline-offset: .15em; }
+.lesson-text a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .learning-form fieldset fieldset { border-block-start: 1px solid #bdc8c2; padding-block: 20px; }
 .learning-form legend { padding-block: 10px; font-weight: 700; }
 .catalog-filters { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }

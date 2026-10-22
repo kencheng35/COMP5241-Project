@@ -18,6 +18,7 @@ const recommendations = await import("../src/lib/recommendations.ts");
 const permissions = await import("../src/lib/permissions.ts");
 const resume = await import("../src/lib/resume.ts");
 const curriculum = await import("../src/lib/curriculum.ts");
+const demoLessons = await import("../src/lib/demo-lessons.ts");
 const require = createRequire(import.meta.url);
 const transpile = path => ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), {
   compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
@@ -31,6 +32,8 @@ sources.editor = transpile("../src/components/learning-controls.tsx");
 sources["./lesson-preview"] = transpile("../src/components/lesson-preview.tsx");
 sources["./lesson-metadata"] = transpile("../src/components/lesson-metadata.tsx");
 sources["@/lib/curriculum"] = transpile("../src/lib/curriculum.ts");
+sources["@/lib/demo-lessons"] = transpile("../src/lib/demo-lessons.ts");
+sources["@/lib/permissions"] = transpile("../src/lib/permissions.ts");
 sources.studio = transpile("../src/app/studio/page.tsx");
 function bundleCjs(path) {
   if (sources[path]) return path;
@@ -61,6 +64,7 @@ test("mounted real studio: manual creation, same-ID editing and retained uncerta
   let configured = true, profileError = null, insertError = null, quotaError = null, quotaAllowed = true;
   const quotaCalls = [];
   const providerCalls = [];
+  let aiAccessChecks = 0;
   const server = {
     ...permissions, currentUser: async () => { if (!signedIn) throw new Error("Please log in again."); return user; },
     accessibleLesson: async (id, account, review = false) => {
@@ -120,7 +124,7 @@ test("mounted real studio: manual creation, same-ID editing and retained uncerta
     "@/lib/curriculum": curriculum,
     "@/lib/openrouter": { coachReply: async (...args) => { providerCalls.push(args); return "Synthetic coach reply"; } },
     "@/lib/lesson-generation-server": { startGeneration: async () => { throw new Error("Staged generation is covered by the real-helper/PGlite and mounted-generation suites."); } },
-    "@/lib/ai-eligibility-server": { requireAiAccess: async () => { if (!aiAllowed) throw new Error("AI access denied"); } },
+    "@/lib/ai-eligibility-server": { requireAiAccess: async () => { aiAccessChecks++; if (!aiAllowed) throw new Error("AI access denied"); } },
   };
   const mod = { exports: {} };
   new Function("require", "module", "exports", transpile("../src/app/learning/actions.ts"))(
@@ -143,16 +147,23 @@ test("mounted real studio: manual creation, same-ID editing and retained uncerta
     if (loseAcknowledgement) throw new Error("Synthetic lost acknowledgement");
     return result;
   });
+  await page.exposeFunction("studioServer", async (method, ...args) => {
+    if (method === "requireUser") return server.currentUser();
+    assert.equal(method, "accessibleLesson");
+    return server.accessibleLesson(...args);
+  });
   await page.setContent(`<style>${css}</style><main class="portal-page studio-editor"><div id="root"></div></main>`);
+  try {
   await page.evaluate(async ({ sources, fixture, admin, persisted, route }) => {
     const modules = {};
     window.manualSettled = 0;
     function load(name) {
       if (name === "@/components/learning-controls") return load("editor");
       if (name === "@/components/lesson-metadata") return load("./lesson-metadata");
-      if (name === "@/components/lesson-generation") return { LessonGeneration: () => { throw new Error("Use the mounted staged-generation suite for this branch."); } };
+      if (name === "@/components/lesson-generation") return { LessonGeneration: () => load("react").createElement("p", {}, "Saved generation remains available (not exercised here).") };
       if (name === "@/components/learner-shell") return { LearnerShell: ({ children }) => load("react").createElement("main", {}, children) };
-      if (name === "@/lib/learning-server") return { requireUser: async () => ({ id: "synthetic" }), displayName: async () => "Synthetic author", isAdmin: () => false, isInstructor: () => false, canPublishLessons: () => false };
+      if (name === "@/lib/learning-server") return { ...load("@/lib/permissions"), requireUser: async () => studioServer("requireUser"),
+        accessibleLesson: async (...args) => studioServer("accessibleLesson", ...args), displayName: async () => "Synthetic author" };
       if (name === "next/navigation") return { notFound() { throw new Error("Not found"); } };
       if (name === "@/app/learning/actions") return new Proxy({}, { get: (_, action) => async (previous, form) => {
         try { return await invokeAction(action, previous, [...form.entries()]); }
@@ -174,9 +185,10 @@ test("mounted real studio: manual creation, same-ID editing and retained uncerta
         ...persisted, initial: fixture, admin, action: load("@/app/learning/actions").createManualLesson,
       }));
   }, { sources, fixture: initial, admin, persisted, route });
-  if (route && route.manual !== "1") await page.getByRole("button", { name: "Generate private lesson", exact: true }).waitFor();
+  if (route && route.manual !== "1" && !route.edit) await page.getByRole("heading", { name: "Explore a new topic.", exact: true }).waitFor();
   else await page.locator('input[data-editor-ready="true"]').waitFor({ state: "attached" });
   return page;
+  } catch (error) { await page.close(); throw error; }
   }
   const page = await mount();
   await page.getByRole("button", { name: "Save lesson", exact: true }).click();
@@ -191,6 +203,183 @@ test("mounted real studio: manual creation, same-ID editing and retained uncerta
   assert.equal(calls[1].version, 1);
   assert.equal(rows.get(calls[0].id).version, 2);
   assert.equal(rows.get(calls[0].id).title, "Updated software requirements");
+
+  await context.test("actual Studio starter selection is inert, editable, private then same-ID/version saved", async () => {
+    aiAllowed = false;
+    try {
+      for (const [index, id] of demoLessons.DEMO_LESSON_IDS.entries()) {
+        const starter = demoLessons.getDemoLessonStarter(id);
+        const before = calls.length, beforeRows = rows.size, beforeAi = aiAccessChecks;
+        const beforeProvider = providerCalls.length, beforeQuota = quotaCalls.length;
+        const page = await mount(undefined, false, undefined, { manual: "1", starter: id });
+        try {
+          await page.setViewportSize({ width: index === 0 ? 320 : 1440, height: 900 });
+          assert.equal(await page.getByLabel("Title", { exact: true }).inputValue(), starter.content.title);
+          assert.equal(await page.locator('select[name="subject"]').inputValue(), starter.content.subject);
+          assert.equal(await page.locator('select[name="curriculumTopic"]').inputValue(), starter.content.metadata.topic);
+          assert.equal(await page.locator('input[name="lessonId"]').inputValue(), "");
+          assert.deepEqual(JSON.parse(await page.locator('input[name="content"]').inputValue()), starter.content);
+          assert.equal(await page.getByLabel("Review and publish this lesson").count(), 0);
+          assert.ok((await page.getByRole("heading", { name: "Authored lesson starters" }).locator("..").innerText()).includes("Owner content and pedagogical review pending"));
+          for (const reference of starter.references) {
+            assert.equal(await page.getByRole("link", { name: reference.title, exact: true }).getAttribute("href"), reference.url);
+          }
+          assert.equal(calls.length, before, "selection must not write");
+          assert.equal(rows.size, beforeRows);
+          const reopened = await mount(undefined, false, undefined, { manual: "1", starter: id });
+          assert.equal(await reopened.locator('input[name="lessonId"]').inputValue(), "");
+          assert.equal(calls.length, before, "reopening the URL must not save");
+          await reopened.close();
+          await page.getByLabel("Title", { exact: true }).fill(`Reviewed draft ${index + 1}`);
+          const leave = await page.evaluate(() => {
+            const notices = [];
+            window.confirm = message => { notices.push(message); return false; };
+            const links = [document.querySelector('a[href="/studio?manual=1"]'),
+              document.querySelector('a[href="/studio?manual=1&starter=product-tradeoffs"]')];
+            const canceled = links.map(link => !link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })));
+            return { notices, canceled };
+          });
+          assert.deepEqual(leave.canceled, [true, true], "actual starter and blank links must honor dirty cancellation");
+          assert.ok(leave.notices.every(message => /unsaved lesson changes/.test(message)));
+          assert.equal(await page.getByLabel("Title", { exact: true }).inputValue(), `Reviewed draft ${index + 1}`);
+          assert.equal(calls.length, before);
+          await page.getByRole("button", { name: "Save lesson", exact: true }).focus();
+          await page.keyboard.press("Enter");
+          await page.getByRole("status").filter({ hasText: "Lesson created." }).waitFor();
+          const savedId = calls[before].id;
+          const saved = rows.get(savedId);
+          assert.equal(saved.visibility, "private");
+          assert.equal(saved.published_at, null);
+          assert.equal(saved.owner_id, user.id);
+          assert.deepEqual(saved.content.slides, starter.content.slides, "reference slide survives the real save action");
+          assert.deepEqual(saved.content.questions, starter.content.questions);
+          await page.getByRole("button", { name: "Preview lesson", exact: true }).focus();
+          await page.keyboard.press("Enter");
+          const preview = page.getByRole("dialog");
+          assert.deepEqual(await preview.locator(".lesson-text").allTextContents(),
+            saved.content.slides.flatMap(slide => [slide.body, slide.example]));
+          assert.deepEqual(await preview.locator(".lesson-text a").evaluateAll(links => links.map(link => ({
+            text: link.textContent, href: link.getAttribute("href"), target: link.target, rel: link.rel,
+          }))), starter.references.map(reference => ({
+            text: reference.url, href: reference.url, target: "_blank", rel: "noopener noreferrer",
+          })), "all three starters' saved sources are usable in the real full author preview");
+          assert.equal(calls.length, before + 1, "opening preview must not write");
+          await page.keyboard.press("Escape");
+          assert.equal(await page.getByRole("button", { name: "Preview lesson", exact: true }).evaluate(element => element === document.activeElement), true);
+          // Playwright label text includes an initially populated textarea's text node.
+          await page.getByLabel(/^Summary/).fill(`${starter.content.summary} Reviewed locally.`);
+          await page.getByRole("button", { name: "Save lesson", exact: true }).click();
+          await page.getByRole("status").filter({ hasText: "Lesson saved." }).waitFor();
+          assert.deepEqual(calls.slice(before).map(call => call.kind), ["insert", "update"]);
+          assert.equal(calls[before + 1].id, savedId);
+          assert.equal(calls[before + 1].version, 1);
+          assert.equal(rows.get(savedId).version, 2);
+          assert.equal(rows.size, beforeRows + 1);
+          assert.equal(aiAccessChecks, beforeAi, "manual starters must not invoke AI eligibility or inference");
+          assert.equal(providerCalls.length, beforeProvider);
+          assert.equal(quotaCalls.length, beforeQuota);
+          const width = index === 0 ? 320 : 1440;
+          await page.getByRole("heading", { name: `Starter review: ${starter.content.title}`, exact: true }).scrollIntoViewIfNeeded();
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+          await page.screenshot({ path: join(screenshots, `starter-review-${id}-${width}.png`) });
+          await page.getByLabel("Title", { exact: true }).scrollIntoViewIfNeeded();
+          await page.screenshot({ path: join(screenshots, `starter-editor-${id}-${width}.png`) });
+          await page.getByRole("heading", { name: "Authored lesson starters" }).scrollIntoViewIfNeeded();
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+          await page.screenshot({ path: join(screenshots, `starter-${id}-${index === 0 ? 320 : 1440}.png`) });
+        } finally { await page.close(); }
+      }
+    } finally { aiAllowed = true; }
+  });
+
+  await context.test("actual full author preview preserves equivalent encoded Unicode and rejects invalid UTF-8/controls without saving", async () => {
+    const pairs = [
+      ["https://example.org/\u8cc7\u6599", "https://example.org/%E8%B3%87%E6%96%99"],
+      ["https://example.org/\ud83d\ude00?q=\u8cc7\u6599%20a%26b%3Dc#\u7bc0\ud83d\ude00",
+        "https://example.org/%F0%9F%98%80?q=%E8%B3%87%E6%96%99%20a%26b%3Dc#%E7%AF%80%F0%9F%98%80"],
+    ];
+    for (const [literal, encoded] of pairs) assert.equal(new URL(literal).href, new URL(encoded).href);
+    const urls = pairs.flat(), content = structuredClone(fixture);
+    content.slides[0].body = `  References:\n${urls.join("\n")}\n `;
+    content.slides[0].example = ["%E8%B3", "%C0%AF", "%ED%A0%80", "%F4%90%80%80", "%0A", "%7F", "%C2%80", "%E2%80%8B"]
+      .map(suffix => `https://e.org/${suffix}`).join("\n");
+    assert.deepEqual(learning.lessonSchema.parse(content), content, "fixture must fit the unchanged lesson limits");
+    const before = calls.length, page = await mount(content);
+    try {
+      assert.deepEqual(JSON.parse(await page.locator('input[name="content"]').inputValue()), content);
+      await page.getByRole("button", { name: "Preview lesson", exact: true }).click();
+      const preview = page.getByRole("dialog");
+      await preview.waitFor();
+      assert.deepEqual((await preview.locator(".lesson-text").allTextContents()).slice(0, 2), [content.slides[0].body, content.slides[0].example]);
+      assert.deepEqual(await preview.locator(".lesson-text a").evaluateAll(links => links.map(link => ({
+        text: link.textContent, href: link.getAttribute("href"), target: link.target, rel: link.rel, policy: link.referrerPolicy,
+      }))), urls.map(url => ({ text: url, href: url, target: "_blank", rel: "noopener noreferrer", policy: "no-referrer" })));
+      await page.keyboard.press("Escape");
+      assert.deepEqual(JSON.parse(await page.locator('input[name="content"]').inputValue()), content, "validation must never rewrite editor content");
+      assert.equal(calls.length, before, "preview must not save");
+    } finally { await page.close(); }
+  });
+
+  await context.test("blank/invalid starter feedback, explicit manual opt-in and persisted edit precedence", async () => {
+    const before = calls.length, beforeAi = aiAccessChecks;
+    for (const starter of [undefined, "", "unknown", "__proto__", ["sdlc-small-change"], ["coding-agent-4d", "product-tradeoffs"], null, 7, {}]) {
+      const page = await mount(undefined, false, undefined, { manual: "1", ...(starter === undefined ? {} : { starter }) });
+      try {
+        assert.equal(await page.getByLabel("Title", { exact: true }).inputValue(), "");
+        assert.equal(await page.getByRole("alert").count(), starter === undefined ? 0 : 1);
+        if (starter !== undefined) assert.match(await page.getByRole("alert").innerText(), /Starter not found.*exactly one starter ID/);
+      } finally { await page.close(); }
+    }
+    const noOptIn = await mount(undefined, false, undefined, { starter: "sdlc-small-change" });
+    assert.match(await noOptIn.getByRole("alert").innerText(), /manual authoring/);
+    assert.equal(await noOptIn.locator('input[name="content"]').count(), 0);
+    await noOptIn.close();
+    const row = rows.get(calls[0].id);
+    const snapshot = structuredClone(row);
+    for (const starter of ["coding-agent-4d", ["unknown", "sdlc-small-change"]]) {
+      const page = await mount(undefined, false, undefined, { edit: row.id, manual: "1", starter });
+      assert.deepEqual(JSON.parse(await page.locator('input[name="content"]').inputValue()), row.content);
+      assert.equal(await page.locator('input[data-editor-ready="true"]').inputValue(), row.id);
+      assert.equal(await page.locator('input[name="version"]').inputValue(), String(row.version));
+      assert.equal(await page.getByRole("heading", { name: "Authored lesson starters" }).count(), 0);
+      assert.equal(await page.getByRole("alert").count(), 0);
+      await page.close();
+    }
+    assert.deepEqual(row, snapshot);
+    row.owner_id = "foreign-owner";
+    await assert.rejects(mount(undefined, false, undefined, { edit: row.id, manual: "1", starter: "sdlc-small-change" }), /Not found/);
+    row.owner_id = snapshot.owner_id;
+    await assert.rejects(mount(undefined, false, undefined, { edit: "missing", manual: "1", starter: "sdlc-small-change" }), /Not found/);
+    assert.equal(calls.length, before);
+    assert.equal(aiAccessChecks, beforeAi);
+  });
+
+  await context.test("starter publication retains learner denial and instructor owner permission", async () => {
+    const content = demoLessons.getDemoLessonStarter("coding-agent-4d").content;
+    const form = new FormData(); form.set("content", JSON.stringify(content)); form.set("publish", "on");
+    const before = calls.length;
+    assert.match((await mod.exports.createManualLesson({}, form)).error, /Instructor access required/);
+    const existing = rows.get(calls[0].id);
+    form.set("lessonId", existing.id); form.set("version", String(existing.version));
+    assert.match((await mod.exports.updateLesson({}, form)).error, /Instructor access is required/);
+    assert.equal(calls.length, before);
+    user.app_metadata.role = "instructor";
+    try {
+      const page = await mount(undefined, false, undefined, { manual: "1", starter: "coding-agent-4d" });
+      assert.equal(await page.getByLabel("Review and publish this lesson").isChecked(), false, "even instructors start private");
+      await page.getByRole("button", { name: "Save lesson", exact: true }).click();
+      await page.getByRole("status").filter({ hasText: "Lesson created." }).waitFor();
+      const id = calls.at(-1).id;
+      assert.equal(rows.get(id).visibility, "private");
+      await page.getByLabel("Review and publish this lesson").check();
+      await page.getByRole("button", { name: "Save lesson", exact: true }).click();
+      await page.getByRole("status").filter({ hasText: "Reviewed lesson published." }).waitFor();
+      assert.equal(calls.at(-1).id, id);
+      assert.equal(rows.get(id).visibility, "public");
+      assert.equal(rows.get(id).version, 2);
+      await page.close();
+    } finally { delete user.app_metadata.role; }
+  });
 
   await context.test("activity blank second line is formatting, not an empty saved step", async () => {
     const page = await mount();

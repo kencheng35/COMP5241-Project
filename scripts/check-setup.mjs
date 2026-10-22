@@ -33,6 +33,7 @@ async function checkDatabase() {
     ["forge_reviewers", "user_id,lesson_id", "learning migration"],
     ["forge_resume", "user_id,lesson_id,lesson_version,revision,stage,slide,ordering,answers", "resume migration"],
     ["forge_interviews", "id,owner_id,schema_version,topic,level,state,revision,created_at,updated_at,completed_at", "20261015_interviews_ran.sql (verify application before feature/export queries; filename is not proof of application)"],
+    ["forge_reflections", "id,owner_id,date,delegation,description,discernment,diligence,revision,created_at,updated_at", "20261022_daily_reflections_ran.sql (source only; target authorization and application pending)"],
   ];
   for (const [table, columns, migration] of tables) {
     const { data, error } = await client.from(table).select(columns).limit(0);

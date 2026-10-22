@@ -28,6 +28,7 @@ const tables = [
   ["forge_reviewers", "user_id", "lesson_id"],
   ["forge_interviews", "owner_id", "id"],
   ["forge_lesson_generations", "owner_id", "id"],
+  ["forge_reflections", "owner_id", "id"],
 ];
 
 function ownerRows(table, count = 1, owner = user.id) {
@@ -126,7 +127,7 @@ test("export GET returns every table and >1000 rows in stable owner-scoped pages
 
 test("export GET handles empty tables and an exact-page boundary without truncation", async () => {
   for (const count of [0, 1000]) {
-    const rows = Object.fromEntries(tables.map(([table]) => [table, ownerRows(table, ["forge_resume", "forge_interviews", "forge_lesson_generations"].includes(table) ? count : 0)]));
+    const rows = Object.fromEntries(tables.map(([table]) => [table, ownerRows(table, ["forge_resume", "forge_interviews", "forge_lesson_generations", "forge_reflections"].includes(table) ? count : 0)]));
     const fixture = loadExport({ rows });
     const response = await fixture.GET();
     assert.equal(response.status, 200);
@@ -135,6 +136,7 @@ test("export GET handles empty tables and an exact-page boundary without truncat
     assert.deepEqual(fixture.queries.filter(query => query.table === "forge_resume").map(query => query.start), count ? [0, 500, 1000] : [0]);
     assert.deepEqual(fixture.queries.filter(query => query.table === "forge_interviews").map(query => query.start), count ? [0, 500, 1000] : [0]);
     assert.deepEqual(fixture.queries.filter(query => query.table === "forge_lesson_generations").map(query => query.start), count ? [0, 500, 1000] : [0]);
+    assert.deepEqual(fixture.queries.filter(query => query.table === "forge_reflections").map(query => query.start), count ? [0, 500, 1000] : [0]);
   }
 });
 
@@ -187,7 +189,7 @@ const pageFailures = [
 
 for (const [label, fail] of pageFailures) {
   test(`export GET ${label} on later pages never leaks partial data or errors`, async () => {
-    for (const failedTable of ["forge_attempts", "forge_resume", "forge_interviews", "forge_lesson_generations"]) {
+    for (const failedTable of ["forge_attempts", "forge_resume", "forge_interviews", "forge_lesson_generations", "forge_reflections"]) {
       for (const failedStart of [500, 1000]) {
         const rows = Object.fromEntries(tables.map(([table]) => [table, ownerRows(table, table === failedTable ? 1050 : 1)]));
         const fixture = loadExport({ rows, readPage(query, records) {
@@ -227,6 +229,15 @@ test("missing generation migration fails the entire export rather than omitting 
   } });
   await assertFailure(await fixture.GET(), 503);
   assert.equal(fixture.queries.at(-1).table, "forge_lesson_generations");
+});
+
+test("missing reflection migration fails the entire private export rather than silently omitting daily text", async () => {
+  const fixture = loadExport({ readPage(query, records) {
+    if (query.table === "forge_reflections") return { data: null, error: { message: "PRIVATE relation does not exist" } };
+    return { data: records[query.table].slice(query.start, query.end + 1), error: null };
+  } });
+  await assertFailure(await fixture.GET(), 503);
+  assert.equal(fixture.queries.at(-1).table, "forge_reflections");
 });
 
 for (const [label, getUser, status] of authFailures) {

@@ -10,6 +10,7 @@ const links = [
   ["Course catalog", "/catalog", Library],
   ["Learning paths", "/paths", Route],
   ["Interview practice", "/interviews", MessageSquare],
+  ["Daily 4D reflections", "/reflections", BookOpen],
   ["Create lesson", "/studio", BookOpen],
   ["Progress", "/progress", Award],
   ["Profile & settings", "/profile", Settings],

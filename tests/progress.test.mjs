@@ -146,6 +146,7 @@ test("real progress actions and helpers with additive migration (offline PGlite)
       ["scheduler", "scheduler", "scheduler.development.js"],
     ].map(([name, pkg, file]) => [name, readFileSync(join(dirname(require.resolve(`${pkg}/package.json`)), "cjs", file), "utf8")]));
     sources.player = transpile("src/components/learning-controls.tsx");
+    sources["./lesson-preview"] = transpile("src/components/lesson-preview.tsx");
     const css = source("src/app/globals.css").replace('@import "tailwindcss";', "");
     const artifacts = await mkdtemp(join(tmpdir(), "forge-progress-20261021-"));
     context.diagnostic(`Synthetic UI evidence retained: ${artifacts}`);
@@ -168,10 +169,14 @@ test("real progress actions and helpers with additive migration (offline PGlite)
     });
     await page.setContent(`<style>${css}</style><main class="portal-page"><h1>Synthetic review lesson</h1><div id="root"></div></main>`);
 
+    const preview = load("src/components/lesson-preview.tsx", {
+      react: require("react"), "react/jsx-runtime": require("react/jsx-runtime"),
+      "lucide-react": new Proxy({}, { get: () => () => null }), "./lesson-metadata": { LessonMetadata: () => null },
+    });
     const controls = load("src/components/learning-controls.tsx", {
       react: require("react"), "react/jsx-runtime": require("react/jsx-runtime"), "next/link": { __esModule: true, default: ({ children, ...props }) => createElement("a", props, children) },
       "lucide-react": new Proxy({}, { get: () => () => null }), "@/app/learning/actions": h.actions,
-      "./lesson-preview": { LessonPreview: () => null }, "./lesson-metadata": { MetadataFields: () => null },
+      "./lesson-preview": preview, "./lesson-metadata": { MetadataFields: () => null },
     });
     const routeDeps = {
       "react/jsx-runtime": require("react/jsx-runtime"),
@@ -213,7 +218,7 @@ test("real progress actions and helpers with additive migration (offline PGlite)
             if (name === "@/app/learning/actions") return new Proxy({}, { get: (_, action) => (...args) => window.invokeProgress(action, args) });
             if (name === "next/link") return { __esModule: true, default: ({ children, ...props }) => load("react").createElement("a", props, children) };
             if (name === "lucide-react") return new Proxy({}, { get: () => () => null });
-            if (name === "./lesson-preview" || name === "./lesson-metadata") return new Proxy({}, { get: () => () => null });
+            if (name === "./lesson-metadata") return new Proxy({}, { get: () => () => null });
             if (!modules[name]) {
               if (!sources[name]) throw new Error(`Unexpected module: ${name}`);
               const mod = { exports: {} }; modules[name] = mod;
@@ -237,6 +242,56 @@ test("real progress actions and helpers with additive migration (offline PGlite)
       await page.screenshot({ path: join(artifacts, `${name}-${width}.png`), fullPage: true });
     }
     async function evidenceText() { return page.getByRole("region", { name: /Version \d+ evidence/ }).innerText(); }
+
+    await context.test("real learner route preserves source text, HTTPS links and answer-key privacy without progress writes", async () => {
+      const linked = structuredClone(canonical);
+      linked.slides[0].body = "  Read:\nhttps://example.org/a_(b)?q=1&x=2#part.\n ";
+      linked.slides[0].example = "Source: https://example.org/reference; javascript:https://evil.org stays literal.";
+      const before = h.state.rpcCalls.length;
+      try {
+        await h.db.query("update forge_lessons set content=$2 where id=$1", [h.lesson, JSON.stringify(linked)]);
+        await render({ ...await routeProps(), ownerId: `${h.owner}:references` });
+        assert.deepEqual(await page.locator(".slide-stage .lesson-text").allTextContents(), [linked.slides[0].body, linked.slides[0].example]);
+        assert.deepEqual(await page.locator(".slide-stage .lesson-text a").evaluateAll(links => links.map(link => ({
+          text: link.textContent, href: link.getAttribute("href"), target: link.target, rel: link.rel,
+        }))), ["https://example.org/a_(b)?q=1&x=2#part", "https://example.org/reference"].map(url => ({
+          text: url, href: url, target: "_blank", rel: "noopener noreferrer",
+        })));
+        assert.equal(h.state.rpcCalls.length, before);
+        assert.deepEqual((await routeProps()).content.questions, canonical.questions.map(({ prompt, options }) => ({ prompt, options })));
+      } finally {
+        await h.db.query("update forge_lessons set content=$2 where id=$1", [h.lesson, JSON.stringify(canonical)]);
+      }
+    });
+
+    await context.test("actual learner route links equivalent encoded CJK/emoji but not invalid UTF-8 or encoded controls", async () => {
+      const pairs = [
+        ["https://example.org/\u8cc7\u6599", "https://example.org/%E8%B3%87%E6%96%99"],
+        ["https://example.org/\ud83d\ude00?q=\u8cc7\u6599%20a%26b%3Dc#\u7bc0\ud83d\ude00",
+          "https://example.org/%F0%9F%98%80?q=%E8%B3%87%E6%96%99%20a%26b%3Dc#%E7%AF%80%F0%9F%98%80"],
+      ];
+      for (const [literal, encoded] of pairs) assert.equal(new URL(literal).href, new URL(encoded).href);
+      const urls = pairs.flat(), linked = structuredClone(canonical);
+      linked.slides[0].body = `  References:\n${urls.join("\n")}\n `;
+      linked.slides[0].example = ["%E8%B3", "%C0%AF", "%ED%A0%80", "%F4%90%80%80", "%0A", "%7F", "%C2%80", "%E2%80%8B"]
+        .map(suffix => `https://e.org/${suffix}`).join("\n");
+      assert.deepEqual(learning.lessonSchema.parse(linked), linked, "fixture must fit the unchanged lesson limits");
+      const before = h.state.rpcCalls.length;
+      try {
+        await h.db.query("update forge_lessons set content=$2 where id=$1", [h.lesson, JSON.stringify(linked)]);
+        await render({ ...await routeProps(), ownerId: `${h.owner}:unicode-references` });
+        await page.waitForFunction(body => document.querySelector(".slide-stage .lesson-text")?.textContent === body, linked.slides[0].body);
+        assert.deepEqual(await page.locator(".slide-stage .lesson-text").allTextContents(), [linked.slides[0].body, linked.slides[0].example]);
+        assert.deepEqual(await page.locator(".slide-stage .lesson-text a").evaluateAll(links => links.map(link => ({
+          text: link.textContent, href: link.getAttribute("href"), target: link.target, rel: link.rel, policy: link.referrerPolicy,
+        }))), urls.map(url => ({ text: url, href: url, target: "_blank", rel: "noopener noreferrer", policy: "no-referrer" })));
+        assert.deepEqual((await routeProps()).content.questions, canonical.questions.map(({ prompt, options }) => ({ prompt, options })));
+        assert.deepEqual((await h.db.query("select content from forge_lessons where id=$1", [h.lesson])).rows[0].content, linked, "rendering must not rewrite stored content");
+        assert.equal(h.state.rpcCalls.length, before);
+      } finally {
+        await h.db.query("update forge_lessons set content=$2 where id=$1", [h.lesson, JSON.stringify(canonical)]);
+      }
+    });
 
     await context.test("route hydration has unknown history and no visit writes; lost acknowledgement is focused and explicitly retryable", async () => {
       const props = await routeProps();

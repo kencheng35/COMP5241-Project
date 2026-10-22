@@ -33,9 +33,11 @@ test("mounted LessonPlayer progress scheduling (offline)", async context => {
     ["react-dom/client", "react-dom", "react-dom-client.development.js"],
     ["scheduler", "scheduler", "scheduler.development.js"],
   ].map(([name, packageName, file]) => [name, readFileSync(join(dirname(require.resolve(`${packageName}/package.json`)), "cjs", file), "utf8")]));
-  sources.player = ts.transpileModule(readFileSync(new URL("../src/components/learning-controls.tsx", import.meta.url), "utf8"), {
-    compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
-  }).outputText;
+  for (const [name, file] of [["player", "learning-controls"], ["./lesson-preview", "lesson-preview"]]) {
+    sources[name] = ts.transpileModule(readFileSync(new URL(`../src/components/${file}.tsx`, import.meta.url), "utf8"), {
+      compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+    }).outputText;
+  }
   const browser = await chromium.launch();
   const browserContext = await browser.newContext({ offline: true, serviceWorkers: "block" });
   const requests = [];
@@ -60,8 +62,8 @@ test("mounted LessonPlayer progress scheduling (offline)", async context => {
           if (name === "@/app/learning/actions") return actions;
           if (name === "next/link") return { __esModule: true, default: ({ children, ...props }) => load("react").createElement("a", props, children) };
           if (name === "lucide-react") return new Proxy({}, { get: () => () => null });
-          if (name === "./lesson-preview") return { LessonPreview: () => null };
-          if (name === "./lesson-metadata") return { MetadataFields: () => null };
+          // Metadata views are not exercised by the scheduler; preview/text use the real module.
+          if (name === "./lesson-metadata") return { MetadataFields: () => null, LessonMetadata: () => null };
           if (!modules[name]) {
             if (!sources[name]) throw new Error(`Unexpected offline module: ${name}`);
             const loadedModule = { exports: {} };
