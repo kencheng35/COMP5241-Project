@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -14,12 +15,12 @@ import ts from "typescript";
 import { z } from "zod";
 import { ageRangeFor, isDemoAge } from "../src/lib/eligibility.ts";
 
-async function loadServerModule(path, dependencies) {
+async function loadServerModule(path, dependencies, globals = {}) {
   const source = await readFile(new URL(path, import.meta.url), "utf8");
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
   const exports = {};
   runInNewContext(outputText, {
-    exports, FormData, process: { env: {} },
+    exports, FormData, process: { env: {} }, ...globals,
     require(name) {
       if (!Object.hasOwn(dependencies, name)) throw new Error(`Unexpected dependency: ${name}`);
       return dependencies[name];
@@ -30,25 +31,152 @@ async function loadServerModule(path, dependencies) {
 
 async function loadActions(overrides = {}) {
   const calls = [];
-  const auth = Object.fromEntries(["updateUser", "signOut"].map(method => [method, async value => {
+  const logs = [];
+  const auth = Object.fromEntries(["updateUser", "signOut", "signUp"].map(method => [method, async value => {
     calls.push([method, JSON.parse(JSON.stringify(value))]);
     return overrides[method] ? overrides[method](value) : { error: null };
   }]));
   const dependencies = {
+    "node:crypto": { randomUUID },
     "next/navigation": { redirect(location) { throw Object.assign(new Error("Synthetic redirect"), { location }); } },
     zod: { z },
     "@/lib/eligibility": { isDemoAge, ageRangeFor },
-    "@/lib/public-config": {},
+    "@/lib/public-config": { publicConfig: overrides.publicConfig ?? (() => ({ siteOrigin: "https://example.test" })) },
     "@/lib/supabase/server": { async createClient(options) {
-      assert.equal(options.requireCookieWrites, true);
+      if (options) assert.equal(options.requireCookieWrites, true);
       if (overrides.unavailable) throw new Error("Private configuration detail");
       if (overrides.createClient) return overrides.createClient(options);
       return { auth };
     } },
   };
-  const exports = await loadServerModule("../src/app/auth/actions.ts", dependencies);
-  return { ...exports, calls };
+  const exports = await loadServerModule("../src/app/auth/actions.ts", dependencies, {
+    console: overrides.console ?? Object.fromEntries(["info", "warn", "error"].map(level => [level, value => {
+      assert.equal(typeof value, "string");
+      logs.push({ level, ...JSON.parse(value) });
+    }])),
+  });
+  return { ...exports, calls, logs };
 }
+
+function signupForm(overrides = {}) {
+  const form = new FormData();
+  for (const [key, value] of Object.entries({
+    name: "Private Learner", email: "private@example.test", age: "17", password: "PrivateSecret1", ...overrides,
+  })) form.set(key, value);
+  return form;
+}
+
+function assertSignupLogs(actions, terminal, level, stage) {
+  assert.equal(actions.logs.length, 2);
+  const [started, finished] = actions.logs;
+  assert.equal(started.event, "auth_signup_started");
+  assert.equal(started.level, "info");
+  assert.equal(started.stage, "validation");
+  assert.match(started.diagnostic_id, /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/);
+  assert.equal(finished.diagnostic_id, started.diagnostic_id);
+  assert.equal(finished.event, terminal);
+  assert.equal(finished.level, level);
+  assert.equal(finished.stage, stage);
+  for (const entry of actions.logs) {
+    assert.equal(Number.isInteger(entry.elapsed_ms) && entry.elapsed_ms >= 0, true);
+  }
+  assert.doesNotMatch(JSON.stringify(actions.logs), /Private|private@example|Secret|synthetic-token|synthetic-user|https:|stack/);
+  return finished;
+}
+
+test("signup logs invalid field names without submitted values or provider calls", async () => {
+  const actions = await loadActions();
+  const state = await actions.signUp({}, signupForm({ email: "Private invalid email", age: "12", password: "short" }));
+  assert.equal(state.error, "Check the highlighted fields.");
+  assert.deepEqual(actions.calls, []);
+  const log = assertSignupLogs(actions, "auth_signup_validation_failed", "warn", "validation");
+  assert.deepEqual(log.invalid_fields.sort(), ["age", "email", "password"]);
+});
+
+test("signup logs completion once and preserves the verification redirect and provider payload", async () => {
+  const actions = await loadActions({ signUp: async () => ({
+    error: null, data: { user: { id: "synthetic-user" }, session: { access_token: "synthetic-token" } },
+  }) });
+  await assert.rejects(actions.signUp({}, signupForm()), error => {
+    const location = new URL(error.location, "https://example.test");
+    assert.equal(location.pathname, "/login");
+    assert.equal(location.searchParams.get("email"), "private@example.test");
+    assert.equal(location.searchParams.get("success"), "Account created. Check your inbox and verify your email before logging in.");
+    return true;
+  });
+  assert.deepEqual(actions.calls, [["signUp", {
+    email: "private@example.test", password: "PrivateSecret1",
+    options: {
+      emailRedirectTo: "https://example.test/auth/confirm?next=%2Fdashboard",
+      data: { display_name: "Private Learner", age: 17, age_range: "13-17" },
+    },
+  }]]);
+  const log = assertSignupLogs(actions, "auth_signup_completed", "info", "provider");
+  assert.deepEqual(Object.keys(log).sort(), ["diagnostic_id", "elapsed_ms", "event", "level", "stage"]);
+});
+
+for (const failure of ["returned", "thrown"]) {
+  for (const [code, status, message, reason] of [
+    ["unexpected_failure", 500, "Database error saving new user: Private Learner", "database"],
+    ["unexpected_failure", 500, "Error sending confirmation email to private@example.test", "email_delivery"],
+    ["over_email_send_rate_limit", 429, "Private provider response", "unknown"],
+    ["signup_disabled", 422, "Private provider response", "unknown"],
+    ["weak_password", 422, "PrivateSecret1", "unknown"],
+    [undefined, 0, "fetch failed", "network"],
+    ["private@example.test", 999, "Private provider response", "unknown"],
+    ["PrivateSecret1", "500", "Private provider response", "unknown"],
+  ]) {
+    test(`signup ${failure} ${reason}/${code ?? "no code"} failure logs only safe diagnostics`, async () => {
+      const providerError = Object.assign(new Error(message), { code, status, body: "synthetic-token" });
+      const actions = await loadActions({ signUp: async () => {
+        if (failure === "thrown") throw providerError;
+        return { error: providerError };
+      } });
+      const state = await actions.signUp({}, signupForm());
+      assert.equal(state.error, "Could not create the account. Please try again later.");
+      assert.deepEqual(JSON.parse(JSON.stringify(state.fields)), { name: "Private Learner", email: "private@example.test", age: "17" });
+      assert.equal(state.fields.password, undefined);
+      const log = assertSignupLogs(actions, "auth_signup_failed", "error", "provider");
+      assert.equal(log.failure_type, failure);
+      assert.equal(log.error_code, ["private@example.test", "PrivateSecret1", undefined].includes(code) ? null : code);
+      assert.equal(log.http_status, typeof status === "number" && status >= 100 && status <= 599 ? status : null);
+      assert.equal(log.reason, reason);
+      assert.deepEqual(Object.keys(log).sort(), ["diagnostic_id", "elapsed_ms", "error_code", "event", "failure_type", "http_status", "level", "reason", "stage"]);
+    });
+  }
+}
+
+test("signup distinguishes configuration and client failures without contacting Auth", async () => {
+  for (const [overrides, stage] of [
+    [{ publicConfig: () => null }, "configuration"],
+    [{ unavailable: true }, "client"],
+  ]) {
+    const actions = await loadActions(overrides);
+    const state = await actions.signUp({}, signupForm());
+    assert.equal(state.error, "Could not create the account. Please try again later.");
+    assert.deepEqual(actions.calls, []);
+    const log = assertSignupLogs(actions, "auth_signup_failed", "error", stage);
+    assert.equal(log.failure_type, "thrown");
+  }
+});
+
+test("signup assigns independent diagnostic IDs to repeated attempts", async () => {
+  const actions = await loadActions({ signUp: async () => ({ error: { code: "unexpected_failure" } }) });
+  await actions.signUp({}, signupForm());
+  await actions.signUp({}, signupForm());
+  assert.notEqual(actions.logs[0].diagnostic_id, actions.logs[2].diagnostic_id);
+  assert.equal(actions.logs[0].diagnostic_id, actions.logs[1].diagnostic_id);
+  assert.equal(actions.logs[2].diagnostic_id, actions.logs[3].diagnostic_id);
+});
+
+test("a failing signup log sink cannot block registration or replace its failure", async () => {
+  const console = Object.fromEntries(["info", "warn", "error"].map(level => [level, () => { throw new Error("Private log sink failure"); }]));
+  const success = await loadActions({ console });
+  await assert.rejects(success.signUp({}, signupForm()), /Synthetic redirect/);
+  assert.equal(success.calls.length, 1);
+  const failure = await loadActions({ console, signUp: async () => ({ error: new Error("Private provider response") }) });
+  assert.equal((await failure.signUp({}, signupForm())).error, "Could not create the account. Please try again later.");
+});
 
 function passwordForm(password = "Synthetic1") {
   const form = new FormData();

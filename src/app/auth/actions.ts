@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
@@ -8,6 +9,26 @@ import { ageRangeFor, isDemoAge } from "@/lib/eligibility";
 
 const password = z.string().min(8, "Use at least 8 characters.").regex(/[A-Z]/, "Add one uppercase letter.").regex(/[0-9]/, "Add one number.");
 const email = z.string().email("Enter a valid email address.");
+
+const signupErrorCodes = new Set([
+  "unexpected_failure", "validation_failed", "bad_json", "email_exists", "user_already_exists",
+  "signup_disabled", "email_provider_disabled", "provider_disabled", "email_address_not_authorized",
+  "email_address_invalid", "weak_password", "over_request_rate_limit", "over_email_send_rate_limit",
+  "captcha_failed", "request_timeout", "hook_timeout", "hook_timeout_after_retry",
+  "hook_payload_over_size_limit", "hook_payload_invalid_content_type",
+]);
+
+function signupFailure(error: unknown) {
+  const details = typeof error === "object" && error !== null ? error : {};
+  const code = "code" in details && typeof details.code === "string" && signupErrorCodes.has(details.code) ? details.code : null;
+  const status = "status" in details && typeof details.status === "number" && Number.isInteger(details.status) && details.status >= 100 && details.status <= 599 ? details.status : null;
+  const message = "message" in details && typeof details.message === "string" ? details.message.slice(0, 500) : "";
+  const reason = /^Database error\b/i.test(message) ? "database"
+    : /^Error sending confirmation email\b/i.test(message) ? "email_delivery"
+    : message === "fetch failed" || ("name" in details && details.name === "AuthRetryableFetchError") ? "network"
+    : "unknown";
+  return { error_code: code, http_status: status, reason };
+}
 
 export type CredentialState = {
   error?: string;
@@ -39,6 +60,17 @@ function authCallback(next: string) {
 }
 
 export async function signUp(_previous: CredentialState, formData: FormData): Promise<CredentialState> {
+  const diagnosticId = randomUUID();
+  const started = Date.now();
+  let stage: "validation" | "configuration" | "client" | "provider" = "validation";
+  function log(level: "info" | "warn" | "error", event: string, details: Record<string, unknown> = {}) {
+    try {
+      console[level](JSON.stringify({
+        event, diagnostic_id: diagnosticId, stage, elapsed_ms: Math.max(0, Date.now() - started), ...details,
+      }));
+    } catch { /* A failed log sink must not interrupt registration or replace its sanitized error. */ }
+  }
+  log("info", "auth_signup_started");
   const schema = z.object({
     name: z.string().trim().min(2, "Enter your display name.").max(100, "Use at most 100 characters."),
     email,
@@ -47,22 +79,35 @@ export async function signUp(_previous: CredentialState, formData: FormData): Pr
   });
   const fields = formFields(formData);
   const result = schema.safeParse(Object.fromEntries(formData));
-  if (!result.success) return { fields, fieldErrors: validationErrors(result.error.issues), error: "Check the highlighted fields." };
+  if (!result.success) {
+    const fieldErrors = validationErrors(result.error.issues);
+    log("warn", "auth_signup_validation_failed", { invalid_fields: Object.keys(fieldErrors) });
+    return { fields, fieldErrors, error: "Check the highlighted fields." };
+  }
 
   try {
+    stage = "configuration";
+    const emailRedirectTo = authCallback("/dashboard");
+    stage = "client";
     const supabase = await createClient();
+    stage = "provider";
     const { error } = await supabase.auth.signUp({
       email: result.data.email,
       password: result.data.password,
       options: {
-        emailRedirectTo: authCallback("/dashboard"),
+        emailRedirectTo,
         data: { display_name: result.data.name, age: result.data.age, age_range: ageRangeFor(result.data.age) },
       },
     });
-    if (error) return { fields, error: "Could not create the account. Please try again later." };
-  } catch {
+    if (error) {
+      log("error", "auth_signup_failed", { failure_type: "returned", ...signupFailure(error) });
+      return { fields, error: "Could not create the account. Please try again later." };
+    }
+  } catch (error) {
+    log("error", "auth_signup_failed", { failure_type: "thrown", ...signupFailure(error) });
     return { fields, error: "Could not create the account. Please try again later." };
   }
+  log("info", "auth_signup_completed");
   redirect(`/login?success=${encodeURIComponent("Account created. Check your inbox and verify your email before logging in.")}&email=${encodeURIComponent(result.data.email)}`);
 }
 

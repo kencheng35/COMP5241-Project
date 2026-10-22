@@ -2,6 +2,26 @@
 
 Last reviewed: 2026-10-22
 
+## 22 October 2026 — signup production diagnostics (LOCAL PASS; production cause unverified)
+
+**Owner/request:** assistant implementation for the owner's report that production registration fails. Local changes only; no production access, deployment, environment-file reads, provider requests or database changes. Existing scope/approval gates remain unchanged.
+
+**Dependencies/deliverable:** traced the signup action, public configuration, Supabase server client and existing synthetic auth/eligibility harnesses. Added structured server-console start/terminal events with fresh per-attempt diagnostic IDs, elapsed time and validation/configuration/client/provider stages. Failed attempts retain allowlisted Auth codes, bounded HTTP statuses and fixed database/email/network/unknown categories; returned and thrown failures are distinguished. README includes Vercel filtering and next-check guidance.
+
+**Acceptance:** no submitted personal details, credentials, provider bodies, raw error messages/stacks or environment values are serialized. Unknown codes/statuses are omitted as `null`. Validation still blocks Auth calls; provider payload, sanitized public failures, 13+ rules and verification redirect are preserved. Callback configuration is checked before constructing the server client, allowing configuration failures to be identified separately. A failing log sink does not block registration. Completion means an error-free SDK result, not verified inbox delivery or a guaranteed new account.
+
+**Fresh verification:** Windows / existing Node v25.2.1 and dependencies, OS-only child environments, VM-injected synthetic Auth/config/logs, offline Chromium and in-memory PGlite:
+
+| Command | Actual result |
+| --- | --- |
+| `node --experimental-strip-types --test --test-concurrency=1 --test-name-pattern=signup tests\auth.test.mjs tests\eligibility.test.mjs` | **23/23 passed**, zero failures/skips |
+| `node --experimental-strip-types --test --test-concurrency=1 tests\auth.test.mjs tests\eligibility.test.mjs tests\public-config.test.mjs` | **52/52 passed**, zero failures/skips; includes offline mounted auth UI and DB eligibility checks |
+| `node node_modules\eslint\bin\eslint.js src\app\auth\actions.ts tests\auth.test.mjs tests\eligibility.test.mjs` | Exit 0, no diagnostics |
+| `node node_modules\typescript\bin\tsc --noEmit --incremental false` | Exit 0, no diagnostics; no Next environment loader/typegen |
+| `git --no-pager diff --check` (explicit installed Git executable) | Exit 0 |
+
+Tests cover validation-only logs, successful signup, returned/thrown provider failures, SMTP/database hints, rate limiting, disabled signup, weak passwords, network errors, malicious/unrecognized diagnostic fields, configuration/client exceptions, correlation separation, response redaction and failed log sinks. Node emitted existing typeless-package performance warnings only. No full suite or Next build run. Production root cause remains **UNVERIFIED** until an authorized deployment includes this code and a real attempt is correlated with hosting/Supabase logs; no live signup, SMTP or trigger repair is claimed.
+
 ## 22 October 2026 — independent frozen paths + ONE fresh full integration gate: LOCAL PASS
 
 **Decision/scope:** no substantive functional/privacy/reliability defect reproduced.

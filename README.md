@@ -586,6 +586,35 @@ Successful password reset requests global sign-out before returning to login. Or
 
 Keep email confirmations and secure email-change confirmation enabled in Supabase. Configure production SMTP. Signup requires a whole-number age of at least 13; under-13 guardian self-attestation has been removed. Profile ages remain self-reported, and minors cannot access external AI under the current demo policy.
 
+### Troubleshooting production signup
+
+The signup server action emits structured JSON to the hosting platform's **server/runtime logs**, not the browser console. Once a deployment includes this change, open **Vercel → project → Logs**, select the production deployment and attempt time, and search `auth_signup_`. Include Info and Warning levels as well as Error.
+
+Each attempt emits `auth_signup_started` followed by one terminal event:
+
+- `auth_signup_validation_failed` (Warning): `invalid_fields` contains field names only; no Auth request was sent.
+- `auth_signup_failed` (Error): `stage` distinguishes `configuration` (callback configuration), `client` (server client/cookies), and `provider` (Supabase signup). `failure_type` distinguishes a returned provider error from a thrown exception.
+- `auth_signup_completed` (Info): Supabase returned without error and the existing verification redirect follows. This does not prove inbox delivery or that an account is new; Supabase may obscure duplicate-account responses.
+
+Search the fresh random `diagnostic_id` to group an attempt. `elapsed_ms` measures time since action entry. Failures include an allowlisted `error_code`, bounded numeric `http_status`, and a fixed `reason`: `database`, `email_delivery`, `network`, or `unknown`. Unrecognized codes/statuses become `null`. Reasons are diagnostic hints from SDK errors, not verified root causes.
+
+Illustrative failure (not a production observation):
+
+```json
+{"event":"auth_signup_failed","diagnostic_id":"7e2fe4ea-b7be-49d6-aef6-086ef5ae5311","stage":"provider","elapsed_ms":382,"failure_type":"returned","error_code":"unexpected_failure","http_status":500,"reason":"database"}
+```
+
+Use the stage/code/category to narrow the next checks:
+
+- `configuration`: check the production `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_SITE_URL` settings. Missing or malformed values prevent signup.
+- `database`: inspect Supabase Auth/Postgres logs around the same time, especially the new-user profile trigger and required migrations.
+- `email_delivery` or `over_email_send_rate_limit`: inspect Supabase Auth/SMTP configuration and email limits.
+- `signup_disabled`, `email_provider_disabled`, or `captcha_failed`: review Supabase signup/provider/CAPTCHA settings.
+- `network`, timeouts, or 5xx statuses: check service availability and hosting-to-Supabase connectivity.
+- No `auth_signup_started`: verify the deployment contains this code and inspect hosting request errors; middleware/configuration, routing or server-action transport failures can happen before the action runs.
+
+Logs omit submitted names, emails, ages, passwords, tokens, user IDs, environment values, raw errors/messages/stacks and provider response bodies. Diagnostic IDs remain server-side; public error messages and signup behavior are unchanged. Restrict hosting/Supabase log access and configure retention separately. Do not share raw Supabase logs containing account information.
+
 ## Administrator setup
 
 Use a trusted Supabase administrator session or Admin API to set `app_metadata.role` to `admin` for an explicitly approved registered account. Do not use `user_metadata` or a browser-controlled role field. No existing account has been promoted automatically; browser tests create and then delete a temporary administrator.

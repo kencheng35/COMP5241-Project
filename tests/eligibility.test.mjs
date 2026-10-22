@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
@@ -96,6 +97,7 @@ test("server AI guard checks the database profile and fails closed on lookup fai
 test("signup validates numeric age and never writes a trusted AI grant or guardian consent", async () => {
   let signup;
   const { signUp } = await loadServerModule("../src/app/auth/actions.ts", {
+    "node:crypto": { randomUUID },
     "next/navigation": { redirect() { throw new Error("Synthetic redirect"); } },
     zod: { z },
     "@/lib/eligibility": { isDemoAge, ageRangeFor },
