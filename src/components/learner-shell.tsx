@@ -58,7 +58,7 @@ export function LearnerShell({ children, active, name = "Learner", admin = false
       <div className="portal-foot"><form action={logOut}><button type="submit"><LogOut size={17} /> Log out</button></form></div>
     </aside>
     <section className="portal-workspace">
-      <header className="portal-topbar"><button ref={menuButton} className="portal-menu" onClick={() => setOpen(true)} aria-label="Open navigation" aria-controls="learner-navigation" aria-expanded={open}><Menu size={20} /></button><Link href="/catalog" className="catalog-shortcut">Explore courses</Link><Link href="/profile" className="avatar portal-avatar" aria-label="Profile & settings">{initials}</Link></header>
+      <header className="portal-topbar"><button ref={menuButton} className="portal-menu" onClick={() => setOpen(true)} aria-label="Open navigation" aria-controls="learner-navigation" aria-expanded={open}><Menu size={20} /></button><Link href="/profile" className="avatar portal-avatar" aria-label="Profile & settings">{initials}</Link></header>
       <main ref={content} id="page-content" tabIndex={-1}>{children}</main>
     </section>
     {open && mobile && <button className="portal-scrim" onClick={closeMenu} aria-label="Close navigation overlay" />}

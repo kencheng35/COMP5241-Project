@@ -2,11 +2,12 @@ import { notFound } from "next/navigation";
 import { LearnerShell } from "@/components/learner-shell";
 import { ActionForm, LessonEditor } from "@/components/learning-controls";
 import { UploadLessonPage } from "@/components/create-lesson";
-import {PresentationLessonEditor} from "@/components/presentation-editor";
-import { fromPresentationLesson,fromStoredLesson } from "@/lib/slide-lesson";
+import { PresentationLessonEditor } from "@/components/presentation-editor";
+import { VisibilityLabel } from "@/components/visibility-label";
+import { fromPresentationLesson, fromStoredLesson } from "@/lib/slide-lesson";
 import { approveSlideLesson, requestReview, updateLesson } from "@/app/learning/actions";
-import { isPresentation,collectRows } from "@/lib/learning";
-import { isInstructor, accessibleLesson, database, displayName, isAdmin, requireUser, canEditLesson, canPublishLessons } from "@/lib/learning-server";
+import { isPresentation, collectRows } from "@/lib/learning";
+import { isInstructor, accessibleLesson, database, displayName, isAdmin, markLessonSeen, requireUser, canEditLesson, canPublishLessons } from "@/lib/learning-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -16,6 +17,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
   const { edit, manual, upload } = await searchParams;
   const lesson = edit ? await accessibleLesson(edit, user, true) : null;
   if (edit && (!lesson || !canEditLesson(user, lesson))) notFound();
+  if (lesson) await markLessonSeen(user.id, lesson.id).catch(() => {});
   const owned = lesson || manual === "1" || upload === "1" ? [] : await collectRows((start, end) => database().from("forge_lessons")
     .select("id,title,subject,visibility,version")
     .eq("owner_id", user.id)
@@ -31,7 +33,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
         {!owned.length && <p>You have not created a lesson yet.</p>}
         <div className="learning-list">{owned.map(item => <div key={item.id}>
           <h3>{item.title}</h3>
-          <p>{item.subject} · {item.visibility} · Version {item.version}</p>
+          <p><VisibilityLabel visibility={item.visibility} />{item.subject} · Version {item.version}</p>
           <a className="text-link" href={`/studio?edit=${item.id}`}>Edit lesson</a>
         </div>)}</div>
       </section>}

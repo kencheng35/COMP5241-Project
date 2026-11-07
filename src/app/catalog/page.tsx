@@ -3,6 +3,7 @@ import { BookOpen, Search } from "lucide-react";
 import { LearnerShell } from "@/components/learner-shell";
 import { CatalogSearch } from "@/components/catalog-search";
 import { LessonMetadata } from "@/components/lesson-metadata";
+import { VisibilityLabel } from "@/components/visibility-label";
 import { AUDIENCES, DIFFICULTIES, FAMILIES, filterLessons, readMetadata, subjectSelection, type CatalogFilters } from "@/lib/curriculum";
 import styles from "@/components/lesson-metadata.module.css";
 import { isInstructor, displayName, isAdmin, requireUser, userRecords, visibleLessons } from "@/lib/learning-server";
@@ -25,7 +26,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
     </form>
     <p>Lessons with unspecified metadata stay visible unless you choose a specific audience or difficulty. Audience filters include lessons marked for both groups.</p>
     <p role="status">{matches.length} matching {matches.length === 1 ? "lesson" : "lessons"}</p>
-    <section className="catalog-grid">{matches.map(lesson => <article className="catalog-card" key={lesson.id}><header className="catalog-subject"><BookOpen size={22} aria-hidden="true" /><strong>{lesson.subject}</strong><span>{lesson.visibility === "private" ? "Private" : "Published"}</span></header><div className="catalog-copy"><h2>{lesson.title}</h2><p>{lesson.summary}</p><LessonMetadata subject={lesson.subject} metadata={lesson.metadata} /><Link href={records.enrollments.some(record => record.lesson_id === lesson.id) ? `/courses/${lesson.id}/lessons/1` : `/courses/${lesson.id}`}>{records.enrollments.some(record => record.lesson_id === lesson.id) ? "Continue lesson" : "View and enroll"}</Link></div></article>)}</section>
+    <section className="catalog-grid">{matches.map(lesson => <article className="catalog-card" key={lesson.id}><header className="catalog-subject"><BookOpen size={22} aria-hidden="true" /><strong>{lesson.subject}</strong><VisibilityLabel visibility={lesson.visibility} /></header><div className="catalog-copy"><h2>{lesson.title}</h2><p>{lesson.summary}</p><LessonMetadata subject={lesson.subject} metadata={lesson.metadata} /><Link href={records.enrollments.some(record => record.lesson_id === lesson.id) ? `/courses/${lesson.id}/lessons/1` : `/courses/${lesson.id}`}>{records.enrollments.some(record => record.lesson_id === lesson.id) ? "Continue lesson" : "View and enroll"}</Link></div></article>)}</section>
     {matches.length === 0 && <div className="empty-state"><h2>No matching lessons.</h2><Link href="/catalog" className="text-link">Clear all filters</Link></div>}
   </div></LearnerShell>;
 }

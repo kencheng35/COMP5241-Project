@@ -67,6 +67,33 @@ export async function enrolledLesson(id: string, user: User) {
   return lesson;
 }
 
+export function hongKongTime(value: string | undefined) {
+  if (!value) return "Not seen yet";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not seen yet";
+  return new Intl.DateTimeFormat("en-HK", {
+    timeZone: "Asia/Hong_Kong", year: "numeric", month: "short", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).format(date) + " HKT";
+}
+
+export async function markLessonSeen(userId: string, lessonId: string) {
+  await database().from("forge_lesson_seen").upsert(
+    { user_id: userId, lesson_id: lessonId, seen_at: new Date().toISOString() },
+    { onConflict: "user_id,lesson_id" },
+  );
+}
+
+export async function lessonSeenTimes(userId: string) {
+  try {
+    const rows = await collectRows((start, end) => database().from("forge_lesson_seen")
+      .select("lesson_id,seen_at").eq("user_id", userId).order("lesson_id").range(start, end));
+    return new Map(rows.map(row => [String(row.lesson_id), String(row.seen_at)]));
+  } catch {
+    return new Map<string, string>();
+  }
+}
+
 export async function userRecords(user: User) {
   const client = database();
   const [enrollments, attempts, bookmarks] = await Promise.all([

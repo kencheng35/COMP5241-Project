@@ -5,7 +5,7 @@ import { LessonPlayer } from "@/components/learning-controls";
 import { LessonCoach } from "@/components/lesson-coach";
 import { LessonMetadata } from "@/components/lesson-metadata";
 import { readMetadata } from "@/lib/curriculum";
-import { isInstructor, accessibleLesson, database, displayName, isAdmin, requireUser } from "@/lib/learning-server";
+import { isInstructor, accessibleLesson, database, displayName, isAdmin, markLessonSeen, requireUser } from "@/lib/learning-server";
 import { resumeSchemaForLesson } from "@/lib/resume";
 import { collectRows, lessonProgress } from "@/lib/learning";
 
@@ -15,6 +15,7 @@ export default async function Lesson({ params }: { params: Promise<{ slug: strin
   if (route.lesson !== "1") notFound();
   const lesson = await accessibleLesson(route.slug, user);
   if (!lesson) notFound();
+  await markLessonSeen(user.id, lesson.id).catch(() => {});
   lesson.content.metadata = readMetadata(lesson.subject, lesson.content.metadata);
   const { data, error } = await database().from("forge_enrollments").select("lesson_id,progress_evidence").eq("user_id", user.id).eq("lesson_id", lesson.id).maybeSingle();
   if (error) throw new Error("Could not verify enrollment.");

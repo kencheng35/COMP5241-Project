@@ -4,15 +4,17 @@ import { LearnerShell } from "@/components/learner-shell";
 import { ActionForm, BookmarkButton, EvidenceSummary } from "@/components/learning-controls";
 import { enroll } from "@/app/learning/actions";
 import { LessonMetadata } from "@/components/lesson-metadata";
+import { VisibilityLabel } from "@/components/visibility-label";
 import { readMetadata } from "@/lib/curriculum";
 import { lessonProgress } from "@/lib/learning";
-import { isInstructor, accessibleLesson, canEditLesson, displayName, isAdmin, requireUser, userRecords } from "@/lib/learning-server";
+import { isInstructor, accessibleLesson, canEditLesson, displayName, isAdmin, markLessonSeen, requireUser, userRecords } from "@/lib/learning-server";
 
 export default async function Course({ params }: { params: Promise<{ slug: string }> }) {
   const user = await requireUser();
   const { slug } = await params;
   const lesson = await accessibleLesson(slug, user);
   if (!lesson) notFound();
+  await markLessonSeen(user.id, lesson.id).catch(() => {});
   lesson.content.metadata = readMetadata(lesson.subject, lesson.content.metadata);
   const [name, records] = await Promise.all([displayName(user), userRecords(user)]);
   const enrollment = records.enrollments.find(record => record.lesson_id === lesson.id);
@@ -22,7 +24,7 @@ export default async function Course({ params }: { params: Promise<{ slug: strin
   return <LearnerShell active="/catalog" name={name} admin={isAdmin(user)} instructor={isInstructor(user)}>
     <div className="portal-page"><Link href="/catalog" className="back-link">Back to catalog</Link>
       <section className="course-banner"><div>
-        <span className="eyebrow">{lesson.visibility === "private" ? "PRIVATE SELF-LEARNING" : "PUBLIC PUBLISHED LESSON"} · {lesson.subject}</span>
+        <span className="eyebrow"><VisibilityLabel visibility={lesson.visibility} />{lesson.subject}</span>
         <h1>{lesson.title}</h1><p>{lesson.summary}</p>
         <p>Version {lesson.version} · {total ? `${total} quiz questions · ${Math.ceil(total * 0.6)} correct to pass (60%)` : "Slides only — no quiz or quiz certificate"}</p>
       </div></section>
