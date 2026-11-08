@@ -22,6 +22,12 @@ function catalogDate(value: string | null | undefined) {
   return new Intl.DateTimeFormat("en-HK", { timeZone: "Asia/Hong_Kong", year: "numeric", month: "short", day: "2-digit" }).format(date);
 }
 
+function dateLine(published: boolean, version: number, publishedAt: string | null | undefined, createdAt: string) {
+  if (!published) return `Edited ${catalogDate(createdAt)}`;
+  const publishedLabel = `Published ${catalogDate(publishedAt ?? createdAt)}`;
+  return version > 1 ? `${publishedLabel} · Edited` : publishedLabel;
+}
+
 export default async function Catalog({ searchParams }: { searchParams: Promise<CatalogFilters & { creator?: string }> }) {
   const user = await requireUser();
   const [name, lessons, records, rawFilters, resume] = await Promise.all([displayName(user), visibleLessons(user), userRecords(user), searchParams, lessonResumeDates(user.id)]);
@@ -65,12 +71,11 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
         const published = lesson.visibility === "public";
         const enrolled = enrolledIds.has(lesson.id);
         const difficulty = lesson.metadata ? DIFFICULTIES[lesson.metadata.difficulty] : "Not specified";
+        const author = lesson.owner_id === user.id ? "me" : `${creator?.role ?? "Learner"}-${creator?.name ?? "Learner"}`;
         return <article className="catalog-card" key={lesson.id}><div className="catalog-copy">
-          <p className={`subject-highlight ${subjectTone(lesson.subject)}`}><span>Subject</span>{lesson.subject}</p>
+          <p className={`subject-tag ${subjectTone(lesson.subject)}`}>{lesson.subject}</p>
           <h2>{lesson.title}{lessonHasUpdate(lesson.version, Boolean(lesson.review_requested), lesson.visibility, resume.get(lesson.id), enrolled) && <span className="update-mark">Updated</span>}</h2>
-          <p><span>Difficulty</span>{difficulty}</p>
-          <p><span>{published ? "Published date" : "Last edit date"}</span>{catalogDate(published ? lesson.published_at ?? lesson.created_at : lesson.created_at)}</p>
-          <p><span>Created by</span>{lesson.owner_id === user.id ? "me" : `${creator?.role ?? "Learner"}-${creator?.name ?? "Learner"}`}</p>
+          <p className="catalog-facts">{difficulty} · {dateLine(published, lesson.version, lesson.published_at, lesson.created_at)} · {author}</p>
           <div className="catalog-actions">
             {canEditLesson(user, lesson) && <Link className="secondary-button" href={`/studio?edit=${lesson.id}`}>Edit lesson</Link>}
             {!published && lesson.owner_id === user.id && <ActionForm action={deletePrivateLesson} label="Delete"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm>}

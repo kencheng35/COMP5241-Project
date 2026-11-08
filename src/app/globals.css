@@ -363,17 +363,18 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
 .lesson-coach .auth-submit, .catalog-filters .auth-submit { padding-inline: 14px; }
 .lesson-coach button svg, .catalog-filters button svg { flex-shrink: 0; }
 .dashboard-continue { padding: 12px 16px; border-radius: 4px; background: var(--ink); color: white; }
-.catalog-copy > p.subject-highlight { margin: -19px -19px 12px; padding: 14px 19px; background: #b7d4c4; color: var(--ink); }
-.subject-highlight.tone-green { background: #b7d4c4; }
-.subject-highlight.tone-yellow { background: #ead98a; }
-.subject-highlight.tone-coral { background: #f0c2b6; }
-.subject-highlight.tone-sage { background: #b9d4c6; }
-.subject-highlight.tone-sand { background: #e0d0ae; }
-html[data-theme="dark"] .subject-highlight.tone-green { background: #2f5648; }
-html[data-theme="dark"] .subject-highlight.tone-yellow { background: #5a4c22; }
-html[data-theme="dark"] .subject-highlight.tone-coral { background: #5a3830; }
-html[data-theme="dark"] .subject-highlight.tone-sage { background: #345246; }
-html[data-theme="dark"] .subject-highlight.tone-sand { background: #4a4030; }
+.catalog-copy .subject-tag { display: inline-block; margin: 0 0 10px; padding: 4px 8px; border-radius: 3px; background: #b7d4c4; color: var(--ink); font-size: 12px; font-weight: 700; }
+.catalog-copy .catalog-facts { margin: 0; color: var(--muted); font-size: 14px; }
+.subject-tag.tone-green { background: #b7d4c4; }
+.subject-tag.tone-yellow { background: #ead98a; }
+.subject-tag.tone-coral { background: #f0c2b6; }
+.subject-tag.tone-sage { background: #b9d4c6; }
+.subject-tag.tone-sand { background: #e0d0ae; }
+html[data-theme="dark"] .subject-tag.tone-green { background: #2f5648; }
+html[data-theme="dark"] .subject-tag.tone-yellow { background: #5a4c22; }
+html[data-theme="dark"] .subject-tag.tone-coral { background: #5a3830; }
+html[data-theme="dark"] .subject-tag.tone-sage { background: #345246; }
+html[data-theme="dark"] .subject-tag.tone-sand { background: #4a4030; }
 .catalog-subject { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 16px 19px; border-bottom: 1px solid var(--line); background: var(--green-pale); color: var(--ink); }
 .catalog-subject strong { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
 .catalog-subject span { font-size: 11px; font-weight: 700; }
