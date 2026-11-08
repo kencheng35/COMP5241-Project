@@ -233,18 +233,17 @@ try {
   await owner.page.goto(`${origin}/catalog`);
   await owner.page.locator('input[name="q"]').fill(title);
   await owner.page.locator('select[name="subject"]').selectOption(fixtureCurriculum().subject);
-  await owner.page.locator('select[name="audience"]').selectOption(fixtureCurriculum().metadata.audience);
   await owner.page.locator('select[name="difficulty"]').selectOption(fixtureCurriculum().metadata.difficulty);
-  await owner.page.locator('select[name="visibility"]').selectOption("private");
+  await owner.page.locator('select[name="creator"]').selectOption("me");
   await owner.page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(owner.page.locator(".catalog-card")).toHaveCount(1);
   await expect(owner.page.locator(".catalog-card")).toContainText(title);
-  await owner.page.locator('select[name="visibility"]').selectOption("public");
+  await owner.page.locator('select[name="difficulty"]').selectOption("advanced");
   await owner.page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(owner.page.getByRole("heading", { name: "No matching lessons." })).toBeVisible();
   await owner.page.getByRole("link", { name: "Clear", exact: true }).click();
   await expect(owner.page.locator('input[name="q"]')).toHaveValue("");
-  await expect(owner.page.locator('select[name="audience"]')).toHaveValue("");
+  await expect(owner.page.locator('select[name="creator"]')).toHaveValue("");
   await expect(owner.page.locator('select[name="difficulty"]')).toHaveValue("");
   await expect(owner.page.locator(".catalog-card").filter({ hasText: title })).toHaveCount(1);
 

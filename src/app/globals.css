@@ -562,6 +562,23 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
   .presentation-panel-dialog { padding: 18px; }
   .presentation-editor .presentation-metadata { grid-template-columns: minmax(0,1fr); }
 }
+.portal-workspace { font-family: "Avenir Next", "Segoe UI", sans-serif; font-size: 16px; }
+.portal-workspace p, .portal-workspace li, .portal-workspace td { font-size: 16px; line-height: 1.5; }
+.portal-workspace .portal-heading h1, .portal-workspace .course-banner h1, .portal-workspace .lesson-article h1, .portal-workspace .danger-page h1 { font-family: Georgia, "Times New Roman", serif; font-size: 40px; font-weight: 500; }
+.portal-workspace .lesson-fold > summary, .portal-workspace .learning-section > h2, .portal-workspace .lesson-list-section h2, .portal-workspace .progress-panel h2, .portal-workspace .privacy-panel h2 { font-family: Georgia, "Times New Roman", serif; font-size: 28px; font-weight: 500; text-align: left; }
+.portal-workspace .catalog-copy h2, .portal-workspace .learning-list h2, .portal-workspace .learning-list h3, .portal-workspace .course-lesson-list strong { font-family: "Avenir Next", "Segoe UI", sans-serif; font-size: 22px; font-weight: 500; text-align: left; }
+.portal-workspace .catalog-filters label, .portal-workspace .learning-form label, .portal-workspace .catalog-copy > p > span, .portal-workspace .lesson-table-head, .portal-workspace .lesson-table-row span::before { font-family: "Avenir Next", "Segoe UI", sans-serif; font-size: 13px; font-weight: 600; }
+.portal-workspace .auth-submit, .portal-workspace .secondary-button, .portal-workspace .primary-button, .portal-workspace .lesson-fold > summary::after { font-family: "Avenir Next", "Segoe UI", sans-serif; font-size: 14px; font-weight: 500; }
+.portal-workspace .lesson-fold, .portal-workspace .lesson-table, .portal-workspace .lesson-table-row, .portal-workspace .catalog-grid, .portal-workspace .catalog-copy, .portal-workspace .learning-list { text-align: left; }
+.portal-workspace .lesson-table-head, .portal-workspace .lesson-table-row { justify-items: start; }
+.portal-workspace a { font-weight: 400; }
+.portal-workspace a:hover, .portal-workspace a:active { text-decoration: underline; }
+@media (max-width: 700px) {
+  .portal-workspace .portal-heading h1, .portal-workspace .course-banner h1, .portal-workspace .lesson-article h1, .portal-workspace .danger-page h1 { font-size: 32px; }
+  .portal-workspace .lesson-fold > summary, .portal-workspace .learning-section > h2, .portal-workspace .lesson-list-section h2, .portal-workspace .progress-panel h2, .portal-workspace .privacy-panel h2 { font-size: 24px; }
+  .portal-workspace .catalog-copy h2, .portal-workspace .learning-list h2, .portal-workspace .learning-list h3, .portal-workspace .course-lesson-list strong { font-size: 20px; }
+  .portal-workspace .auth-submit, .portal-workspace .secondary-button, .portal-workspace .primary-button, .portal-workspace .lesson-fold > summary::after { font-size: 16px; min-height: 44px; }
+}
 .learning-player :focus-visible, .progress-evidence :focus-visible { outline: 3px solid #a43d23; outline-offset: 3px; }
 @media(max-width:620px) {
   .progress-evidence, .review-acknowledgement { padding: 14px; }

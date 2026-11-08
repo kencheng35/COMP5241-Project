@@ -4,7 +4,7 @@ import { LearnerShell } from "@/components/learner-shell";
 import { CatalogSearch } from "@/components/catalog-search";
 import { ActionForm } from "@/components/learning-controls";
 import { enroll } from "@/app/learning/actions";
-import { AUDIENCES, DIFFICULTIES, FAMILIES, filterLessons, readMetadata, subjectSelection, type CatalogFilters } from "@/lib/curriculum";
+import { DIFFICULTIES, FAMILIES, filterLessons, readMetadata, subjectSelection, type CatalogFilters } from "@/lib/curriculum";
 import styles from "@/components/lesson-metadata.module.css";
 import { isInstructor, canEditLesson, displayName, isAdmin, lessonCreators, requireUser, userRecords, visibleLessons } from "@/lib/learning-server";
 
@@ -15,12 +15,24 @@ function catalogDate(value: string | null | undefined) {
   return new Intl.DateTimeFormat("en-HK", { timeZone: "Asia/Hong_Kong", year: "numeric", month: "short", day: "2-digit" }).format(date);
 }
 
-export default async function Catalog({ searchParams }: { searchParams: Promise<CatalogFilters> }) {
+export default async function Catalog({ searchParams }: { searchParams: Promise<CatalogFilters & { creator?: string }> }) {
   const user = await requireUser();
   const [name, lessons, records, rawFilters] = await Promise.all([displayName(user), visibleLessons(user), userRecords(user), searchParams]);
-  const filters = Object.fromEntries(["q", "subject", "audience", "difficulty", "visibility"].map(key => [key, typeof rawFilters[key as keyof CatalogFilters] === "string" ? rawFilters[key as keyof CatalogFilters] : ""])) as CatalogFilters;
-  const matches = filterLessons(lessons, filters).map(lesson => ({ ...lesson, metadata: readMetadata(lesson.subject, lesson.metadata) }));
-  const creators = await lessonCreators(matches.map(lesson => lesson.owner_id));
+  const filters = {
+    q: typeof rawFilters.q === "string" ? rawFilters.q : "",
+    subject: typeof rawFilters.subject === "string" ? rawFilters.subject : "",
+    difficulty: typeof rawFilters.difficulty === "string" ? rawFilters.difficulty : "",
+    creator: typeof rawFilters.creator === "string" ? rawFilters.creator : "",
+  };
+  const narrowed = filterLessons(lessons, { ...filters, q: "" }).map(lesson => ({ ...lesson, metadata: readMetadata(lesson.subject, lesson.metadata) }));
+  const creators = await lessonCreators(narrowed.map(lesson => lesson.owner_id));
+  const creatorLabel = (ownerId: string) => ownerId === user.id ? "me" : `${creators.get(ownerId)?.role ?? "Learner"}-${creators.get(ownerId)?.name ?? "Learner"}`;
+  const creatorOptions = [...new Set(narrowed.map(lesson => creatorLabel(lesson.owner_id)))].sort((a, b) => a === "me" ? -1 : b === "me" ? 1 : a.localeCompare(b));
+  const query = (filters.q ?? "").trim().toLowerCase();
+  const matches = narrowed.filter(lesson => {
+    const creator = creatorLabel(lesson.owner_id);
+    return `${lesson.title} ${lesson.subject}`.toLowerCase().includes(query) && (!filters.creator || creator === filters.creator);
+  });
   const enrolledIds = new Set(records.enrollments.map(record => record.lesson_id));
   const groups = [
     { title: "Not yet enrolled", items: matches.filter(lesson => lesson.visibility !== "private" && !enrolledIds.has(lesson.id)) },
@@ -33,12 +45,11 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
     <form className={`catalog-filters ${styles.filters}`} action="/catalog">
       <CatalogSearch query={filters.q ?? ""} />
       <label>Subject<select name="subject" defaultValue={filters.subject}><option value="">All subjects</option>{subjects.map(subject => <option key={subject}>{subject}</option>)}</select></label>
-      <label>Audience<select name="audience" defaultValue={filters.audience}><option value="">All / not specified</option>{Object.entries(AUDIENCES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-      <label>Difficulty<select name="difficulty" defaultValue={filters.difficulty}><option value="">All / not specified</option>{Object.entries(DIFFICULTIES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-      <label>Visibility<select name="visibility" defaultValue={filters.visibility}><option value="">All available</option><option value="public">Public published</option><option value="private">My private lessons</option></select></label>
+      <label>Difficulty<select name="difficulty" defaultValue={filters.difficulty}><option value="">All difficulties</option>{Object.entries(DIFFICULTIES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+      <label>Created by<select name="creator" defaultValue={filters.creator}><option value="">All creators</option>{creatorOptions.map(option => <option key={option}>{option}</option>)}</select></label>
       <button className="auth-submit"><Search size={17} />Search</button><Link href="/catalog">Clear</Link>
     </form>
-    <p>Lessons with unspecified metadata stay visible unless you choose a specific audience or difficulty. Audience filters include lessons marked for both groups.</p>
+    <p>Search matches a topic or lesson title. Created by is a list of the people who made the lessons below, including me.</p>
     <p role="status">{matches.length} matching {matches.length === 1 ? "lesson" : "lessons"}</p>
     {groups.map(group => <details className="lesson-fold" key={group.title}>
       <summary>{group.title} <small>{group.items.length}</small></summary>

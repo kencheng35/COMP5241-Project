@@ -185,9 +185,7 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   assert.equal(await page.locator('input[name="q"]').evaluate(element => document.activeElement === element), true);
   await page.locator('input[name="q"]').fill("Synthetic");
   await page.locator('select[name="subject"]').selectOption("AI Coding-Agent Skills");
-  await page.locator('select[name="audience"]').selectOption("instructors");
   await page.locator('select[name="difficulty"]').selectOption("intermediate");
-  await page.locator('select[name="visibility"]').selectOption("private");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll(".catalog-card").length === 1);
   assert.ok((await cards.innerText()).includes("coding-agents"));
