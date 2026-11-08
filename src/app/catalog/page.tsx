@@ -8,6 +8,13 @@ import { DIFFICULTIES, FAMILIES, filterLessons, readMetadata, subjectSelection, 
 import styles from "@/components/lesson-metadata.module.css";
 import { isInstructor, canEditLesson, displayName, isAdmin, lessonCreators, lessonHasUpdate, lessonResumeDates, requireUser, userRecords, visibleLessons } from "@/lib/learning-server";
 
+const subjectTones = ["tone-green", "tone-yellow", "tone-coral", "tone-sage", "tone-sand"] as const;
+
+function subjectTone(subject: string) {
+  const total = [...subject].reduce((sum, character) => sum + character.charCodeAt(0), 0);
+  return subjectTones[total % subjectTones.length];
+}
+
 function catalogDate(value: string | null | undefined) {
   if (!value) return "Not recorded";
   const date = new Date(value);
@@ -59,7 +66,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
         const enrolled = enrolledIds.has(lesson.id);
         const difficulty = lesson.metadata ? DIFFICULTIES[lesson.metadata.difficulty] : "Not specified";
         return <article className="catalog-card" key={lesson.id}><div className="catalog-copy">
-          <p><span>Subject</span>{lesson.subject}</p>
+          <p className={`subject-highlight ${subjectTone(lesson.subject)}`}><span>Subject</span>{lesson.subject}</p>
           <h2>{lesson.title}{lessonHasUpdate(lesson.version, Boolean(lesson.review_requested), lesson.visibility, resume.get(lesson.id), enrolled) && <span className="update-mark">Updated</span>}</h2>
           <p><span>Difficulty</span>{difficulty}</p>
           <p><span>{published ? "Published date" : "Last edit date"}</span>{catalogDate(published ? lesson.published_at ?? lesson.created_at : lesson.created_at)}</p>

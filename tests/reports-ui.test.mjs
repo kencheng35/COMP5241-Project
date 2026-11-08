@@ -76,8 +76,12 @@ function harness() {
           const read = { table, columns, filters, orders, start, end };
           state.reads.push(read);
           if (table === "profiles") {
-            assert.deepEqual(filters, [["id", state.user.id]], "No profile directory");
-            return resolve({ data: { display_name: "Synthetic teacher" }, error: null });
+            const own = filters.length === 1 && filters[0][0] === "id" && filters[0][1] === state.user.id;
+            const listed = filters.length === 1 && filters[0][0] === "id" && Array.isArray(filters[0][1]);
+            assert.ok(own || listed, "No profile directory");
+            if (own) return resolve({ data: { display_name: "Synthetic teacher" }, error: null });
+            const names = { "passed-no-ack": "Alex Lee", failed: "Mei Chan", attended: "Sam Wong" };
+            return resolve({ data: filters[0][1].slice(start, end + 1).map(id => ({ id, display_name: names[id] ?? "" })), error: null });
           }
           if (state.fail?.(read)) return resolve({ data: null, error: { message: "SENSITIVE TRANSPORT SENTINEL" } });
           let rows = structuredClone(state.tables[table]).filter(row => filters.every(([key, value]) =>
@@ -148,7 +152,8 @@ test("actual reports SSR separates current version roster from saved all-version
   assert.doesNotMatch(html, /PRIVATE (DRAFT|ROSTER|ATTEMPT) SENTINEL|private-student|Other published title/);
   const node = await h.route();
   const content = renderToStaticMarkup(node.props.children);
-  assert.match(content, /passed-no-ack/);
+  assert.match(content, /Alex Lee/);
+  assert.doesNotMatch(content, /passed-no-ack/);
   assert.match(content, /report-pass/);
   assert.doesNotMatch(content, /REMOVED LEARNER/);
   assert.doesNotMatch(content, /Selected: Second/);

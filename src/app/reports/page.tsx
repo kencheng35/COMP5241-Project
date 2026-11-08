@@ -28,7 +28,10 @@ export default async function Reports() {
       ]) : [[], []];
       const attempts = reportRows.attempts.parse(attemptData);
       const enrollments = reportRows.enrollments.parse(enrollmentData);
-      return lessons.map(lesson => ({ lesson, ...buildLessonReport(lesson, enrollments, attempts) }));
+      const learnerIds = [...new Set(enrollments.map(row => row.user_id))];
+      const nameRows = learnerIds.length ? await collectRows((start, end) => client.from("profiles").select("id,display_name").in("id", learnerIds).order("id").range(start, end)) : [];
+      const names = new Map(nameRows.map(row => [String(row.id), String(row.display_name ?? "").trim()]).filter(([, name]) => name));
+      return lessons.map(lesson => ({ lesson, names, ...buildLessonReport(lesson, enrollments, attempts) }));
     } catch {
       throw new Error("Reports are unavailable. Could not load complete, valid learning records. Check the database migrations and try again.");
     }
@@ -38,7 +41,7 @@ export default async function Reports() {
       <h1>Student reports</h1>
       <p>One card for each published lesson you teach.</p>
       {!reports.length && <p>No published lessons have been granted to your account for review.</p>}
-      {reports.map(({ lesson, roster, history }) => {
+      {reports.map(({ lesson, roster, history, names }) => {
         const rows = roster.map(row => {
           const latest = history.filter(attempt => attempt.user_id === row.userId && attempt.lesson_version === lesson.version)
             .sort((a, b) => b.completed_at.localeCompare(a.completed_at))[0];
@@ -58,7 +61,7 @@ export default async function Reports() {
           <table className="report-table">
             <thead><tr><th>Learner</th><th>Attendance</th><th>Latest result</th><th>Quiz date</th></tr></thead>
             <tbody>{rows.map(row => <tr key={row.userId}>
-              <td>{row.userId}</td>
+              <td>{names.get(row.userId) || row.userId}</td>
               <td>{row.evidence.attendedAt ? "Attended" : "Not attended"}</td>
               <td className={row.outcome ? row.outcome.passed ? "report-pass" : "report-fail" : undefined}>{row.outcome ? `${row.outcome.passed ? "Passed" : "Failed"} ${row.latest!.score}/${row.outcome.total}` : "Enrolled, quiz not reached"}</td>
               <td>{row.latest ? quizDate(row.latest.completed_at) : "—"}</td>

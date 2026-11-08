@@ -4,6 +4,7 @@ import { LearnerShell } from "@/components/learner-shell";
 import { createClient } from "@/lib/supabase/server";
 import { EmailChangeForm } from "@/components/email-change-form";
 import { ThemeSwitch } from "@/components/theme-switch";
+import { RememberAvatar } from "@/components/remember-avatar";
 import { ProfileForm } from "@/components/profile-form";
 import { isInstructor, isAdmin } from "@/lib/learning-server";
 import type { User } from "@supabase/supabase-js";
@@ -70,6 +71,7 @@ export default async function Profile({
 
   return (
     <LearnerShell active="/profile" name={displayName} avatar={profile?.avatar_url ?? null} admin={isAdmin(user)} instructor={isInstructor(user)}>
+      <RememberAvatar avatar={profile?.avatar_url ?? null} />
       <div className="portal-page profile-page">
         <header className="portal-heading">
           <div>

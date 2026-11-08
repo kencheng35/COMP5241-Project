@@ -39,7 +39,9 @@ export function ProfileForm({ initial, notice, emailChange = null }: { initial: 
     if (selectedFile && data.get("removeAvatar") !== "on") data.set("avatar", selectedFile);
     inFlight.current = true; setPending(true); setSubmitted(true);
     try { setState(await updateProfile(state, data)); }
-    catch {
+    catch (error) {
+      const digest = typeof error === "object" && error !== null && "digest" in error ? String((error as { digest?: unknown }).digest) : "";
+      if (digest.startsWith("NEXT_REDIRECT")) throw error;
       setState({
         error: "Could not confirm that your profile was saved. Reload your saved profile and compare before retrying.",
         fields: Object.fromEntries(["displayName", "age", "level", "subjects", "goals"].map(key => [key, String(data.get(key) ?? "")])) as ProfileState["fields"],
@@ -53,7 +55,7 @@ export function ProfileForm({ initial, notice, emailChange = null }: { initial: 
     <fieldset disabled={pending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
     <h2>Picture</h2>
     <div className="profile-photo-row">
-      <span className="large-avatar">{preview && !removeAvatar ? <img src={preview} alt="Selected profile picture preview" width={72} height={72} /> : !removeAvatar && initial.avatar?.startsWith("data:image/jpeg;base64,") ? <img src={initial.avatar} alt="Your profile" width={72} height={72} /> : initial.initials}</span>
+      <span className="large-avatar">{preview && !removeAvatar ? <img src={preview} alt="Selected profile picture preview" width={72} height={72} /> : !removeAvatar && initial.avatar?.startsWith("data:image/") ? <img src={initial.avatar} alt="Your profile" width={72} height={72} /> : initial.initials}</span>
       <div>
         <p>JPG or PNG, up to 2 MB. It appears here and beside your name.</p>
         <label>Choose image<input ref={fileInput} type="file" name="avatar" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={event => { const file = event.target.files?.[0]; setSelectedFile(file ?? null); setPreview(file && file.size <= 2 * 1024 * 1024 ? URL.createObjectURL(file) : null); setRemoveAvatar(false); }} /></label>
