@@ -105,7 +105,7 @@ export async function lessonResumeDates(userId: string) {
 }
 
 export function lessonHasUpdate(version: number, reviewRequested: boolean, visibility: string, resume: { version: number } | undefined, enrolled: boolean) {
-  return enrolled && visibility === "public" && !reviewRequested && version > 1 && Boolean(resume) && resume.version < version;
+  return enrolled && visibility === "public" && !reviewRequested && version > 1 && resume !== undefined && resume.version < version;
 }
 
 export async function userRecords(user: User) {
