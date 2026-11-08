@@ -1,6 +1,7 @@
 "use client";
 
 import { lazy,Suspense,useEffect, useRef, useState } from "react";
+import { FileText, Presentation } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { extractLessonUpload } from "@/app/teaching/actions";
 import { createManualLesson, updateLesson, type ActionState } from "@/app/learning/actions";
@@ -61,22 +62,28 @@ export function UploadLessonPage() {
     }
   }
 
-  return <section className={`learning-section presentation-upload-page${draft ? " presentation-upload-ready" : ""}`} aria-labelledby="upload-heading">
-    <div className={draft ? "presentation-import-bar" : undefined}>
-      <h2 id="upload-heading">{draft ? "Imported file" : "Upload a file"}</h2>
-      {draft && <>
-        <p title={fileName}><strong>{fileName}</strong> · {mode === "text" ? "Text only" : "PowerPoint slides"}</p>
-        <button type="button" className="secondary-button" aria-expanded={importerOpen} aria-controls="upload-importer" disabled={busy || saveLocked} onClick={() => setImporterOpen(value => !value)}>{importerOpen ? "Close importer" : "Change file"}</button>
-      </>}
-    </div>
+  return <section className={`learning-section presentation-upload-page${draft ? " presentation-upload-ready" : ""}`} aria-label="Upload a file">
+    {draft && <div className="presentation-import-bar">
+      <h2 id="upload-heading">Imported file</h2>
+      <p title={fileName}><strong>{fileName}</strong> · {mode === "text" ? "Text only" : "PowerPoint slides"}</p>
+      <button type="button" className="secondary-button" aria-expanded={importerOpen} aria-controls="upload-importer" disabled={busy || saveLocked} onClick={() => setImporterOpen(value => !value)}>{importerOpen ? "Close" : "Change file"}</button>
+    </div>}
     <form id="upload-importer" className="learning-form" hidden={!!draft && !importerOpen} onSubmit={event => { event.preventDefault(); void readFile(new FormData(event.currentTarget)); }}>
-      {draft && <p>Changing the file or import mode replaces this preview. Close the importer to keep editing.</p>}
-      <fieldset disabled={busy || saveLocked}>
-        <legend>How should this file become a lesson?</legend>
-        <label className="checkbox-field"><input type="radio" name="mode" checked={mode === "text"} onChange={() => { setMode("text"); invalidate(); }} /> Copy the text only</label>
-        <label className="checkbox-field"><input type="radio" name="mode" checked={mode === "powerpoint"} onChange={() => { setMode("powerpoint"); invalidate(); }} /> Import the PowerPoint as slides</label>
-      </fieldset>
-      <p>{mode === "text" ? "PDF, DOCX and PPTX text only: extracted text is split across up to 30 slides, preserving all text within the parser's 60,000-character file ceiling." : "PPTX only: 1–30 slides, at most 10,000 text characters per slide. Real slide order is retained, not original layout. Image-only slides cannot be imported."} Binary PPT and DOC cannot be imported safely; export as PPTX or DOCX first. Images, original fonts, positioning and full formatting are not imported. Files must be at most 4 MiB. Originals are not stored or sent to AI. Over-limit content is rejected, never clipped. Adjust text size or layout in the preview if needed; text must fit on the canvas before saving.</p>
+      <div className="create-choices">
+        <label className={`create-choice${mode === "text" ? " selected" : ""}`}>
+          <input className="visually-hidden" type="radio" name="mode" checked={mode === "text"} onChange={() => { setMode("text"); invalidate(); }} />
+          <span className="create-choice-icon"><FileText size={26} /></span>
+          <h2>Copy the text</h2>
+          <p>PDF, DOCX, or PPTX.</p>
+        </label>
+        <label className={`create-choice${mode === "powerpoint" ? " selected" : ""}`}>
+          <input className="visually-hidden" type="radio" name="mode" checked={mode === "powerpoint"} onChange={() => { setMode("powerpoint"); invalidate(); }} />
+          <span className="create-choice-icon"><Presentation size={26} /></span>
+          <h2>PowerPoint slides</h2>
+          <p>PPTX only.</p>
+        </label>
+      </div>
+      <p className="upload-limit">{mode === "text" ? "Up to 4 MB and 30 slides. Text only. Save old PPT or DOC files as PPTX or DOCX first." : "Up to 4 MB, 30 slides, and 10,000 characters on each slide. Slide order is kept. Images and layout are not."}</p>
       <label>File<input type="file" name="material" required disabled={busy || saveLocked} onChange={event => { setFileName(event.currentTarget.files?.[0]?.name ?? ""); invalidate(); }} accept={mode === "powerpoint" ? ".ppt,.pptx" : ".ppt,.pptx,.pdf,.doc,.docx"} /></label>
       <button className="primary-button" type="submit" disabled={busy || saveLocked}>{busy ? "Reading file..." : "Preview slides"}</button>
     </form>

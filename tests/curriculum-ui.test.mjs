@@ -219,7 +219,7 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   assert.equal(await page.locator('a[href="/courses/00000000-0000-4000-8000-000000000001"]').count(), 0);
   assert.equal(await page.getByRole("button", { name: "Generate AI path" }).isDisabled(), true);
   await page.evaluate(() => curriculumUi.renderRoute("studio"));
-  await page.getByRole("heading",{name:"How to create a lesson"}).waitFor();
+  await page.getByRole("heading",{name:"Write a lesson", exact:true}).waitFor();
   assert.equal(await page.locator('select[name="subject"]').count(),0,"main Create is simple steps, not an AI draft");
   await page.evaluate(() => curriculumUi.renderRoute("studio",{manual:"1",starter:"sdlc-small-change"}));
   await page.getByRole("textbox",{name:"Lesson title",exact:true}).waitFor();

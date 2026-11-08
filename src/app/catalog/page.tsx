@@ -49,8 +49,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
       <label>Created by<select name="creator" defaultValue={filters.creator}><option value="">All creators</option>{creatorOptions.map(option => <option key={option}>{option}</option>)}</select></label>
       <button className="auth-submit"><Search size={17} />Search</button><Link href="/catalog">Clear</Link>
     </form>
-    <p>Search matches a topic or lesson title. Created by is a list of the people who made the lessons below, including me.</p>
-    <p role="status">{matches.length} matching {matches.length === 1 ? "lesson" : "lessons"}</p>
+    {Boolean(filters.q || filters.subject || filters.difficulty || filters.creator) && <p role="status">{matches.length} matching {matches.length === 1 ? "lesson" : "lessons"}</p>}
     {groups.map(group => <details className="lesson-fold" key={group.title}>
       <summary>{group.title} <small>{group.items.length}</small></summary>
       {!group.items.length && <p>No lessons in this list.</p>}
@@ -72,6 +71,6 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
         </div></article>;
       })}</section>}
     </details>)}
-    {matches.length === 0 && <div className="empty-state"><h2>No matching lessons.</h2><Link href="/catalog" className="text-link">Clear all filters</Link></div>}
+    {Boolean(filters.q || filters.subject || filters.difficulty || filters.creator) && matches.length === 0 && <div className="empty-state"><h2>No matching lessons.</h2><Link href="/catalog" className="text-link">Clear all filters</Link></div>}
   </div></LearnerShell>;
 }

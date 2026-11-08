@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { PenLine, Upload } from "lucide-react";
 import { LearnerShell } from "@/components/learner-shell";
 import { ActionForm, LessonEditor } from "@/components/learning-controls";
 import { UploadLessonPage } from "@/components/create-lesson";
@@ -28,30 +29,19 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
   return <LearnerShell active="/studio" name={await displayName(user)} admin={isAdmin(user)} instructor={isInstructor(user)}>
     <div className={`portal-page studio-editor${presentationWorkspace ? " presentation-studio" : ""}`}>
       <header className="portal-heading"><div><span className="eyebrow">LESSON STUDIO</span><h1>{lesson ? "Edit lesson." : upload === "1" ? "Upload a file." : manual === "1" ? "Write a lesson." : "Create a lesson."}</h1></div></header>
-      {!lesson && manual !== "1" && upload !== "1" && <section className="learning-section"><h2>Your lessons</h2>
-        <p>Only lessons you created are listed here.</p>
+      {!lesson && manual !== "1" && upload !== "1" && <section className="create-choices" aria-label="How to create a lesson">
+        <a className="create-choice" href="/studio?manual=1"><span className="create-choice-icon"><PenLine size={26} /></span><h2>Write a lesson</h2><p>Start with blank slides.</p></a>
+        <a className="create-choice" href="/studio?upload=1"><span className="create-choice-icon"><Upload size={26} /></span><h2>Upload a file</h2><p>Use a PowerPoint or document.</p></a>
+      </section>}
+      {!lesson && manual !== "1" && upload !== "1" && <details className="lesson-fold">
+        <summary>Your lessons <small>{owned.length}</small></summary>
         {!owned.length && <p>You have not created a lesson yet.</p>}
         <div className="learning-list">{owned.map(item => <div key={item.id}>
           <h3>{item.title}</h3>
           <p><VisibilityLabel visibility={item.visibility} />{item.subject} · Version {item.version}</p>
           <a className="text-link" href={`/studio?edit=${item.id}`}>Edit lesson</a>
         </div>)}</div>
-      </section>}
-      {!lesson && manual !== "1" && upload !== "1" && <section className="learning-section" aria-labelledby="create-heading">
-        <h2 id="create-heading">How to create a lesson</h2>
-        <ol>
-          <li>
-            <strong>Write your own lesson.</strong>
-            <p>Open a blank lesson, preview each slide as you write it, then save it or send it for approval.</p>
-            <p><a className="secondary-button" href="/studio?manual=1">Start a blank manual lesson</a></p>
-          </li>
-          <li>
-            <strong>Or upload a file.</strong>
-            <p>Open a page to copy text from a file, or import a PowerPoint as slides. You can preview the slides before you save.</p>
-            <p><a className="secondary-button" href="/studio?upload=1">Upload a file</a></p>
-          </li>
-        </ol>
-      </section>}
+      </details>}
       {!lesson && upload === "1" && <UploadLessonPage key={`${user.id}-upload`} />}
       {lesson ? <>
         {lesson.content.template === "slides"
