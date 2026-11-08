@@ -7,14 +7,13 @@ import { LessonMetadata } from "@/components/lesson-metadata";
 import { VisibilityLabel } from "@/components/visibility-label";
 import { readMetadata } from "@/lib/curriculum";
 import { lessonProgress } from "@/lib/learning";
-import { isInstructor, accessibleLesson, canEditLesson, displayName, isAdmin, markLessonSeen, requireUser, userRecords } from "@/lib/learning-server";
+import { isInstructor, accessibleLesson, canEditLesson, displayName, isAdmin, requireUser, userRecords } from "@/lib/learning-server";
 
 export default async function Course({ params }: { params: Promise<{ slug: string }> }) {
   const user = await requireUser();
   const { slug } = await params;
   const lesson = await accessibleLesson(slug, user);
   if (!lesson) notFound();
-  await markLessonSeen(user.id, lesson.id).catch(() => {});
   lesson.content.metadata = readMetadata(lesson.subject, lesson.content.metadata);
   const [name, records] = await Promise.all([displayName(user), userRecords(user)]);
   const enrollment = records.enrollments.find(record => record.lesson_id === lesson.id);

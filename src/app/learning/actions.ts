@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { accessibleLesson, currentUser, database, enrolledLesson, isAdmin, canEditLesson, canPublishLessons, markLessonSeen } from "@/lib/learning-server";
+import { accessibleLesson, currentUser, database, enrolledLesson, isAdmin, canEditLesson, canPublishLessons } from "@/lib/learning-server";
 import { coachReply } from "@/lib/openrouter";
 import { startGeneration } from "@/lib/lesson-generation-server";
 import { coachSlides, isPresentation, gradeQuiz, lessonSchema, versionEvidence, type VersionEvidence } from "@/lib/learning";
@@ -173,7 +173,6 @@ export async function updateLesson(_previous: ActionState, form: FormData): Prom
     if (!data) throw new Error("This lesson changed in another session. Reload before editing.");
     if (data.id !== id) return uncertainCreation();
     if(draft) {writeAttempted=true;await bindImageDraft(form,user.id,id);writeAttempted=false;}
-    await markLessonSeen(user.id, id).catch(() => {});
     revalidatePath("/catalog"); revalidatePath(`/courses/${id}`); revalidatePath("/admin"); revalidatePath("/studio");
     return { success: requestPublication ? "Saved privately and requested administrator approval. Not published; learners cannot see this draft." : publish ? "Reviewed lesson published." : "Lesson saved.", lessonId: id, version: expectedVersion + 1 };
   } catch (error) { return writeAttempted ? uncertainCreation() : failure(error); }
@@ -255,7 +254,6 @@ export async function createManualLesson(_previous: ActionState, form: FormData)
     const rejected = creationAcknowledgement(data, error);
     if (rejected) return rejected;
     if(draft)await bindImageDraft(form,user.id,data!.id);
-    await markLessonSeen(user.id, String(data!.id)).catch(() => {});
     revalidatePath("/catalog"); revalidatePath("/dashboard"); revalidatePath("/studio"); revalidatePath("/admin");
     return { success: requestPublication ? "Saved privately and requested administrator approval. Not published; learners cannot see this draft." : slideDraft ? "Lesson saved." : "Lesson created.", lessonId: data!.id, version: 1 };
   } catch (error) {

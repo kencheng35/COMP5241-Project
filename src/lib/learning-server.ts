@@ -91,21 +91,17 @@ export function hongKongTime(value: string | undefined) {
   }).format(date) + " HKT";
 }
 
-export async function markLessonSeen(userId: string, lessonId: string) {
-  await database().from("forge_lesson_seen").upsert(
-    { user_id: userId, lesson_id: lessonId, seen_at: new Date().toISOString() },
-    { onConflict: "user_id,lesson_id" },
-  );
+export function hongKongDate(value: string | undefined) {
+  if (!value) return "Not seen yet";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not seen yet";
+  return new Intl.DateTimeFormat("en-HK", { timeZone: "Asia/Hong_Kong", year: "numeric", month: "short", day: "2-digit" }).format(date);
 }
 
-export async function lessonSeenTimes(userId: string) {
-  try {
-    const rows = await collectRows((start, end) => database().from("forge_lesson_seen")
-      .select("lesson_id,seen_at").eq("user_id", userId).order("lesson_id").range(start, end));
-    return new Map(rows.map(row => [String(row.lesson_id), String(row.seen_at)]));
-  } catch {
-    return new Map<string, string>();
-  }
+export async function lessonResumeDates(userId: string) {
+  const rows = await collectRows((start, end) => database().from("forge_resume")
+    .select("lesson_id,updated_at").eq("user_id", userId).order("lesson_id").range(start, end));
+  return new Map(rows.map(row => [String(row.lesson_id), String(row.updated_at)]));
 }
 
 export async function userRecords(user: User) {

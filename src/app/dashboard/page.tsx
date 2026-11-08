@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LearnerShell } from "@/components/learner-shell";
-import { isInstructor, displayName, hongKongTime, isAdmin, lessonSeenTimes, userRecords, visibleLessons } from "@/lib/learning-server";
+import { isInstructor, displayName, hongKongDate, isAdmin, lessonResumeDates, userRecords, visibleLessons } from "@/lib/learning-server";
 import { loadSetup } from "@/lib/onboarding-server";
 import { lessonProgress } from "@/lib/learning";
 import { DIFFICULTIES, readMetadata } from "@/lib/curriculum";
@@ -21,7 +21,7 @@ export default async function Dashboard() {
   </div></LearnerShell>;
   if (!setup.profile.onboarding_completed_at) redirect("/onboarding");
   const user = setup.user;
-  const [name, lessons, records, seen] = await Promise.all([displayName(user), visibleLessons(user), userRecords(user), lessonSeenTimes(user.id)]);
+  const [name, lessons, records, seen] = await Promise.all([displayName(user), visibleLessons(user), userRecords(user), lessonResumeDates(user.id)]);
   const enrolled = lessons.filter(lesson => records.enrollments.some(record => record.lesson_id === lesson.id));
   const owned = lessons.filter(lesson => lesson.owner_id === user.id);
   return <LearnerShell active="/dashboard" name={name} admin={isAdmin(user)} instructor={isInstructor(user)}>
@@ -45,7 +45,7 @@ export default async function Dashboard() {
               <span data-label="Title"><Link className="text-link" href={`/courses/${lesson.id}`}>{lesson.title}</Link></span>
               <span data-label="Difficulty">{lessonDifficulty(lesson.subject, lesson.metadata)}</span>
               <span data-label="Progress">{lesson.visibility === "public" ? <Link className="visibility-public visibility-label" href={`/courses/${lesson.id}`}>Published</Link> : <Link className="text-link" href={`/studio?edit=${lesson.id}`}>Edit lesson</Link>}</span>
-              <span data-label="Last seen">{hongKongTime(seen.get(lesson.id))}</span>
+              <span data-label="Last seen">{hongKongDate(seen.get(lesson.id))}</span>
             </div>;
           })}
         </div>}
@@ -62,7 +62,7 @@ export default async function Dashboard() {
               <span data-label="Title"><Link className="text-link" href={`/courses/${lesson.id}/lessons/1`}>{lesson.title}</Link></span>
               <span data-label="Difficulty">{lessonDifficulty(lesson.subject, lesson.metadata)}</span>
               <span data-label="Progress"><Link className="text-link" href={`/courses/${lesson.id}/lessons/1`}>{progress.passed ? "Completed" : "In-progress"}</Link></span>
-              <span data-label="Last seen">{hongKongTime(seen.get(lesson.id))}</span>
+              <span data-label="Last seen">{hongKongDate(seen.get(lesson.id))}</span>
             </div>;
           })}
         </div>}

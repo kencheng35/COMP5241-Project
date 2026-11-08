@@ -16,6 +16,7 @@
 .learning-form .checkbox-field { display: flex; align-items: start; }
 .learning-form > p { margin-top: 18px; }
 .studio-editor:not(.presentation-studio) { max-width: 850px; }
+.studio-home { max-width: none; }
 .lesson-preview { width: min(760px, calc(100vw - 32px)); max-height: min(85vh, 900px); overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 24px; background: var(--surface); color: var(--ink); }
 .lesson-preview::backdrop { background: #17201dbb; }
 .lesson-preview header { display: flex; justify-content: space-between; align-items: center; }
@@ -41,7 +42,8 @@
 .lesson-fold > summary::after { content: "Show"; flex: 0 0 auto; font-family: "Avenir Next", "Segoe UI", sans-serif; font-size: 12px; font-weight: 800; }
 .lesson-fold[open] > summary::after { content: "Hide"; }
 .lesson-fold > summary small { margin-left: 8px; color: var(--muted); font-family: "Avenir Next", "Segoe UI", sans-serif; font-size: 14px; font-weight: 700; }
-.lesson-table { display: grid; gap: 0; margin-top: 12px; }
+.lesson-table-owned .lesson-table-head, .lesson-table-owned .lesson-table-row { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.4fr) minmax(0, .8fr) minmax(0, .7fr) minmax(0, .9fr); text-align: left; justify-items: start; }
+.lesson-table-owned .lesson-table-row span, .lesson-table-owned .lesson-table-row a { display: block; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; white-space: normal; text-align: left; }
 .lesson-table-head, .lesson-table-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, .8fr) minmax(0, .8fr) minmax(0, 1.2fr); gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid #bdc8c2; color: inherit; text-decoration: none; }
 .lesson-table-head { font-size: 12px; font-weight: 800; color: var(--muted); }
 .lesson-table-row span { min-width: 0; overflow-wrap: anywhere; }
