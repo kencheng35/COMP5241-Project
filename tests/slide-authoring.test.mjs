@@ -181,20 +181,20 @@ test("actual route renderers: owner-only Create history, separate blank/upload, 
     const studio = load("../src/app/studio/page.tsx",deps).default;
     const home = render(await studio({searchParams:Promise.resolve({})}));
     assert.match(home,/Write a lesson/); assert.doesNotMatch(home,/FOREIGN PRIVATE/);
-    assert.ok(home.indexOf("Write a lesson") < home.indexOf("Your lessons"));
+    assert.ok(home.indexOf("Write a lesson") < home.indexOf("Your created lessons"));
     for (const [route,text] of [[{manual:"1",starter:"sdlc-small-change"},"Blank manual"],[{upload:"1"},"Separate upload"]]) {
       const html = render(await studio({searchParams:Promise.resolve(route)}));
-      assert.match(html,new RegExp(text)); assert.doesNotMatch(html,/Your lessons|Only owner sees|starter/i);
+      assert.match(html,new RegExp(text)); assert.doesNotMatch(html,/Your created lessons|Only owner sees|starter/i);
     }
     const dashboard = render(await load("../src/app/dashboard/page.tsx",deps).default());
-    assert.match(dashboard,/Your lessons/); assert.match(dashboard,/Published/); assert.match(dashboard,/Private/); assert.match(dashboard,/Completed/); assert.doesNotMatch(dashboard,/Your private creations/);
+    assert.match(dashboard,/Your created lessons/); assert.match(dashboard,/Published/); assert.match(dashboard,/Private/); assert.match(dashboard,/Completed/); assert.doesNotMatch(dashboard,/Your private creations/);
     const progress = render(await load("../src/app/progress/page.tsx",deps).default());
     assert.match(progress,/2\/3.*PASSED/); assert.match(progress,/1\/3.*Not passed/);
     assert.match(progress,/50%/); assert.equal((progress.match(/Certificate \(HTML\)/g)??[]).length,1);
     h.state.user.app_metadata.role="instructor";
     const teaching = render(await load("../src/app/teaching/page.tsx",deps).default({searchParams:Promise.resolve({lesson:id})}));
     assert.match(teaching,/Published lesson roster|Roster management/);
-    assert.doesNotMatch(teaching,/Only owner sees|Your lessons|Lesson library/);
+    assert.doesNotMatch(teaching,/Only owner sees|Your created lessons|Lesson library/);
     const route = load("../src/app/api/certificates/[id]/route.ts",{
       "next/server":{NextResponse:class extends Response{static json(...args){return Response.json(...args);}}},
       zod:require("zod"),"@/lib/learning-server":server,"@/lib/learning":learning,

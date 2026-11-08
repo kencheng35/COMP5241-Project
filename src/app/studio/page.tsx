@@ -32,9 +32,9 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
         <a className="create-choice" href="/studio?upload=1"><span className="create-choice-icon"><Upload size={26} /></span><h2>Upload a file</h2><p>Use a PowerPoint or document.</p></a>
       </section>}
       {!lesson && manual !== "1" && upload !== "1" && <details className="lesson-fold">
-        <summary>Your lessons <small>{owned.length}</small></summary>
+        <summary>Your created lessons <small>{owned.length}</small></summary>
         {!owned.length && <p>You have not created a lesson yet.</p>}
-        {owned.length > 0 && <div className="lesson-table lesson-table-owned" role="table" aria-label="Your lessons">
+        {owned.length > 0 && <div className="lesson-table lesson-table-owned" role="table" aria-label="Your created lessons">
           <div className="lesson-table-head" role="row"><span>Subject</span><span>Title</span><span>Edit lesson</span><span>Status</span><span>Edit date</span></div>
           {owned.map(item => {
             return <div className="lesson-table-row" role="row" key={item.id}>

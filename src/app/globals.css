@@ -580,6 +580,9 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
 .portal-workspace a { font-weight: 400; }
 .portal-workspace a:hover, .portal-workspace a:active { text-decoration: underline; }
 .portal-workspace a.create-choice:hover, .portal-workspace a.create-choice:active { text-decoration: none; }
+.portal-workspace main :is(.auth-submit, .secondary-button, .primary-button, .generate-button, .coach-button) { border: 0; background: #1f6b52; color: white; text-decoration: none; }
+.portal-workspace main :is(.auth-submit, .secondary-button, .primary-button, .generate-button, .coach-button):hover, .portal-workspace main :is(.auth-submit, .secondary-button, .primary-button, .generate-button, .coach-button):active { background: #3d9a74; color: white; text-decoration: none; }
+.portal-workspace main :is(.auth-submit, .secondary-button, .primary-button, .generate-button, .coach-button):disabled { background: #9bb8ad; color: white; }
 @media (max-width: 700px) {
   .portal-workspace .portal-heading h1, .portal-workspace .course-banner h1, .portal-workspace .lesson-article h1, .portal-workspace .danger-page h1 { font-size: 32px; }
   .portal-workspace .lesson-fold > summary, .portal-workspace .learning-section > h2, .portal-workspace .lesson-list-section h2, .portal-workspace .progress-panel h2, .portal-workspace .privacy-panel h2 { font-size: 24px; }

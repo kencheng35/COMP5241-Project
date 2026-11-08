@@ -142,7 +142,7 @@ export function SlideLessonEditor({ lessonId = "", version = 1, initial, onSaveL
       if (!live.current) return;
       if (result.saveUncertain || !result.error && (!result.lessonId || !result.version)) {
         blocked.current = true; setUncertain(true);
-        setError("Save outcome is unknown. Keep this input and check Your lessons in another tab before saving again.");
+        setError("Save outcome is unknown. Keep this input and check Your created lessons in another tab before saving again.");
       } else if (result.error) setError(result.error);
       else {
         setAck({ id: result.lessonId!, version: result.version! });
@@ -154,7 +154,7 @@ export function SlideLessonEditor({ lessonId = "", version = 1, initial, onSaveL
     } catch {
       if (!live.current) return;
       blocked.current = true; setUncertain(true);
-      setError("Save outcome is unknown. Keep this input and check Your lessons in another tab before saving again.");
+      setError("Save outcome is unknown. Keep this input and check Your created lessons in another tab before saving again.");
     } finally {
       inFlight.current = false;
       if (live.current) { setPending(false); onSaveLock?.(blocked.current); }
@@ -224,7 +224,7 @@ export function SlideLessonEditor({ lessonId = "", version = 1, initial, onSaveL
     </>}
     </fieldset>
     {(error || success) && <p ref={notice} tabIndex={-1} role={error ? "alert" : "status"} className={`form-notice${error ? " notice-error" : ""}`}>{error || success}</p>}
-    {uncertain && <a className="text-link" href="/studio" target="_blank" rel="noopener noreferrer">Check Your lessons (new tab)</a>}
+    {uncertain && <a className="text-link" href="/studio" target="_blank" rel="noopener noreferrer">Check Your created lessons (new tab)</a>}
     <p>
       <button type="button" className="secondary-button" disabled={pending || uncertain} onClick={() => void save("save")}>{pending ? "Saving..." : "Save"}</button>
       <button type="button" className="auth-submit" disabled={pending || uncertain} onClick={() => void save("publish")}>{pending ? "Saving..." : "Save and publish"}</button>

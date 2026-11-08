@@ -220,7 +220,7 @@ test("actual dashboard integrates shared version-specific progress after onboard
   await f.load("onboarding").saveOnboarding(input());
   const { renderToStaticMarkup } = require("react-dom/server");
   const html = async () => renderToStaticMarkup(await f.load("dashboard").default());
-  assert.match(await html(), /Your lessons/);
+  assert.match(await html(), /Your created lessons/);
   assert.match(await html(), /Private/);
   assert.match(await html(), /In-progress/);
   records.attempts.push({ ...oldPass, lesson_version: 2, score: 6, questions: Array.from({ length: 10 }, () => ({ options: ["A"] })), answers: Array(10).fill(0) });

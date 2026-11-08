@@ -35,9 +35,9 @@ export default async function Dashboard() {
         </div>
       </section>
       <details className="lesson-fold">
-        <summary>Your lessons <small>{owned.length}</small></summary>
+        <summary>Your created lessons <small>{owned.length}</small></summary>
         {!owned.length && <p>No lessons created yet.</p>}
-        {owned.length > 0 && <div className="lesson-table" role="table" aria-label="Your lessons">
+        {owned.length > 0 && <div className="lesson-table" role="table" aria-label="Your created lessons">
           <div className="lesson-table-head" role="row"><span>Subject</span><span>Title</span><span>Difficulty</span><span>Status</span><span>Last seen</span></div>
           {owned.map(lesson => {
             const published = lesson.visibility === "public";

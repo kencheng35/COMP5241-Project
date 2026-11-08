@@ -427,7 +427,7 @@ test("QA independent 4/5: projected roster, learner denial, admin access and lon
     await page.setViewportSize({width,height:1000});
     await mount(page,"dashboard",{role:"learner",rows,records:{...records,enrollments:[{lesson_id:"owned"}]}});
     await noOverflow(page);
-    await page.locator("summary",{hasText:"Your lessons"}).click();
+    await page.locator("summary",{hasText:"Your created lessons"}).click();
     const geometry=await page.getByRole("link",{name:title}).evaluate(el=>{
       const link=el.getBoundingClientRect();
       return {within:link.right<=window.innerWidth+1&&link.left>=0};

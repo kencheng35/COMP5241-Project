@@ -125,7 +125,7 @@ test("upload disclosure retains edits/file/mode; retry, stale extraction and pen
     await page.exposeFunction("extractUpload",entries=>{modes.push(entries[0][1]);return extraction();});
     await page.exposeFunction("persist",async(name,entries)=>{
       saves.push({name,entries});if(saveGate)await saveGate;
-      return {saveUncertain:true,error:"Save outcome is unknown. Keep this input and check Your lessons."};
+      return {saveUncertain:true,error:"Save outcome is unknown. Keep this input and check Your created lessons."};
     });
     await mountUpload(page);await preview(page);
     await title(page).fill("Keep unsaved work");

@@ -225,7 +225,7 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   await page.evaluate(() => curriculumUi.renderRoute("studio",{manual:"1",starter:"sdlc-small-change"}));
   await page.getByRole("textbox",{name:"Lesson title",exact:true}).waitFor();
   assert.equal(await page.getByRole("textbox",{name:"Lesson title",exact:true}).inputValue(),"","manual always starts blank");
-  assert.equal(await page.getByRole("heading",{name:"Your lessons",exact:true}).count(),0);
+  assert.equal(await page.getByRole("heading",{name:"Your created lessons",exact:true}).count(),0);
   for (const route of ["teaching"]) {
     await page.evaluate(route => curriculumUi.renderRoute(route), route);
     await page.locator('select[name="subject"]').waitFor();
