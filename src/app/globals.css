@@ -331,7 +331,7 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
 .auth-title h1 { margin-bottom: 8px; font-size: 38px; }
 .auth-title p, .auth-swap, .privacy-note { color: var(--muted); font-size: 12px; line-height: 1.55; }
 .auth-fields { display: grid; gap: 15px; }
-.auth-fields label, .settings-fields label { display: grid; gap: 7px; font-size: 11px; font-weight: 800; }
+.auth-fields label, .settings-fields label { display: grid; gap: 7px; align-items: start; font-size: 11px; font-weight: 800; }
 .auth-fields input:not([type="checkbox"]), .auth-fields select, .settings-fields input, .settings-fields select, .settings-fields textarea { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid #cdd1ca; border-radius: 4px; outline: none; background: white; font-size: 12px; font-weight: 400; }
 .auth-fields input:focus, .auth-fields select:focus, .settings-fields input:focus, .settings-fields select:focus, .settings-fields textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px #1f6b5215; }
 .auth-fields [aria-invalid="true"] { border-color: #b14529 !important; }
@@ -365,7 +365,9 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
 .catalog-subject { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 16px 19px; border-bottom: 1px solid var(--line); background: var(--green-pale); color: var(--ink); }
 .catalog-subject strong { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
 .catalog-subject span { font-size: 11px; font-weight: 700; }
-.portal-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 30; width: 242px; display: flex; flex-direction: column; padding: 24px 18px; background: var(--ink); color: white; }
+.portal-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 30; width: 242px; display: flex; flex-direction: column; padding: 24px 18px; background: #17201d; color: white; }
+html[data-theme="dark"] .portal-sidebar { background: #17201d; color: white; }
+html[data-theme="dark"] .portal-brand > span { color: #17201d; }
 .portal-brand { display: inline-flex; align-items: center; gap: 10px; color: white; text-decoration: none; }
 .portal-close, .portal-menu { display: none; border: 0; background: transparent; }
 .portal-profile { display: flex; align-items: center; gap: 11px; margin: 30px 0 22px; padding: 15px 9px; border-block: 1px solid #37413d; color: white; text-decoration: none; }
