@@ -3,7 +3,7 @@ import { Search } from "lucide-react";
 import { LearnerShell } from "@/components/learner-shell";
 import { CatalogSearch } from "@/components/catalog-search";
 import { ActionForm } from "@/components/learning-controls";
-import { enroll } from "@/app/learning/actions";
+import { enroll, deletePrivateLesson, leaveLesson } from "@/app/learning/actions";
 import { DIFFICULTIES, FAMILIES, filterLessons, readMetadata, subjectSelection, type CatalogFilters } from "@/lib/curriculum";
 import styles from "@/components/lesson-metadata.module.css";
 import { isInstructor, canEditLesson, displayName, isAdmin, lessonCreators, lessonHasUpdate, lessonResumeDates, requireUser, userRecords, visibleLessons } from "@/lib/learning-server";
@@ -66,7 +66,8 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
           <p><span>Created by</span>{lesson.owner_id === user.id ? "me" : `${creator?.role ?? "Learner"}-${creator?.name ?? "Learner"}`}</p>
           <div className="catalog-actions">
             {canEditLesson(user, lesson) && <Link className="secondary-button" href={`/studio?edit=${lesson.id}`}>Edit lesson</Link>}
-            {!published ? <Link className="secondary-button" href={`/courses/${lesson.id}/lessons/1`}>Preview lesson</Link> : enrolled ? <Link className="auth-submit" href={`/courses/${lesson.id}/lessons/1`}>Continue lesson</Link> : <ActionForm action={enroll} label="Enroll now"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm>}
+            {!published && lesson.owner_id === user.id && <ActionForm action={deletePrivateLesson} label="Delete"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm>}
+            {!published ? <Link className="secondary-button" href={`/courses/${lesson.id}/lessons/1`}>Preview lesson</Link> : enrolled ? <><Link className="auth-submit" href={`/courses/${lesson.id}/lessons/1`}>Continue lesson</Link><ActionForm action={leaveLesson} label="Leave lesson"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm></> : <ActionForm action={enroll} label="Enroll now"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm>}
           </div>
         </div></article>;
       })}</section>}

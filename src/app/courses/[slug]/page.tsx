@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LearnerShell } from "@/components/learner-shell";
 import { ActionForm, BookmarkButton, EvidenceSummary } from "@/components/learning-controls";
-import { enroll } from "@/app/learning/actions";
+import { enroll, deletePrivateLesson, leaveLesson } from "@/app/learning/actions";
 import { LessonMetadata } from "@/components/lesson-metadata";
 import { VisibilityLabel } from "@/components/visibility-label";
 import { readMetadata } from "@/lib/curriculum";
@@ -30,7 +30,8 @@ export default async function Course({ params }: { params: Promise<{ slug: strin
       <LessonMetadata subject={lesson.subject} metadata={lesson.content.metadata} />
       <EvidenceSummary evidence={evidence} quizLength={total} />
       <div className="lesson-detail-actions">
-        {enrolled ? <Link className="auth-submit" href={`/courses/${lesson.id}/lessons/1`}>Open lesson</Link> : lesson.visibility === "private" ? <Link className="secondary-button" href={`/courses/${lesson.id}/lessons/1`}>Preview lesson</Link> : <ActionForm action={enroll} label="Enroll in lesson"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm>}
+        {enrolled ? <><Link className="auth-submit" href={`/courses/${lesson.id}/lessons/1`}>Open lesson</Link><ActionForm action={leaveLesson} label="Leave lesson"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm></> : lesson.visibility === "private" ? <Link className="secondary-button" href={`/courses/${lesson.id}/lessons/1`}>Preview lesson</Link> : <ActionForm action={enroll} label="Enroll in lesson"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm>}
+        {lesson.visibility === "private" && lesson.owner_id === user.id && <ActionForm action={deletePrivateLesson} label="Delete"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm>}
         <BookmarkButton id={lesson.id} initial={records.bookmarks.some(record => record.lesson_id === lesson.id)} />
         {canEditLesson(user, lesson) && <a className="secondary-button" href={`/studio?edit=${lesson.id}`}>Edit lesson</a>}
       </div>

@@ -5,7 +5,7 @@ import { ActionForm, LessonEditor } from "@/components/learning-controls";
 import { UploadLessonPage } from "@/components/create-lesson";
 import { PresentationLessonEditor } from "@/components/presentation-editor";
 import { fromPresentationLesson, fromStoredLesson } from "@/lib/slide-lesson";
-import { approveSlideLesson, requestReview, updateLesson } from "@/app/learning/actions";
+import { approveSlideLesson, deletePrivateLesson, requestReview, updateLesson } from "@/app/learning/actions";
 import { isPresentation, collectRows } from "@/lib/learning";
 import { isInstructor, accessibleLesson, database, displayName, hongKongDate, isAdmin, requireUser, canEditLesson, canPublishLessons } from "@/lib/learning-server";
 
@@ -42,7 +42,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
               <span data-label="Title"><a className="text-link" href={`/studio?edit=${item.id}`}>{item.title}</a></span>
               <span data-label="Edit lesson"><a className="text-link" href={`/studio?edit=${item.id}`}>Edit lesson</a></span>
               <span data-label="Status" className={`visibility-label ${item.visibility === "public" ? "visibility-public" : "visibility-private"}`}>{item.visibility === "public" ? "Published" : "Private"}</span>
-              <span data-label="Edit date">{hongKongDate(item.created_at)}</span>
+              <span data-label="Edit date">{hongKongDate(item.created_at)}{item.visibility !== "public" && <ActionForm action={deletePrivateLesson} label="Delete"><input type="hidden" name="lessonId" value={item.id} /></ActionForm>}</span>
             </div>;
           })}
         </div>}

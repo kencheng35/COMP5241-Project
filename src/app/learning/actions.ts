@@ -315,3 +315,27 @@ export async function saveResume(id: string, version: number, revision: number, 
     return { error: "Could not save progress. Try again when your connection is restored." };
   }
 }
+
+export async function deletePrivateLesson(_previous: ActionState, form: FormData): Promise<ActionState> {
+  try {
+    const user = await currentUser();
+    const id = z.uuid().parse(form.get("lessonId"));
+    const lesson = await accessibleLesson(id, user);
+    if (!lesson || lesson.owner_id !== user.id || lesson.visibility !== "private") throw new Error("Only a private lesson you created can be deleted.");
+    const { error } = await database().from("forge_lessons").delete().eq("id", id).eq("owner_id", user.id).eq("visibility", "private");
+    if (error) throw new Error("Could not delete this lesson.");
+    revalidatePath("/dashboard"); revalidatePath("/catalog"); revalidatePath("/studio"); revalidatePath(`/courses/${id}`);
+    return { success: "Private lesson deleted." };
+  } catch (error) { return failure(error); }
+}
+
+export async function leaveLesson(_previous: ActionState, form: FormData): Promise<ActionState> {
+  try {
+    const user = await currentUser();
+    const id = z.uuid().parse(form.get("lessonId"));
+    const { error } = await database().from("forge_enrollments").delete().eq("user_id", user.id).eq("lesson_id", id);
+    if (error) throw new Error("Could not leave this lesson.");
+    revalidatePath("/dashboard"); revalidatePath("/catalog"); revalidatePath(`/courses/${id}`);
+    return { success: "You left this lesson." };
+  } catch (error) { return failure(error); }
+}

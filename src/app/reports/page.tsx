@@ -2,12 +2,14 @@ import { LearnerShell } from "@/components/learner-shell";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { database, displayName, isAdmin, isInstructor } from "@/lib/learning-server";
-import { collectRows } from "@/lib/learning";
+import { attemptOutcome, collectRows } from "@/lib/learning";
 import { buildLessonReport, reportRows } from "@/lib/reporting";
 
+function quizDate(value: string) {
+  return new Intl.DateTimeFormat("en-HK", { timeZone: "Asia/Hong_Kong", year: "numeric", month: "short", day: "2-digit" }).format(new Date(value));
+}
+
 export default async function Reports() {
-  // Fresh getUser, fail closed on BOTH error and missing user before service access.
-  // Keep this route's login/configuration UX without changing global auth helpers.
   const auth = await createClient();
   const { data: { user }, error } = await auth.auth.getUser();
   if (error || !user) redirect("/login");
@@ -33,34 +35,38 @@ export default async function Reports() {
   })();
   return <LearnerShell active="/reports" name={await displayName(user)} admin={isAdmin(user)} instructor={isInstructor(user)}>
     <div className="portal-page">
-      <span className="eyebrow">INSTRUCTOR REPORTS</span><h1>Participation & results.</h1>
+      <h1>Student reports</h1>
+      <p>One card for each published lesson you teach.</p>
       {!reports.length && <p>No published lessons have been granted to your account for review.</p>}
-      {reports.map(({ lesson, roster, history, reviewed, attended, passed }) => <section className="learning-section report-section" key={lesson.id}>
-        <h2>{lesson.title}</h2><p><strong>Current lesson version {lesson.version}</strong></p>
-        <h3>CURRENT PUBLIC ENROLLMENT ROSTER</h3>
-        <p>{roster.length} learners · {reviewed} reviewed · {attended} attended · {passed} passed</p>
-        <p>Counts use this roster and current version only, once per learner. These are independent evidence, not a funnel or proof of comprehension. Review is optional, not required for the quiz or a pass. No record means unknown, not never.</p>
-        <ul className="report-roster">{roster.map(row => <li key={row.userId}>
-          <h4>{row.userId}</h4>
-          <dl className="report-evidence">
-            <div><dt>REVIEWED</dt><dd>{row.evidence.reviewedAt ? "Acknowledged" : "No review record"}</dd></div>
-            <div><dt>ATTENDED</dt><dd>{row.evidence.attendedAt ? "Final quiz reached" : "No quiz-reached record"}</dd></div>
-            <div><dt>PASSED</dt><dd>{row.evidence.passed ? "Public saved pass (at least 60%)" : "No public saved pass record"}</dd></div>
-          </dl>
-        </li>)}</ul>
-        {!roster.length && <p>No current public enrollments.</p>}
-        <p>Unversioned attendance is not used here. Enrollment, bookmarks, visits and quiz results do not imply review or version-specific attendance.</p>
-        <h3>Public attempt history (all versions)</h3>
-        <p>{history.length} saved public attempts. Includes learners no longer in the public roster; those learners are excluded from the counts above. Each passing attempt remains an independent snapshot and certificate. Private attempts and private enrollments are excluded.</p>
-        {!history.length && <p>No saved public attempts.</p>}
-        {history.map(attempt => <details key={attempt.id}>
-          <summary>{attempt.user_id} · Version {attempt.lesson_version} · {attempt.score}/{attempt.questions.length} · {new Date(attempt.completed_at).toLocaleDateString("en-GB", { timeZone: "UTC" })}</summary>
-          <p>Saved lesson title: {attempt.lesson_title}</p>
-          <ol>{attempt.questions.map((question, index) => <li key={index}>
-            <strong>{question.prompt}</strong><p>Selected: {question.options[attempt.answers[index]]}</p><p>Correct: {question.options[question.correct]}</p>
-          </li>)}</ol>
-        </details>)}
-      </section>)}
+      {reports.map(({ lesson, roster, history }) => {
+        const rows = roster.map(row => {
+          const latest = history.filter(attempt => attempt.user_id === row.userId && attempt.lesson_version === lesson.version)
+            .sort((a, b) => b.completed_at.localeCompare(a.completed_at))[0];
+          const outcome = latest ? attemptOutcome(latest) : null;
+          return { ...row, latest, outcome };
+        });
+        const failed = rows.filter(row => row.outcome && !row.outcome.passed).length;
+        return <section className="learning-section report-section" key={lesson.id}>
+          <h2>{lesson.title}</h2>
+          <p>Version {lesson.version}</p>
+          <div className="report-counts">
+            <div><strong>{roster.length}</strong><span>Enrolled</span></div>
+            <div><strong>{rows.filter(row => row.evidence.attendedAt).length}</strong><span>Attended</span></div>
+            <div><strong>{failed}</strong><span>Failed</span></div>
+            <div><strong>{rows.filter(row => row.evidence.passed).length}</strong><span>Passed</span></div>
+          </div>
+          <table className="report-table">
+            <thead><tr><th>Learner</th><th>Attendance</th><th>Latest result</th><th>Quiz date</th></tr></thead>
+            <tbody>{rows.map(row => <tr key={row.userId}>
+              <td>{row.userId}</td>
+              <td>{row.evidence.attendedAt ? "Attended" : "Not attended"}</td>
+              <td className={row.outcome ? row.outcome.passed ? "report-pass" : "report-fail" : undefined}>{row.outcome ? `${row.outcome.passed ? "Passed" : "Failed"} ${row.latest!.score}/${row.outcome.total}` : "Enrolled, quiz not reached"}</td>
+              <td>{row.latest ? quizDate(row.latest.completed_at) : "—"}</td>
+            </tr>)}</tbody>
+          </table>
+          {!roster.length && <p>No current public enrollments.</p>}
+        </section>;
+      })}
     </div>
   </LearnerShell>;
 }

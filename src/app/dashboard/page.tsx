@@ -6,6 +6,8 @@ import { isInstructor, database, displayName, hongKongDate, isAdmin, lessonHasUp
 import { loadSetup } from "@/lib/onboarding-server";
 import { attemptOutcome, lessonProgress } from "@/lib/learning";
 import { DIFFICULTIES, readMetadata } from "@/lib/curriculum";
+import { ActionForm } from "@/components/learning-controls";
+import { deletePrivateLesson, leaveLesson } from "@/app/learning/actions";
 
 function lessonDifficulty(subject: string, metadata: unknown) {
   const value = readMetadata(subject, metadata);
@@ -57,7 +59,7 @@ export default async function Dashboard() {
               <span data-label="Subject">{lesson.subject}</span>
               <span data-label="Title"><Link className="text-link" href={`/courses/${lesson.id}`}>{lesson.title}</Link></span>
               <span data-label="Difficulty">{lessonDifficulty(lesson.subject, lesson.metadata)}</span>
-              <span data-label="Status"><span className={`visibility-label ${published ? "visibility-public" : "visibility-private"}`}>{published ? "Published" : "Private"}</span></span>
+              <span data-label="Status"><span className={`visibility-label ${published ? "visibility-public" : "visibility-private"}`}>{published ? "Published" : "Private"}</span>{!published && <ActionForm action={deletePrivateLesson} label="Delete"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm>}</span>
               <span data-label="Last seen">{hongKongDate(seen.get(lesson.id)?.at)}</span>
             </div>;
           })}
@@ -74,7 +76,7 @@ export default async function Dashboard() {
               <span data-label="Subject">{lesson.subject}</span>
               <span data-label="Title"><Link className="text-link" href={`/courses/${lesson.id}/lessons/1`}>{lesson.title}</Link>{lessonHasUpdate(lesson.version, Boolean(lesson.review_requested), lesson.visibility, seen.get(lesson.id), true) && <span className="update-mark">Updated</span>}</span>
               <span data-label="Difficulty">{lessonDifficulty(lesson.subject, lesson.metadata)}</span>
-              <span data-label="Progress"><Link className="text-link" href={`/courses/${lesson.id}/lessons/1`}>{progress.passed ? "Completed" : "In-progress"}</Link></span>
+              <span data-label="Progress"><Link className="text-link" href={`/courses/${lesson.id}/lessons/1`}>{progress.passed ? "Completed" : "In-progress"}</Link><ActionForm action={leaveLesson} label="Leave lesson"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm></span>
               <span data-label="Last seen">{hongKongDate(seen.get(lesson.id)?.at)}</span>
             </div>;
           })}
