@@ -9,7 +9,7 @@ export { isAdmin, isInstructor, canPublishLessons, canEditLesson, canManageEnrol
 
 export type LessonRow = {
   id: string; owner_id: string; title: string; subject: string; summary: string;
-  content: LessonContent; visibility: "private" | "public"; version: number; created_at: string; review_requested: boolean;
+  content: LessonContent; visibility: "private" | "public"; version: number; created_at: string; published_at?: string | null; review_requested: boolean;
   metadata?: unknown;
 };
 export type AttemptRow = {
@@ -39,6 +39,20 @@ export async function requireUser() {
   return user;
 }
 
+export async function lessonCreators(ownerIds: string[]) {
+  const ids = [...new Set(ownerIds)];
+  const creators = new Map<string, { name: string; role: "Instructor" | "Learner" }>();
+  if (!ids.length) return creators;
+  const { data } = await database().from("profiles").select("id,display_name").in("id", ids);
+  const names = new Map((data ?? []).map(row => [String(row.id), String(row.display_name || "Learner")]));
+  await Promise.all(ids.map(async id => {
+    const { data: account } = await database().auth.admin.getUserById(id);
+    const role = account.user?.app_metadata?.role;
+    creators.set(id, { name: names.get(id) ?? "Learner", role: role === "instructor" || role === "admin" ? "Instructor" : "Learner" });
+  }));
+  return creators;
+}
+
 export async function displayName(user: User) {
   const { data } = await database().from("profiles").select("display_name").eq("id", user.id).maybeSingle();
   return String(data?.display_name ?? user.user_metadata?.display_name ?? "Learner");
@@ -46,7 +60,7 @@ export async function displayName(user: User) {
 
 export async function visibleLessons(user: User) {
   const data = await collectRows((start, end) => database().from("forge_lessons")
-    .select("id,owner_id,title,subject,summary,visibility,version,created_at,metadata:content->metadata")
+    .select("id,owner_id,title,subject,summary,visibility,version,created_at,published_at,metadata:content->metadata")
     .or(`visibility.eq.public,owner_id.eq.${user.id}`).order("created_at", { ascending: false }).order("id").range(start, end));
   return data as Omit<LessonRow, "content">[];
 }
