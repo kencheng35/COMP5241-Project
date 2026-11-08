@@ -30,7 +30,11 @@ export default async function Reports() {
       const enrollments = reportRows.enrollments.parse(enrollmentData);
       const learnerIds = [...new Set(enrollments.map(row => row.user_id))];
       const nameRows = learnerIds.length ? await collectRows((start, end) => client.from("profiles").select("id,display_name").in("id", learnerIds).order("id").range(start, end)) : [];
-      const names = new Map(nameRows.map(row => [String(row.id), String(row.display_name ?? "").trim()]).filter(([, name]) => name));
+      const names = new Map<string, string>();
+      for (const row of nameRows) {
+        const name = String(row.display_name ?? "").trim();
+        if (name) names.set(String(row.id), name);
+      }
       return lessons.map(lesson => ({ lesson, names, ...buildLessonReport(lesson, enrollments, attempts) }));
     } catch {
       throw new Error("Reports are unavailable. Could not load complete, valid learning records. Check the database migrations and try again.");
