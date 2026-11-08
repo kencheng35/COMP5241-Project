@@ -69,6 +69,7 @@ export async function enroll(_previous: ActionState, form: FormData): Promise<Ac
     const id = z.uuid().parse(form.get("lessonId"));
     const lesson = await accessibleLesson(id, user);
     if (!lesson) throw new Error("Lesson not available.");
+    if (lesson.visibility !== "public") throw new Error("A private lesson can be previewed, not enrolled.");
     const { error } = await database().from("forge_enrollments").upsert({ user_id: user.id, lesson_id: id, enrollment_kind: lesson.visibility }, { onConflict: "user_id,lesson_id", ignoreDuplicates: true });
     if (error) throw new Error("Enrollment failed. Please try again.");
     revalidatePath(`/courses/${id}`); revalidatePath("/dashboard");
@@ -161,12 +162,13 @@ export async function updateLesson(_previous: ActionState, form: FormData): Prom
     const publish = !slideDraft && form.get("publish") === "on";
     const requestPublication = slideDraft && form.get("intent") === "publish";
     if (publish && !canPublishLessons(user)) throw new Error("Instructor access is required to publish lessons.");
+    const alreadyPublic = lesson.visibility === "public";
     const client = database();
     writeAttempted = true;
     const { data, error } = await client.from("forge_lessons").update({
       title: content.title, subject: content.subject, summary: content.summary, content, version: expectedVersion + 1,
-      visibility: publish ? "public" : slideDraft ? "private" : lesson.visibility,
-      ...(slideDraft ? { published_at: null, review_requested: requestPublication } : publish ? { published_at: new Date().toISOString() } : {}),
+      visibility: publish ? "public" : alreadyPublic ? "public" : slideDraft ? "private" : lesson.visibility,
+      ...(slideDraft ? { review_requested: Boolean(requestPublication), ...(alreadyPublic ? {} : { published_at: null }) } : publish ? { published_at: new Date().toISOString(), review_requested: false } : {}),
     }).eq("id", id).eq("version", expectedVersion).select("id").maybeSingle();
     if (error) return creationAcknowledgement(null, error) ?? uncertainCreation();
     writeAttempted = false;
@@ -174,7 +176,7 @@ export async function updateLesson(_previous: ActionState, form: FormData): Prom
     if (data.id !== id) return uncertainCreation();
     if(draft) {writeAttempted=true;await bindImageDraft(form,user.id,id);writeAttempted=false;}
     revalidatePath("/catalog"); revalidatePath(`/courses/${id}`); revalidatePath("/admin"); revalidatePath("/studio");
-    return { success: requestPublication ? "Saved privately and requested administrator approval. Not published; learners cannot see this draft." : publish ? "Reviewed lesson published." : "Lesson saved.", lessonId: id, version: expectedVersion + 1 };
+    return { success: requestPublication && alreadyPublic ? "Update saved. Learners can still enroll while an administrator reviews it." : requestPublication ? "Saved privately and requested administrator approval. Not published; learners cannot see this draft." : publish ? "Reviewed lesson published." : "Lesson saved.", lessonId: id, version: expectedVersion + 1 };
   } catch (error) { return writeAttempted ? uncertainCreation() : failure(error); }
 }
 
@@ -190,7 +192,7 @@ export async function approveSlideLesson(_previous: ActionState, form: FormData)
     if (!lesson || lesson.content.template !== "slides" || !lesson.review_requested) throw new Error("This lesson is not awaiting slide publication review.");
     const { data, error } = await database().from("forge_lessons").update({
       visibility: "public", published_at: new Date().toISOString(), review_requested: false,
-    }).eq("id", id).eq("version", version).eq("review_requested", true).eq("visibility", "private").select("id").maybeSingle();
+    }).eq("id", id).eq("version", version).eq("review_requested", true).select("id").maybeSingle();
     if (error || !data) throw new Error("Publication not confirmed. Reload the review queue to check the current version.");
     for (const path of ["/studio", "/admin", "/catalog", `/courses/${id}`]) revalidatePath(path);
     return { success: "Administrator-reviewed lesson published.", lessonId: id, version };

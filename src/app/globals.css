@@ -53,7 +53,8 @@
   .lesson-table-row { grid-template-columns: 1fr; gap: 8px; padding: 16px 0; }
   .lesson-table-row span::before { content: attr(data-label); display: block; margin-bottom: 2px; color: var(--muted); font-size: 11px; font-weight: 800; }
 }
-.visibility-label { display: inline-block; margin-right: 8px; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 800; letter-spacing: .04em; }
+.update-mark { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; color: #a53f2a; font-family: "Avenir Next", "Segoe UI", sans-serif; font-size: 13px; font-weight: 600; vertical-align: middle; }
+.update-mark::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #c23b22; }
 .visibility-private { background: #f8e4de; color: #853925; }
 .visibility-public { background: var(--green-pale); color: var(--green); }
 .catalog-image span.visibility-label { position: absolute; top: 13px; left: 13px; }

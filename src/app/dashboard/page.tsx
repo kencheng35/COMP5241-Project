@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LearnerShell } from "@/components/learner-shell";
-import { isInstructor, displayName, hongKongDate, isAdmin, lessonResumeDates, userRecords, visibleLessons } from "@/lib/learning-server";
+import { isInstructor, displayName, hongKongDate, isAdmin, lessonHasUpdate, lessonResumeDates, userRecords, visibleLessons } from "@/lib/learning-server";
 import { loadSetup } from "@/lib/onboarding-server";
 import { lessonProgress } from "@/lib/learning";
 import { DIFFICULTIES, readMetadata } from "@/lib/curriculum";
@@ -35,17 +35,18 @@ export default async function Dashboard() {
         </div>
       </section>
       <details className="lesson-fold">
-        <summary>Private lesson <small>{owned.length}</small></summary>
-        {!owned.length && <p>No private lessons created yet.</p>}
-        {owned.length > 0 && <div className="lesson-table" role="table" aria-label="Private lessons">
-          <div className="lesson-table-head" role="row"><span>Subject</span><span>Title</span><span>Difficulty</span><span>Progress</span><span>Last seen</span></div>
+        <summary>Your lessons <small>{owned.length}</small></summary>
+        {!owned.length && <p>No lessons created yet.</p>}
+        {owned.length > 0 && <div className="lesson-table" role="table" aria-label="Your lessons">
+          <div className="lesson-table-head" role="row"><span>Subject</span><span>Title</span><span>Difficulty</span><span>Status</span><span>Last seen</span></div>
           {owned.map(lesson => {
+            const published = lesson.visibility === "public";
             return <div className="lesson-table-row" role="row" key={lesson.id}>
               <span data-label="Subject">{lesson.subject}</span>
               <span data-label="Title"><Link className="text-link" href={`/courses/${lesson.id}`}>{lesson.title}</Link></span>
               <span data-label="Difficulty">{lessonDifficulty(lesson.subject, lesson.metadata)}</span>
-              <span data-label="Progress">{lesson.visibility === "public" ? <Link className="visibility-public visibility-label" href={`/courses/${lesson.id}`}>Published</Link> : <Link className="text-link" href={`/studio?edit=${lesson.id}`}>Edit lesson</Link>}</span>
-              <span data-label="Last seen">{hongKongDate(seen.get(lesson.id))}</span>
+              <span data-label="Status"><span className={`visibility-label ${published ? "visibility-public" : "visibility-private"}`}>{published ? "Published" : "Private"}</span></span>
+              <span data-label="Last seen">{hongKongDate(seen.get(lesson.id)?.at)}</span>
             </div>;
           })}
         </div>}
@@ -59,10 +60,10 @@ export default async function Dashboard() {
             const progress = lessonProgress(records.enrollments.find(record => record.lesson_id === lesson.id), records.attempts, lesson.id, lesson.version);
             return <div className="lesson-table-row" role="row" key={lesson.id}>
               <span data-label="Subject">{lesson.subject}</span>
-              <span data-label="Title"><Link className="text-link" href={`/courses/${lesson.id}/lessons/1`}>{lesson.title}</Link></span>
+              <span data-label="Title"><Link className="text-link" href={`/courses/${lesson.id}/lessons/1`}>{lesson.title}</Link>{lessonHasUpdate(lesson.version, Boolean(lesson.review_requested), lesson.visibility, seen.get(lesson.id), true) && <span className="update-mark">Updated</span>}</span>
               <span data-label="Difficulty">{lessonDifficulty(lesson.subject, lesson.metadata)}</span>
               <span data-label="Progress"><Link className="text-link" href={`/courses/${lesson.id}/lessons/1`}>{progress.passed ? "Completed" : "In-progress"}</Link></span>
-              <span data-label="Last seen">{hongKongDate(seen.get(lesson.id))}</span>
+              <span data-label="Last seen">{hongKongDate(seen.get(lesson.id)?.at)}</span>
             </div>;
           })}
         </div>}

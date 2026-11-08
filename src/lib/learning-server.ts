@@ -9,7 +9,7 @@ export { isAdmin, isInstructor, canPublishLessons, canEditLesson, canManageEnrol
 
 export type LessonRow = {
   id: string; owner_id: string; title: string; subject: string; summary: string;
-  content: LessonContent; visibility: "private" | "public"; version: number; created_at: string; published_at?: string | null; review_requested: boolean;
+  content: LessonContent; visibility: "private" | "public"; version: number; created_at: string; published_at?: string | null; review_requested?: boolean;
   metadata?: unknown;
 };
 export type AttemptRow = {
@@ -60,7 +60,7 @@ export async function displayName(user: User) {
 
 export async function visibleLessons(user: User) {
   const data = await collectRows((start, end) => database().from("forge_lessons")
-    .select("id,owner_id,title,subject,summary,visibility,version,created_at,published_at,metadata:content->metadata")
+    .select("id,owner_id,title,subject,summary,visibility,version,review_requested,created_at,published_at,metadata:content->metadata")
     .or(`visibility.eq.public,owner_id.eq.${user.id}`).order("created_at", { ascending: false }).order("id").range(start, end));
   return data as Omit<LessonRow, "content">[];
 }
@@ -100,8 +100,12 @@ export function hongKongDate(value: string | undefined) {
 
 export async function lessonResumeDates(userId: string) {
   const rows = await collectRows((start, end) => database().from("forge_resume")
-    .select("lesson_id,updated_at").eq("user_id", userId).order("lesson_id").range(start, end));
-  return new Map(rows.map(row => [String(row.lesson_id), String(row.updated_at)]));
+    .select("lesson_id,lesson_version,updated_at").eq("user_id", userId).order("lesson_id").range(start, end));
+  return new Map(rows.map(row => [String(row.lesson_id), { at: String(row.updated_at), version: Number(row.lesson_version) }]));
+}
+
+export function lessonHasUpdate(version: number, reviewRequested: boolean, visibility: string, resume: { version: number } | undefined, enrolled: boolean) {
+  return enrolled && visibility === "public" && !reviewRequested && version > 1 && Boolean(resume) && resume.version < version;
 }
 
 export async function userRecords(user: User) {

@@ -6,7 +6,7 @@ import { ActionForm } from "@/components/learning-controls";
 import { enroll } from "@/app/learning/actions";
 import { DIFFICULTIES, FAMILIES, filterLessons, readMetadata, subjectSelection, type CatalogFilters } from "@/lib/curriculum";
 import styles from "@/components/lesson-metadata.module.css";
-import { isInstructor, canEditLesson, displayName, isAdmin, lessonCreators, requireUser, userRecords, visibleLessons } from "@/lib/learning-server";
+import { isInstructor, canEditLesson, displayName, isAdmin, lessonCreators, lessonHasUpdate, lessonResumeDates, requireUser, userRecords, visibleLessons } from "@/lib/learning-server";
 
 function catalogDate(value: string | null | undefined) {
   if (!value) return "Not recorded";
@@ -17,7 +17,7 @@ function catalogDate(value: string | null | undefined) {
 
 export default async function Catalog({ searchParams }: { searchParams: Promise<CatalogFilters & { creator?: string }> }) {
   const user = await requireUser();
-  const [name, lessons, records, rawFilters] = await Promise.all([displayName(user), visibleLessons(user), userRecords(user), searchParams]);
+  const [name, lessons, records, rawFilters, resume] = await Promise.all([displayName(user), visibleLessons(user), userRecords(user), searchParams, lessonResumeDates(user.id)]);
   const filters = {
     q: typeof rawFilters.q === "string" ? rawFilters.q : "",
     subject: typeof rawFilters.subject === "string" ? rawFilters.subject : "",
@@ -60,13 +60,13 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
         const difficulty = lesson.metadata ? DIFFICULTIES[lesson.metadata.difficulty] : "Not specified";
         return <article className="catalog-card" key={lesson.id}><div className="catalog-copy">
           <p><span>Subject</span>{lesson.subject}</p>
-          <h2>{lesson.title}</h2>
+          <h2>{lesson.title}{lessonHasUpdate(lesson.version, Boolean(lesson.review_requested), lesson.visibility, resume.get(lesson.id), enrolled) && <span className="update-mark">Updated</span>}</h2>
           <p><span>Difficulty</span>{difficulty}</p>
           <p><span>{published ? "Published date" : "Last edit date"}</span>{catalogDate(published ? lesson.published_at ?? lesson.created_at : lesson.created_at)}</p>
           <p><span>Created by</span>{lesson.owner_id === user.id ? "me" : `${creator?.role ?? "Learner"}-${creator?.name ?? "Learner"}`}</p>
           <div className="catalog-actions">
             {canEditLesson(user, lesson) && <Link className="secondary-button" href={`/studio?edit=${lesson.id}`}>Edit lesson</Link>}
-            {enrolled ? <Link className="auth-submit" href={`/courses/${lesson.id}/lessons/1`}>Continue lesson</Link> : <ActionForm action={enroll} label="Enroll now"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm>}
+            {!published ? <Link className="secondary-button" href={`/courses/${lesson.id}/lessons/1`}>Preview lesson</Link> : enrolled ? <Link className="auth-submit" href={`/courses/${lesson.id}/lessons/1`}>Continue lesson</Link> : <ActionForm action={enroll} label="Enroll now"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm>}
           </div>
         </div></article>;
       })}</section>}
