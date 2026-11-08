@@ -15,7 +15,7 @@ export default async function OnboardingPage() {
       {loaded.code === "ok" ? <OnboardingForm initial={loaded.profile} role={loaded.role} /> :
         <section><p role="alert" className="form-notice notice-error">{loaded.message}</p>
           <p><a className="text-link" href="/onboarding">Try loading again</a></p>
-          <p><Link className="text-link" href="/profile">Profile, export & deletion</Link></p>
+          <p><Link className="text-link" href="/profile">Profile & settings</Link></p>
           <p><Link className="text-link" href="/login">Log in / account recovery</Link></p></section>}
     </div>
   </LearnerShell>;

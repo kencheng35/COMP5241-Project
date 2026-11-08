@@ -19,7 +19,7 @@ export default async function Dashboard() {
   if (setup.code !== "ok") return <LearnerShell active="/dashboard"><div className="portal-page">
     <h1>Learning setup unavailable.</h1><p role="alert" className="form-notice notice-error">{setup.message}</p>
     <p><a className="text-link" href="/dashboard">Try loading again</a></p>
-    <p><Link className="text-link" href="/profile">Profile, export & deletion</Link></p>
+    <p><Link className="text-link" href="/profile">Profile & settings</Link></p>
     <p><Link className="text-link" href="/login">Log in / account recovery</Link></p>
   </div></LearnerShell>;
   if (!setup.profile.onboarding_completed_at) redirect("/onboarding");

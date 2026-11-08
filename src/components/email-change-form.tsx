@@ -22,9 +22,9 @@ export function EmailChangeForm() {
     setState(next); setBlocked(next.code === "unknown" || next.code === "sent");
     inFlight.current = false; setPending(false);
   }
-  return <form onSubmit={submit} className="learning-form" aria-label="Change email" aria-busy={pending}>
+  return <form onSubmit={submit} className="email-change" aria-label="Change email" aria-busy={pending}>
     {state && <div ref={notice} tabIndex={-1} role="status" className={`form-notice ${state.code === "sent" ? "notice-success" : "notice-error"}`}>{state.message}</div>}
-    <label>New email address<input name="email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} maxLength={254} disabled={pending} required /></label>
+    <label className="email-change-address">New email address<input name="email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} maxLength={254} disabled={pending} required /></label>
     <button type="submit" className="primary-button" disabled={pending || blocked}>{pending ? "Requesting…" : "Request email change"}</button>
     {blocked && <button type="button" className="text-link" onClick={() => { setBlocked(false); setState(null); }}>I checked my inboxes and account; allow another request</button>}
     {state?.code === "auth" && <Link href="/login" className="text-link">Log in again</Link>}
