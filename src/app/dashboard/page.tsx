@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Circle, ThumbsUp } from "lucide-react";
 import { LearnerShell } from "@/components/learner-shell";
-import { isInstructor, displayName, hongKongDate, isAdmin, lessonHasUpdate, lessonResumeDates, userRecords, visibleLessons } from "@/lib/learning-server";
+import { isInstructor, database, displayName, hongKongDate, isAdmin, lessonHasUpdate, lessonResumeDates, userRecords, visibleLessons } from "@/lib/learning-server";
 import { loadSetup } from "@/lib/onboarding-server";
-import { lessonProgress } from "@/lib/learning";
+import { attemptOutcome, lessonProgress } from "@/lib/learning";
 import { DIFFICULTIES, readMetadata } from "@/lib/curriculum";
 
 function lessonDifficulty(subject: string, metadata: unknown) {
@@ -21,12 +22,23 @@ export default async function Dashboard() {
   </div></LearnerShell>;
   if (!setup.profile.onboarding_completed_at) redirect("/onboarding");
   const user = setup.user;
-  const [name, lessons, records, seen] = await Promise.all([displayName(user), visibleLessons(user), userRecords(user), lessonResumeDates(user.id)]);
+  const [name, lessons, records, seen, interview] = await Promise.all([
+    displayName(user), visibleLessons(user), userRecords(user), lessonResumeDates(user.id),
+    database().from("forge_v2_sessions").select("id").eq("owner_id", user.id).limit(1),
+  ]);
   const enrolled = lessons.filter(lesson => records.enrollments.some(record => record.lesson_id === lesson.id));
   const owned = lessons.filter(lesson => lesson.owner_id === user.id);
+  const passed = new Set(records.attempts.filter(attempt => attemptOutcome(attempt).passed).map(attempt => attempt.original_lesson_id)).size;
+  const interviewed = !interview.error && Boolean(interview.data?.length);
   return <LearnerShell active="/dashboard" name={name} admin={isAdmin(user)} instructor={isInstructor(user)}>
     <div className="portal-page">
       <header className="portal-heading"><div><span className="eyebrow">MY LEARNING</span><h1>Welcome, {name}.</h1></div></header>
+      <section className="record-grid" aria-label="Learning record">
+        <article><strong>{enrolled.length}</strong><span>Lessons enrolled</span></article>
+        <article><strong>{passed}</strong><span>Lessons passed</span></article>
+        <article><strong><Circle size={26} aria-hidden="true" />Not yet</strong><span>Learning game</span></article>
+        <article><strong>{interviewed ? <ThumbsUp size={26} aria-hidden="true" /> : <Circle size={26} aria-hidden="true" />}{interviewed ? "Done" : "Not yet"}</strong><span>Interview</span></article>
+      </section>
       <section className="learning-section quick-start">
         <h2>Quick Start</h2>
         <div className="quick-start-actions">

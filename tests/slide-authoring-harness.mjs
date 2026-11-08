@@ -45,7 +45,7 @@ export async function harness() {
       select(c) { columns = c; return q; },
       eq(k, v) { filters.push(`${k}=$${args.push(v)}`); return q; },
       in(k,v){filters.push(`${k}=any($${args.push(v)}::uuid[])`);return q;},
-      order() { return q; }, range() { return q; },
+      order() { return q; }, range() { return q; }, limit() { return q; },
       insert(v) { kind = "insert"; values = v; return q; },
       update(v) { kind = "update"; values = v; return q; },
       delete(){kind="delete";return q;},

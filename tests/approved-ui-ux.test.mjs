@@ -66,7 +66,7 @@ async function mount(page,kind,config={}){
         let columns="*";
         const filters=[],query={select(value){columns=value;return query;},eq(key,value){filters.push([key,value]);return query;},order(){return query;},
           range:async(start,end)=>({data:rows.filter(row=>filters.every(([key,value])=>row[key]===value)).slice(start,end+1)
-            .map(row=>columns==="*"?row:Object.fromEntries(columns.split(",").map(key=>[key,row[key]]))),error:null})};
+            .map(row=>columns==="*"?row:Object.fromEntries(columns.split(",").map(key=>[key,row[key]]))),error:null}),limit(){return query;}};
         return query;
       }}),
     };

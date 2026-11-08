@@ -28,7 +28,7 @@ function fixture(options = {}) {
   const stubs = {
     "server-only": {}, zod: require("zod"), "react/jsx-runtime": require("react/jsx-runtime"),
     "next/link": { __esModule: true, default: "a" },
-    "lucide-react": { BookOpen: () => null, Plus: () => null },
+    "lucide-react": { BookOpen: () => null, Plus: () => null, Circle: () => null, ThumbsUp: () => null },
     "@/lib/curriculum": { DIFFICULTIES: { beginner: "Beginner" }, readMetadata: () => null },
     "@/components/learner-shell": { LearnerShell: ({ children }) => children },
     "next/navigation": { redirect(path) { throw new Error(`REDIRECT:${path}`); } },
@@ -50,7 +50,7 @@ function fixture(options = {}) {
         return { from(table) {
           const filters = []; let patch;
           return {
-            select() { return this; }, eq(...filter) { filters.push(filter); return this; },
+            select() { return this; }, eq(...filter) { filters.push(filter); return this; }, limit() { return this; },
             update(value) { patch = copy(value); return this; },
             async maybeSingle() {
               calls.push({ table, filters: copy(filters), patch });
