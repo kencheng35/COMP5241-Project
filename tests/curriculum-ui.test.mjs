@@ -88,6 +88,7 @@ test("real curriculum routes and components: combined filters, legacy, player, p
       isAdmin: () => false, isInstructor: () => true, canPublishLessons: () => true,
       canEditLesson: (_, row) => row.owner_id === user.id, canManageEnrollment: () => true,
       visibleLessons: async () => rows.map(({ content, ...row }) => ({ ...row, metadata: content.metadata })),
+      hongKongDate: () => "Not seen yet", lessonResumeDates: async () => new Map(), lessonHasUpdate: () => false, lessonCreators: async () => new Map(),
       accessibleLesson: async id => structuredClone(rows.find(row => row.id === id)),
       userRecords: async () => ({ enrollments: [], bookmarks: [], attempts: [] }),
       database: () => ({ from(table) {

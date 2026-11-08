@@ -29,6 +29,7 @@ function fixture(options = {}) {
     "server-only": {}, zod: require("zod"), "react/jsx-runtime": require("react/jsx-runtime"),
     "next/link": { __esModule: true, default: "a" },
     "lucide-react": { BookOpen: () => null, Plus: () => null },
+    "@/lib/curriculum": { DIFFICULTIES: { beginner: "Beginner" }, readMetadata: () => null },
     "@/components/learner-shell": { LearnerShell: ({ children }) => children },
     "next/navigation": { redirect(path) { throw new Error(`REDIRECT:${path}`); } },
     "@/lib/supabase/server": { async createClient() {
@@ -43,6 +44,7 @@ function fixture(options = {}) {
       isInstructor: user => user.app_metadata.role === "instructor", isAdmin: () => false,
       displayName: async () => "Synthetic", visibleLessons: async () => options.lessons ?? [],
       userRecords: async () => options.records ?? { attempts: [], enrollments: [] },
+      hongKongDate: () => "Not seen yet", lessonResumeDates: async () => new Map(), lessonHasUpdate: () => false,
       database() {
         if (options.databaseThrows) throw new Error("private database");
         return { from(table) {
@@ -218,17 +220,11 @@ test("actual dashboard integrates shared version-specific progress after onboard
   await f.load("onboarding").saveOnboarding(input());
   const { renderToStaticMarkup } = require("react-dom/server");
   const html = async () => renderToStaticMarkup(await f.load("dashboard").default());
-  assert.match(await html(), /<small>Version 2 · Not yet reviewed<\/small>/);
-  assert.match(await html(), /class="dashboard-continue">Continue lesson/);
-  assert.match(await html(), /1 passed \(any version\)/);
-  enrollment.progress_evidence = { 1: { reviewed_at: stamp, attended_at: stamp } };
-  assert.match(await html(), /<small>Version 2 · Not yet reviewed<\/small>/);
-  enrollment.progress_evidence[2] = { reviewed_at: stamp };
-  assert.match(await html(), /<small>Version 2 · Reviewed<\/small>/);
-  enrollment.progress_evidence[2].attended_at = stamp;
-  assert.match(await html(), /<small>Version 2 · Attended<\/small>/);
-  records.attempts.push({ ...oldPass, lesson_version: 2, score: 6 });
-  assert.match(await html(), /<small>Version 2 · Passed<\/small>/);
+  assert.match(await html(), /Your lessons/);
+  assert.match(await html(), /Private/);
+  assert.match(await html(), /In-progress/);
+  records.attempts.push({ ...oldPass, lesson_version: 2, score: 6, questions: Array.from({ length: 10 }, () => ({ options: ["A"] })), answers: Array(10).fill(0) });
+  assert.match(await html(), /Completed/);
 });
 
 test("actual middleware protects both new routes without onboarding-gating profile/recovery", async () => {

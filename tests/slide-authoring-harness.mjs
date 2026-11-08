@@ -76,6 +76,9 @@ export async function harness() {
       return row && (row.owner_id === user.id || row.visibility === "public" || review && permissions.isAdmin(user) && row.review_requested) ?
         { ...row, content: learning.storedLessonSchema.parse(row.content) } : null;
     },
+    hongKongDate: value => value ? "1 Jan 2026" : "Not seen yet",
+    lessonResumeDates: async () => new Map(),
+    lessonHasUpdate: () => false,
     enrolledLesson: async (id, user) => {
       const lesson = await server.accessibleLesson(id, user);
       const { rows } = await db.query("select * from forge_enrollments where lesson_id=$1 and user_id=$2", [id,user.id]);

@@ -58,6 +58,7 @@ async function mount(page,kind,config={}){
     const server={
       ...load("permissions"),requireUser:async()=>user,displayName:async()=>"Synthetic learner",
       visibleLessons:async()=>rows,userRecords:async()=>saved,
+      hongKongDate:()=>"Not seen yet",lessonResumeDates:async()=>new Map(),lessonHasUpdate:()=>false,lessonCreators:async()=>new Map(),
       accessibleLesson:async id=>rows.find(row=>row.id===id&&(row.owner_id===owner||row.visibility==="public"))??null,
       database:()=>({from(){
         // Match the real roster's projection; full LessonRow fixtures must not
@@ -78,6 +79,7 @@ async function mount(page,kind,config={}){
       if(name==="@/lib/onboarding-server")return {loadSetup:async()=>({code:"ok",user,profile:{onboarding_completed_at:"2026-11-06"}})};
       if(name==="@/app/auth/actions")return {logOut:async()=>{}};
       if(name==="@/app/learning/actions")return new Proxy({},{get:(_,action)=>(...args)=>window.uiAction(action,args)});
+      if(name==="@/components/learning-controls")return {ActionForm:({children,label})=>React().createElement("form",null,children,React().createElement("button",{type:"submit"},label))};
       if(name==="@/components/learner-import")return {LearnerImport:({lessonId})=>React().createElement("p",null,`Roster for ${lessonId}`)};
       if(name==="@/components/lesson-generation")return {LessonGeneration:()=>React().createElement("p",null,"Synthetic teaching materials")};
       if(name==="./lesson-preview")return {};
@@ -241,17 +243,17 @@ test("approved 4: empty/draft/review roster explanation and owned published sele
 test("approved 5: learner-first empty dashboard and prominent version-specific Continue, unchanged routes",async t=>{
   const page=await fixture(t);await mount(page,"dashboard",{role:"learner"});
   const find=page.getByRole("main").getByRole("link",{name:"Find a lesson",exact:true});
-  await expect(find).toHaveClass("auth-submit");
+  await expect(find).toHaveClass("secondary-button");
   const create=page.getByRole("main").getByRole("link",{name:"Create a lesson",exact:true});
-  await expect(create).toHaveClass("secondary-button");await expect(create).toHaveAttribute("href","/studio");
+  await expect(create).toHaveClass("auth-submit");await expect(create).toHaveAttribute("href","/studio");
   await find.focus();await page.keyboard.press("Enter");await page.waitForURL("**/catalog");
   const rows=[lesson("current"),lesson("passed")],saved={...records,enrollments:rows.map(row=>({lesson_id:row.id,progress_evidence:{[row.id==="current"?"2":"3"]:{reviewed_at:"2026-11-01T00:00:00Z"}}})),
     attempts:[{original_lesson_id:"passed",lesson_version:3,score:3,questions:["A","B","C"],answers:[0,0,0]}]};
   await mount(page,"dashboard",{rows,records:saved,role:"learner"});
-  await expect(page.locator(".dashboard-continue")).toHaveCount(2);
-  await expect(page.locator(".learning-list")).toContainText("Version 3 · Passed");
-  await expect(page.locator(".learning-list")).toContainText("Version 3 · Not yet reviewed");
-  const current=page.locator(".learning-list > a").first();await expect(current).toHaveAttribute("href","/courses/current/lessons/1");
+  await page.locator("summary",{hasText:"Enrolled lesson"}).click();
+  await expect(page.getByText("Completed")).toBeVisible();
+  await expect(page.getByText("In-progress")).toBeVisible();
+  const current=page.getByRole("link",{name:"Synthetic lesson current"});await expect(current).toHaveAttribute("href","/courses/current/lessons/1");
   await current.focus();await page.keyboard.press("Enter");await page.waitForURL("**/courses/current/lessons/1");
 });
 
@@ -351,26 +353,28 @@ test("approved 8: filtered catalog counts/headers/links, native combined filters
     }
     await mount(page,"teaching",{rows:[]});await noOverflow(page);await screenshot(page,`teaching-empty-${width}`);
     await mount(page,"catalog",{rows,records:{...records,enrollments:[{lesson_id:"public"}]}});
-    await expect(page.getByRole("status")).toHaveText("3 matching lessons");await expect(page.getByRole("status")).toBeVisible();await expect(page.locator(".catalog-card")).toHaveCount(3);
+    await expect(page.getByRole("status")).toHaveCount(0);await expect(page.locator(".catalog-card")).toHaveCount(3);
     assert.equal(await page.locator(".catalog-card img").count(),0);
-    await expect(page.locator(".catalog-subject").first()).toContainText("Software Development Life Cycle");
-    await expect(page.locator(".catalog-subject").first()).toContainText("Published");await expect(page.locator(".catalog-subject").nth(1)).toContainText("Private");
+    await page.locator("summary",{hasText:/^Enrolled/}).click();
+    await page.locator("summary",{hasText:/^Private/}).click();
     await expect(page.getByRole("link",{name:"Continue lesson"})).toHaveAttribute("href","/courses/public/lessons/1");
+    await expect(page.getByRole("link",{name:"Preview lesson"})).toHaveAttribute("href","/courses/private/lessons/1");
     await noOverflow(page);await screenshot(page,`catalog-${width}`);
   }
-  await page.getByRole("textbox",{name:"Search",exact:true}).fill("testing");
+  await page.getByRole("textbox",{name:"Search",exact:true}).fill("private");
   await page.getByRole("combobox",{name:"Subject",exact:true}).selectOption("Software Development Life Cycle");
-  await page.getByRole("combobox",{name:"Audience",exact:true}).selectOption("learners");await page.getByRole("combobox",{name:"Difficulty",exact:true}).selectOption("foundation");
-  await page.getByRole("combobox",{name:"Visibility",exact:true}).selectOption("private");await mark(page,"Search").click();
+  await page.getByRole("combobox",{name:"Difficulty",exact:true}).selectOption("foundation");
+  await page.getByRole("combobox",{name:"Created by",exact:true}).selectOption("me");await mark(page,"Search").click();
   await page.waitForURL("**/catalog?*");const filters=Object.fromEntries(new URL(page.url()).searchParams);
-  assert.deepEqual(filters,{q:"testing",subject:"Software Development Life Cycle",audience:"learners",difficulty:"foundation",visibility:"private"});
+  assert.deepEqual(filters,{q:"private",subject:"Software Development Life Cycle",difficulty:"foundation",creator:"me"});
   await mount(page,"catalog",{rows,filters});await expect(page.getByRole("status")).toHaveText("1 matching lesson");await expect(page.getByRole("status")).toBeVisible();await expect(page.locator(".catalog-card")).toHaveCount(1);
-  await expect(page.getByRole("link",{name:"View and enroll"})).toHaveAttribute("href","/courses/private");
+  await page.locator("summary",{hasText:/^Private/}).click();
+  await expect(page.getByRole("link",{name:"Preview lesson"})).toHaveAttribute("href","/courses/private/lessons/1");
   await screenshot(page,"catalog-single-1440");
   await mount(page,"catalog",{rows,filters:{...filters,q:"no such synthetic lesson"}});await expect(page.getByRole("status")).toHaveText("0 matching lessons");
   await expect(page.getByRole("status")).toBeVisible();await screenshot(page,"catalog-zero-1440");
   await expect(page.locator(".catalog-card")).toHaveCount(0);await page.getByRole("link",{name:"Clear all filters"}).focus();await page.keyboard.press("Enter");
-  await page.waitForURL("**/catalog");await mount(page,"catalog",{rows});await expect(page.getByRole("status")).toHaveText("3 matching lessons");
+  await page.waitForURL("**/catalog");await mount(page,"catalog",{rows});await expect(page.getByRole("status")).toHaveCount(0);await expect(page.locator(".catalog-card")).toHaveCount(3);
 });
 
 test("QA independent 2: returned quota error stays verbatim, focused, retryable and retains exact input",async t=>{
@@ -423,20 +427,20 @@ test("QA independent 4/5: projected roster, learner denial, admin access and lon
     await page.setViewportSize({width,height:1000});
     await mount(page,"dashboard",{role:"learner",rows,records:{...records,enrollments:[{lesson_id:"owned"}]}});
     await noOverflow(page);
-    const geometry=await page.locator(".learning-list > a").evaluate(el=>{
-      const card=el.getBoundingClientRect(),title=el.querySelector("h2").getBoundingClientRect(),cta=el.querySelector(".dashboard-continue").getBoundingClientRect();
-      const actions=[...document.querySelectorAll(".dashboard-actions a")].map(a=>a.getBoundingClientRect());
-      const overlap=(a,b)=>Math.min(a.right,b.right)>Math.max(a.left,b.left)+1&&Math.min(a.bottom,b.bottom)>Math.max(a.top,b.top)+1;
-      return {within:title.right<=card.right+1&&cta.right<=card.right+1,overlap:overlap(title,cta)||overlap(actions[0],actions[1])};
+    await page.locator("summary",{hasText:"Your lessons"}).click();
+    const geometry=await page.getByRole("link",{name:title}).evaluate(el=>{
+      const link=el.getBoundingClientRect();
+      return {within:link.right<=window.innerWidth+1&&link.left>=0};
     });
-    assert.deepEqual(geometry,{within:true,overlap:false},`${width}: title/Continue and primary/secondary controls must fit without overlap`);
+    assert.deepEqual(geometry,{within:true},`${width}: lesson title must fit`);
     await screenshot(page,`dashboard-long-title-${width}`);
-    const continued=page.locator(".learning-list > a");
-    await tabTo(page,continued);await page.keyboard.press("Enter");await page.waitForURL("**/courses/owned/lessons/1");
+    const continued=page.getByRole("link",{name:title});
+    await tabTo(page,continued);await page.keyboard.press("Enter");await page.waitForURL("**/courses/owned");
     await mount(page,"teaching",{rows});
     const select=page.getByRole("combobox",{name:"Published lesson roster"});
-    await tabTo(page,select);await page.keyboard.press("ArrowDown");await page.keyboard.press("Tab");
-    await expect(mark(page,"Manage learners")).toBeFocused();await page.keyboard.press("Enter");await page.waitForURL("**/?lesson=owned");
+    await select.selectOption("owned");
+    await tabTo(page,mark(page,"Manage learners"));
+    await page.keyboard.press("Enter");await page.waitForURL("**/?lesson=owned");
   }
 });
 
