@@ -182,7 +182,8 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   await page.locator("summary", { hasText: /^Private/ }).click();
   await cards.nth(3).waitFor();
   assert.equal(await cards.count(), 4);
-  const legacyCard = cards.filter({ hasText: rows[3].title });
+  const legacyTitle = await page.evaluate(() => window.curriculumUi.rows[3].title);
+  const legacyCard = cards.filter({ hasText: legacyTitle });
   assert.ok((await legacyCard.innerText()).includes("Not specified"));
   assert.ok(!(await legacyCard.innerText()).includes("None specified by author"));
   await page.keyboard.press("/");
