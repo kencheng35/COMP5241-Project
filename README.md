@@ -6,6 +6,94 @@ For a presentation-ready overview of features, design choices and prototype scre
 
 Track remaining work, blockers, acceptance criteria and verification updates in [IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md).
 
+## PDF import: diagnosing image-draft startup failures
+
+Draft startup now distinguishes the exact SQL `P0001` / `draft limit` response
+from missing RPC/schema, permission/configuration, transient/unexpected failures
+and an invalid UUID acknowledgment. Server logs contain only
+`presentation_draft_start_failed`, a fixed `category` and an allowlisted `code`
+(otherwise `null`), never raw errors, credentials or user IDs. Unknown `P0001`
+messages are **not** treated as quota failures. There is no automatic retry or
+cleanup: after an ambiguous failure, a draft may exist even without a returned
+ID. Ask an administrator to check before trying again; do not discard unrelated
+drafts. The configured limit is ten unexpired owner drafts, including drafts
+associated with saved lessons, not ten PDFs; new drafts normally expire after
+seven days.
+
+**Remote cause and successful live import remain unverified.** These messages
+are diagnostic categories, not proof of the deployed schema or credentials.
+The required migration is
+`supabase/migrations/20261105140000_presentations_ran.sql` (and its prerequisite
+migrations). The `_ran` filename does **not** prove it was applied. Do not rerun
+the full migration as a diagnostic or change grants/limits/bucket privacy.
+
+Before any connected operation, confirm the intended Supabase project and
+Vercel deployment/environment (Production vs Preview) with its authorized
+operator. Privately verify that `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` and server-only `SUPABASE_SERVICE_ROLE_KEY`
+belong to that **same project**, and `NEXT_PUBLIC_SITE_URL` is the correct site
+origin. Never paste key values into logs, tickets or SQL. No environment files
+or connected services were inspected for this fix.
+
+Only after target confirmation, an authorized operator can run these
+**read-only** metadata checks in that project's Supabase SQL editor. They do
+not invoke the create RPC or select private lesson/image content:
+
+```sql
+begin read only;
+with target as (
+  select to_regprocedure('public.forge_begin_presentation_draft(uuid,uuid)')::oid as oid
+)
+select t.oid is not null as rpc_exists,
+       pg_get_function_result(t.oid) as return_type, p.proargnames as argument_names,
+       has_function_privilege('service_role', t.oid, 'EXECUTE') as service_execute,
+       has_function_privilege('anon', t.oid, 'EXECUTE') as anon_execute,
+       has_function_privilege('authenticated', t.oid, 'EXECUTE') as authenticated_execute
+from target t left join pg_proc p on p.oid = t.oid;
+
+select has_schema_privilege('service_role', 'public', 'USAGE') as service_schema_usage;
+
+select v.name, c.oid is not null as table_exists, c.relrowsecurity as rls_enabled,
+       has_table_privilege('service_role', c.oid, 'SELECT') as service_select,
+       has_table_privilege('service_role', c.oid, 'INSERT') as service_insert,
+       has_table_privilege('service_role', c.oid, 'UPDATE') as service_update,
+       has_table_privilege('service_role', c.oid, 'DELETE') as service_delete,
+       has_table_privilege('anon', c.oid, 'SELECT,INSERT,UPDATE,DELETE') as anon_any_access,
+       has_table_privilege('authenticated', c.oid, 'SELECT,INSERT,UPDATE,DELETE') as authenticated_any_access
+from (values ('public.forge_presentation_drafts'),
+             ('public.forge_presentation_assets')) v(name)
+left join pg_class c on c.oid = to_regclass(v.name);
+
+select exists(select 1 from storage.buckets where id = 'forge-presentation-images') as bucket_exists,
+       (select public from storage.buckets where id = 'forge-presentation-images') as bucket_public;
+rollback;
+```
+
+Expected: RPC returns `uuid`, arguments `{request_owner,request_lesson}`;
+service-role execute/schema usage/table privileges are true; anon/authenticated
+execute and table access are false; both tables have RLS; bucket exists and is
+**not public**. Missing objects yield false/null. Existence and permissions alone
+do not verify the routine body or PostgREST schema cache; an operator should
+compare the installed definition with the migration and check API schema
+exposure/cache separately before proposing any repair.
+
+Once the drafts table is confirmed, replace the placeholder **privately with
+your own UUID** and run only this aggregate count (do not share the UUID):
+
+```sql
+begin read only;
+select count(*) as active_draft_count
+from public.forge_presentation_drafts
+where owner_id = 'YOUR-OWN-UUID'::uuid and expires_at > now();
+rollback;
+```
+
+A count of ten or more is consistent with the quota at the query time; a later
+count cannot prove what happened during an earlier request. Share only sanitized
+category/code and aggregate/boolean findings. Any connected repair, explicit
+discard or live-import verification needs separate target-confirmed approval.
+Independent QA is requested; offline tests are not release certification.
+
 ## 9 November 2026 — PDF rendering fix: independent offline QA
 
 Independent QA completed for the **offline scope**, not release certification.

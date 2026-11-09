@@ -5,14 +5,74 @@ import {accessibleLesson,canEditLesson,currentUser,database,isAdmin} from "@/lib
 import {cleanupPresentationAssets,ownedPresentationDraft,PRESENTATION_BUCKET} from "@/lib/presentation-assets-server";
 import {sanitizePresentationImage} from "@/lib/presentation-images";
 
+const uncertainDraft = "A draft may have been created. Ask an administrator to check before trying again.";
+const draftStartMessages = {
+  auth_required: "Log in again to start image storage; your session could not be verified.",
+  invalid_lesson: "Choose a valid lesson before starting image storage.",
+  forbidden: "You cannot edit this lesson.",
+  draft_limit: "The limit of 10 active image drafts has been reached. Discard only a draft you no longer need, or wait for drafts to expire.",
+  missing_schema: "Image storage setup is unavailable. Ask an administrator to verify the presentation migration, RPC and schema cache in the configured Supabase project.",
+  permission_config: "Image storage access is unavailable. Ask an administrator to verify service-role permissions and Vercel environment configuration use the same Supabase project.",
+  transient: `Image storage is temporarily unavailable or the request was interrupted. ${uncertainDraft}`,
+  unexpected: `Image storage could not be confirmed because of an unexpected failure. ${uncertainDraft}`,
+  invalid_acknowledgment: `Image storage did not return a valid draft ID. ${uncertainDraft}`,
+};
+type DraftStartCategory = keyof typeof draftStartMessages;
+// Only reviewed codes are logged; never serialize messages, details, hints or identities.
+const draftStartCodes: Record<string, DraftStartCategory> = {
+  P0001: "unexpected",
+  PGRST202: "missing_schema", PGRST205: "missing_schema", "42883": "missing_schema",
+  "42P01": "missing_schema", "3F000": "missing_schema",
+  "42501": "permission_config", "28000": "permission_config", "28P01": "permission_config",
+  PGRST301: "permission_config", PGRST302: "permission_config", PGRST303: "permission_config", PGRST106: "permission_config",
+  "08006": "transient", "53300": "transient", "57P01": "transient", "57014": "transient",
+  "40001": "transient", "40P01": "transient",
+  PGRST000: "transient", PGRST001: "transient", PGRST002: "transient", PGRST003: "transient",
+};
+function draftStartFailure(category: DraftStartCategory, code: string | null = null) {
+  try {
+    console.error(JSON.stringify({event: "presentation_draft_start_failed", category, code}));
+  } catch { /* Logging must not replace the sanitized action result. */ }
+  return {error: draftStartMessages[category]};
+}
+function draftStartError(error: unknown, status?: number, creating = false) {
+  const fields = error && typeof error === "object" ? error as {code?: unknown; message?: unknown} : {};
+  const code = typeof fields.code === "string" && Object.hasOwn(draftStartCodes, fields.code) ? fields.code : null;
+  // P0001 alone is any user-raised SQL exception, not evidence of this quota.
+  const category = creating && code === "P0001" && fields.message === "draft limit" ? "draft_limit"
+    : code ? draftStartCodes[code]
+    : status === 401 || status === 403 ? "permission_config"
+    : status !== undefined && [0, 408, 429, 502, 503, 504].includes(status) ? "transient" : "unexpected";
+  return draftStartFailure(category, code);
+}
+
 export async function beginPresentationDraft(lessonId?:string):Promise<{id?:string;error?:string}> {
+  let stage: "auth" | "access" | "database" | "rpc" = "auth";
   try{
     const user=await currentUser();
-    if(lessonId){const lesson=await accessibleLesson(z.uuid().parse(lessonId),user,true);if(!lesson||!canEditLesson(user,lesson))throw new Error("You cannot edit this lesson.");}
-    const {data,error}=await database().rpc("forge_begin_presentation_draft",{request_owner:user.id,request_lesson:lessonId??null});
-    if(error||!z.uuid().safeParse(data).success)throw new Error("Could not start image storage. Check the presentation migration or discard old drafts.");
-    return {id:data};
-  }catch(error){return {error:error instanceof Error?error.message:"Image draft unavailable."};}
+    stage = "access";
+    if(lessonId){
+      if(!z.uuid().safeParse(lessonId).success)return draftStartFailure("invalid_lesson");
+      const lesson=await accessibleLesson(lessonId,user,true);
+      if(!lesson||!canEditLesson(user,lesson))return draftStartFailure("forbidden");
+    }
+    stage = "database";
+    const client=database();
+    stage = "rpc";
+    // Exactly one create attempt. A lost/malformed acknowledgment cannot safely be retried or cleaned up here.
+    const response=await client.rpc("forge_begin_presentation_draft",{request_owner:user.id,request_lesson:lessonId??null});
+    if(response?.error)return draftStartError(response.error,response.status,true);
+    const id=z.uuid().safeParse(response?.data);
+    if(!id.success)return draftStartFailure("invalid_acknowledgment");
+    return {id:id.data};
+  }catch(error){
+    if(error instanceof Error&&[
+      "Learning services are not configured.",
+      "Learning service configuration is unavailable. Check the public Supabase URL, anon key and site origin.",
+    ].includes(error.message))return draftStartFailure("permission_config");
+    if(stage==="auth")return draftStartFailure("auth_required");
+    return draftStartError(error,undefined,stage==="rpc");
+  }
 }
 export async function uploadPresentationImage(form:FormData):Promise<{id?:string;width?:number;height?:number;error?:string}> {
   let reserved:string|undefined;
