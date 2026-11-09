@@ -76,8 +76,12 @@ function harness() {
           const read = { table, columns, filters, orders, start, end };
           state.reads.push(read);
           if (table === "profiles") {
-            assert.deepEqual(filters, [["id", state.user.id]], "No profile directory");
-            return resolve({ data: { display_name: "Synthetic teacher" }, error: null });
+            const own = filters.length === 1 && filters[0][0] === "id" && filters[0][1] === state.user.id;
+            const listed = filters.length === 1 && filters[0][0] === "id" && Array.isArray(filters[0][1]);
+            assert.ok(own || listed, "No profile directory");
+            if (own) return resolve({ data: { display_name: "Synthetic teacher" }, error: null });
+            const names = { "passed-no-ack": "Alex Lee", failed: "Mei Chan", attended: "Sam Wong" };
+            return resolve({ data: filters[0][1].slice(start, end + 1).map(id => ({ id, display_name: names[id] ?? "" })), error: null });
           }
           if (state.fail?.(read)) return resolve({ data: null, error: { message: "SENSITIVE TRANSPORT SENTINEL" } });
           let rows = structuredClone(state.tables[table]).filter(row => filters.every(([key, value]) =>
@@ -139,27 +143,21 @@ test("fresh failed auth, including user plus error, never creates a service data
 
 test("actual reports SSR separates current version roster from saved all-version history", async () => {
   const h = harness(), html = await h.html();
-  assert.match(html, /Current lesson version 2/);
-  assert.match(html, /CURRENT PUBLIC ENROLLMENT ROSTER/);
-  assert.match(html, /6 learners · 1 reviewed · 1 attended · 1 passed/);
-  assert.match(html, /Public attempt history \(all versions\)/);
-  assert.match(html, /Version 1/);
-  assert.match(html, /REMOVED LEARNER/);
+  assert.match(html, /Version 2/);
+  assert.match(html, /Student reports/);
+  assert.match(html, />6</);
+  assert.match(html, /Attended/);
+  assert.match(html, /Failed/);
+  assert.match(html, /Passed/);
   assert.doesNotMatch(html, /PRIVATE (DRAFT|ROSTER|ATTEMPT) SENTINEL|private-student|Other published title/);
   const node = await h.route();
   const content = renderToStaticMarkup(node.props.children);
-  const roster = content.slice(content.indexOf('<ul class="report-roster">'), content.indexOf("</ul>") + 5);
-  const passRow = roster.slice(roster.indexOf("<h4>passed-no-ack"), roster.indexOf("<h4>private-result"));
-  assert.match(passRow, /Public saved pass/);
-  assert.match(passRow, /No review record/);
-  assert.match(passRow, /No quiz-reached record/);
-  assert.doesNotMatch(roster, /REMOVED LEARNER/);
-  assert.match(content, /Saved snapshot title/);
-  assert.match(content, /Selected: Second/);
-  assert.match(content, /Correct: First/);
-  assert.match(content, /5 saved public attempts/);
-  assert.match(content, /not a funnel or proof of comprehension/);
-  assert.match(content, /Review is optional/);
+  assert.match(content, /Alex Lee/);
+  assert.doesNotMatch(content, /passed-no-ack/);
+  assert.match(content, /report-pass/);
+  assert.doesNotMatch(content, /REMOVED LEARNER/);
+  assert.doesNotMatch(content, /Selected: Second/);
+  assert.doesNotMatch(content, /Correct: First/);
 });
 
 test("actual trusted permissions enforce instructor ownership, admin published scope and explicit reviewer grants", async () => {
@@ -217,8 +215,7 @@ test("every report query paginates beyond 1000 with stable ordering and complete
   h.state.user = { id: "admin", app_metadata: { role: "admin" } };
   for (const table of Object.keys(h.state.tables)) populate(h, table);
   const html = await h.html();
-  assert.match(html, /1051 learners · 1051 reviewed · 0 attended · 0 passed/);
-  assert.match(html, /1051 saved public attempts/);
+  assert.match(html, />1051</);
   assert.match(html, /Published 1050/);
   assert.match(html, /learner-1050/);
   for (const [table, orders] of [
@@ -323,24 +320,14 @@ test("offline mounted actual shell and report HTML: 320/1440 wrapping, native de
   for (const width of [320, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.waitForFunction(mobile => document.getElementById("learner-navigation").inert === mobile, width === 320);
-    await page.getByRole("heading", { name: "CURRENT PUBLIC ENROLLMENT ROSTER" }).waitFor();
+    await page.getByRole("heading", { name: "Student reports", exact: true }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `Page overflow at ${width}`);
-    const row = page.locator(".report-roster li").filter({ has: page.getByRole("heading", { name: longId, exact: true }) });
-    assert.match(await row.innerText(), /No review record[\s\S]*No quiz-reached record[\s\S]*Public saved pass/);
-    assert.match(await page.locator(".report-section").innerText(), /6 learners · 1 reviewed · 1 attended · 1 passed/);
-    const old = page.locator("summary").filter({ hasText: "old-pass · Version 1" });
-    await old.focus(); await page.keyboard.press("Enter");
-    assert.equal(await old.evaluate(node => node.parentElement.open), true);
-    await old.locator("..").getByText("Selected: Second", { exact: true }).first().waitFor();
-    assert.equal(await old.evaluate(node => getComputedStyle(node).outlineStyle !== "none"), true);
-    // Focus scrolls to the old attempt. Capture the full page from the top and
-    // finish responsive CSS transitions so a closing sidebar is not misleading.
+    const row = page.locator("tr").filter({ hasText: longId });
+    assert.match(await row.innerText(), /Not attended/);
+    assert.match(await row.innerText(), /Passed/);
+    assert.match(await page.locator(".report-section").innerText(), /Enrolled/);
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: join(artifacts, `reports-${width}.png`), fullPage: true, animations: "disabled" });
-    await page.keyboard.press("Space");
-    assert.equal(await old.evaluate(node => node.parentElement.open), false);
-    await old.focus(); await page.keyboard.press("Tab");
-    assert.equal(await page.locator("summary:focus").count(), 1, "Next saved attempt remains keyboard reachable");
     if (width === 320) {
       const menu = page.getByRole("button", { name: "Open navigation", exact: true });
       await menu.focus(); await page.keyboard.press("Enter");

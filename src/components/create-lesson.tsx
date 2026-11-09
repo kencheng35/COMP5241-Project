@@ -1,6 +1,7 @@
 "use client";
 
 import { lazy,Suspense,useEffect, useRef, useState } from "react";
+import { FileText, Presentation } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createManualLesson, updateLesson, type ActionState } from "@/app/learning/actions";
 import { authorLessonSchema, emptyAuthorLesson, type AuthorLesson } from "@/lib/slide-lesson";
@@ -110,6 +111,7 @@ export function UploadLessonPage() {
       <p>PDF only. Each page is rendered in this browser as one image slide; pages keep their aspect ratio and are fitted and centered on the 960 × 540 canvas. Maximum upload: 4 MiB and 30 pages. Rendering is limited to 2,073,600 pixels per page, 40 million total page pixels, and 3,840 pixels per side. Each rendered page is uploaded through private lesson image storage. The original PDF is not stored or sent to AI. Protected, damaged, oversized or unsupported PDFs and pages that exceed image-storage limits are rejected.</p>
       <label>PDF file<input type="file" name="material" required disabled={busy || saveLocked} onChange={event => { setFileName(event.currentTarget.files?.[0]?.name ?? ""); invalidate(); }} accept=".pdf,application/pdf" /></label>
       <button className="primary-button" type="submit" disabled={busy || saveLocked}>{busy ? "Rendering PDF pages..." : "Import PDF pages"}</button>
+
     </form>
     {error && <p role="alert" className="form-notice notice-error">{error}</p>}
     {draft && <Suspense fallback={<p>Loading presentation editor…</p>}><UploadPreview key={generation} draft={draft.presentation} draftId={draft.draftId} onSaveLock={value => { locked.current = value; setSaveLocked(value); }} /></Suspense>}
@@ -166,7 +168,7 @@ export function SlideLessonEditor({ lessonId = "", version = 1, initial, onSaveL
       if (!live.current) return;
       if (result.saveUncertain || !result.error && (!result.lessonId || !result.version)) {
         blocked.current = true; setUncertain(true);
-        setError("Save outcome is unknown. Keep this input and check Your lessons in another tab before saving again.");
+        setError("Save outcome is unknown. Keep this input and check Your created lessons in another tab before saving again.");
       } else if (result.error) setError(result.error);
       else {
         setAck({ id: result.lessonId!, version: result.version! });
@@ -178,7 +180,7 @@ export function SlideLessonEditor({ lessonId = "", version = 1, initial, onSaveL
     } catch {
       if (!live.current) return;
       blocked.current = true; setUncertain(true);
-      setError("Save outcome is unknown. Keep this input and check Your lessons in another tab before saving again.");
+      setError("Save outcome is unknown. Keep this input and check Your created lessons in another tab before saving again.");
     } finally {
       inFlight.current = false;
       if (live.current) { setPending(false); onSaveLock?.(blocked.current); }
@@ -248,7 +250,7 @@ export function SlideLessonEditor({ lessonId = "", version = 1, initial, onSaveL
     </>}
     </fieldset>
     {(error || success) && <p ref={notice} tabIndex={-1} role={error ? "alert" : "status"} className={`form-notice${error ? " notice-error" : ""}`}>{error || success}</p>}
-    {uncertain && <a className="text-link" href="/studio" target="_blank" rel="noopener noreferrer">Check Your lessons (new tab)</a>}
+    {uncertain && <a className="text-link" href="/studio" target="_blank" rel="noopener noreferrer">Check Your created lessons (new tab)</a>}
     <p>
       <button type="button" className="secondary-button" disabled={pending || uncertain} onClick={() => void save("save")}>{pending ? "Saving..." : "Save"}</button>
       <button type="button" className="auth-submit" disabled={pending || uncertain} onClick={() => void save("publish")}>{pending ? "Saving..." : "Save and publish"}</button>

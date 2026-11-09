@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { LearnerShell } from "@/components/learner-shell";
 import { ActionForm } from "@/components/learning-controls";
+import { VisibilityLabel } from "@/components/visibility-label";
 import { addReviewer, removeReviewer } from "@/app/learning/actions";
 import { isInstructor, database, displayName, isAdmin, requireUser } from "@/lib/learning-server";
 import { collectRows } from "@/lib/learning";
@@ -13,7 +14,7 @@ export default async function Admin() {
   return <LearnerShell active="/admin" name={await displayName(user)} admin instructor={isInstructor(user)}>
     <div className="portal-page"><span className="eyebrow">ADMINISTRATOR</span><h1>Review & publish.</h1>
       <div className="learning-list">{data?.map(lesson => <div key={lesson.id}>
-        <h2>{lesson.title}</h2><p>{lesson.visibility} · Version {lesson.version}</p>
+        <h2>{lesson.title}</h2><p><VisibilityLabel visibility={lesson.visibility} />Version {lesson.version}</p>
         <a className="text-link" href={`/studio?edit=${lesson.id}`}>Review content and answer key</a>
         {lesson.visibility === "public" && <details><summary>Manage quiz-report access</summary>
           <ActionForm action={addReviewer} label="Add reviewer"><input type="hidden" name="lessonId" value={lesson.id} /><label>Registered reviewer user ID<input name="reviewerId" required /></label></ActionForm>

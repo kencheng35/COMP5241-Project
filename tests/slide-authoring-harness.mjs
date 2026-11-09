@@ -45,7 +45,7 @@ export async function harness() {
       select(c) { columns = c; return q; },
       eq(k, v) { filters.push(`${k}=$${args.push(v)}`); return q; },
       in(k,v){filters.push(`${k}=any($${args.push(v)}::uuid[])`);return q;},
-      order() { return q; }, range() { return q; },
+      order() { return q; }, range() { return q; }, limit() { return q; },
       insert(v) { kind = "insert"; values = v; return q; },
       update(v) { kind = "update"; values = v; return q; },
       delete(){kind="delete";return q;},
@@ -76,6 +76,9 @@ export async function harness() {
       return row && (row.owner_id === user.id || row.visibility === "public" || review && permissions.isAdmin(user) && row.review_requested) ?
         { ...row, content: learning.storedLessonSchema.parse(row.content) } : null;
     },
+    hongKongDate: value => value ? "1 Jan 2026" : "Not seen yet",
+    lessonResumeDates: async () => new Map(),
+    lessonHasUpdate: () => false,
     enrolledLesson: async (id, user) => {
       const lesson = await server.accessibleLesson(id, user);
       const { rows } = await db.query("select * from forge_enrollments where lesson_id=$1 and user_id=$2", [id,user.id]);

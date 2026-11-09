@@ -89,7 +89,7 @@ export function DiagnosticForm({ initial, role }: { initial: SetupProfile; role:
       {roleChanged && <a className="text-link" href="/diagnostic">Reopen diagnostic</a>}
       <Link className="text-link" href="/onboarding">Edit background & goals</Link>
       <Link className="text-link" href="/dashboard">Dashboard</Link>
-      <Link className="text-link" href="/profile">Profile, export & deletion</Link>
+      <Link className="text-link" href="/profile">Profile & settings</Link>
       <Link className="text-link" href="/login">Log in / account recovery</Link>
     </div>
   </section>;

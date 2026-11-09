@@ -145,7 +145,7 @@ test("PDF importer retains edits/file; retry, stale rendering and pending/unknow
     });
     await page.exposeFunction("persist",async(name,entries)=>{
       saves.push({name,entries});if(saveGate)await saveGate;
-      return {saveUncertain:true,error:"Save outcome is unknown. Keep this input and check Your lessons."};
+      return {saveUncertain:true,error:"Save outcome is unknown. Keep this input and check Your created lessons."};
     });
     await mountUpload(page,async name=>{imports.push(name);return typeof importResult==="function"?await importResult():importResult;});await preview(page);
     await title(page).fill("Keep unsaved work");

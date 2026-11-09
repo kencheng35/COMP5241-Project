@@ -29,7 +29,8 @@ export async function updateProfile(_previous: ProfileState, formData: FormData)
   if (formData.get("removeAvatar") === "on") avatar = null;
   else if (image instanceof File && image.size) {
     try {
-      if (image.size > 2 * 1024 * 1024 || !["image/jpeg", "image/png"].includes(image.type)) throw new Error("Invalid image");
+      const named = /\.(jpe?g|png)$/i.test(image.name);
+      if (image.size > 2 * 1024 * 1024 || !((["image/jpeg", "image/jpg", "image/png"].includes(image.type) || (image.type === "" && named)))) throw new Error("Invalid image");
       const processor = sharp(Buffer.from(await image.arrayBuffer()), { limitInputPixels: 20_000_000 });
       const metadata = await processor.metadata();
       if (!["jpeg", "png"].includes(metadata.format ?? "")) throw new Error("Invalid image");

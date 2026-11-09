@@ -9,7 +9,7 @@ export { isAdmin, isInstructor, canPublishLessons, canEditLesson, canManageEnrol
 
 export type LessonRow = {
   id: string; owner_id: string; title: string; subject: string; summary: string;
-  content: LessonContent; visibility: "private" | "public"; version: number; created_at: string; review_requested: boolean;
+  content: LessonContent; visibility: "private" | "public"; version: number; created_at: string; published_at?: string | null; review_requested?: boolean;
   metadata?: unknown;
 };
 export type AttemptRow = {
@@ -39,6 +39,20 @@ export async function requireUser() {
   return user;
 }
 
+export async function lessonCreators(ownerIds: string[]) {
+  const ids = [...new Set(ownerIds)];
+  const creators = new Map<string, { name: string; role: "Instructor" | "Learner" }>();
+  if (!ids.length) return creators;
+  const { data } = await database().from("profiles").select("id,display_name").in("id", ids);
+  const names = new Map((data ?? []).map(row => [String(row.id), String(row.display_name || "Learner")]));
+  await Promise.all(ids.map(async id => {
+    const { data: account } = await database().auth.admin.getUserById(id);
+    const role = account.user?.app_metadata?.role;
+    creators.set(id, { name: names.get(id) ?? "Learner", role: role === "instructor" || role === "admin" ? "Instructor" : "Learner" });
+  }));
+  return creators;
+}
+
 export async function displayName(user: User) {
   const { data } = await database().from("profiles").select("display_name").eq("id", user.id).maybeSingle();
   return String(data?.display_name ?? user.user_metadata?.display_name ?? "Learner");
@@ -46,7 +60,7 @@ export async function displayName(user: User) {
 
 export async function visibleLessons(user: User) {
   const data = await collectRows((start, end) => database().from("forge_lessons")
-    .select("id,owner_id,title,subject,summary,visibility,version,created_at,metadata:content->metadata")
+    .select("id,owner_id,title,subject,summary,visibility,version,review_requested,created_at,published_at,metadata:content->metadata")
     .or(`visibility.eq.public,owner_id.eq.${user.id}`).order("created_at", { ascending: false }).order("id").range(start, end));
   return data as Omit<LessonRow, "content">[];
 }
@@ -65,6 +79,33 @@ export async function enrolledLesson(id: string, user: User) {
   const { data, error } = await database().from("forge_enrollments").select("lesson_id").eq("user_id", user.id).eq("lesson_id", id).maybeSingle();
   if (error || !data) throw new Error("Enroll in this lesson first.");
   return lesson;
+}
+
+export function hongKongTime(value: string | undefined) {
+  if (!value) return "Not seen yet";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not seen yet";
+  return new Intl.DateTimeFormat("en-HK", {
+    timeZone: "Asia/Hong_Kong", year: "numeric", month: "short", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).format(date) + " HKT";
+}
+
+export function hongKongDate(value: string | undefined) {
+  if (!value) return "Not seen yet";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not seen yet";
+  return new Intl.DateTimeFormat("en-HK", { timeZone: "Asia/Hong_Kong", year: "numeric", month: "short", day: "2-digit" }).format(date);
+}
+
+export async function lessonResumeDates(userId: string) {
+  const rows = await collectRows((start, end) => database().from("forge_resume")
+    .select("lesson_id,lesson_version,updated_at").eq("user_id", userId).order("lesson_id").range(start, end));
+  return new Map(rows.map(row => [String(row.lesson_id), { at: String(row.updated_at), version: Number(row.lesson_version) }]));
+}
+
+export function lessonHasUpdate(version: number, reviewRequested: boolean, visibility: string, resume: { version: number } | undefined, enrolled: boolean) {
+  return enrolled && visibility === "public" && !reviewRequested && version > 1 && resume !== undefined && resume.version < version;
 }
 
 export async function userRecords(user: User) {

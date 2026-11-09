@@ -1,23 +1,87 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookOpen, Plus } from "lucide-react";
+import { Circle, ThumbsUp } from "lucide-react";
 import { LearnerShell } from "@/components/learner-shell";
-import { isInstructor, displayName, isAdmin, userRecords, visibleLessons } from "@/lib/learning-server";
+import { isInstructor, database, displayName, hongKongDate, isAdmin, lessonHasUpdate, lessonResumeDates, userRecords, visibleLessons } from "@/lib/learning-server";
 import { loadSetup } from "@/lib/onboarding-server";
 import { attemptOutcome, lessonProgress } from "@/lib/learning";
+import { DIFFICULTIES, readMetadata } from "@/lib/curriculum";
+import { ActionForm } from "@/components/learning-controls";
+import { deletePrivateLesson, leaveLesson } from "@/app/learning/actions";
+
+function lessonDifficulty(subject: string, metadata: unknown) {
+  const value = readMetadata(subject, metadata);
+  return value ? DIFFICULTIES[value.difficulty] : "Not specified";
+}
 
 export default async function Dashboard() {
   const setup = await loadSetup();
   if (setup.code !== "ok") return <LearnerShell active="/dashboard"><div className="portal-page">
     <h1>Learning setup unavailable.</h1><p role="alert" className="form-notice notice-error">{setup.message}</p>
     <p><a className="text-link" href="/dashboard">Try loading again</a></p>
-    <p><Link className="text-link" href="/profile">Profile, export & deletion</Link></p>
+    <p><Link className="text-link" href="/profile">Profile & settings</Link></p>
     <p><Link className="text-link" href="/login">Log in / account recovery</Link></p>
   </div></LearnerShell>;
   if (!setup.profile.onboarding_completed_at) redirect("/onboarding");
   const user = setup.user;
-  const [name, lessons, records] = await Promise.all([displayName(user), visibleLessons(user), userRecords(user)]);
+  const [name, lessons, records, seen, interview] = await Promise.all([
+    displayName(user), visibleLessons(user), userRecords(user), lessonResumeDates(user.id),
+    database().from("forge_v2_sessions").select("id").eq("owner_id", user.id).limit(1),
+  ]);
   const enrolled = lessons.filter(lesson => records.enrollments.some(record => record.lesson_id === lesson.id));
-  const passedCount = new Set(records.attempts.filter(attempt => attemptOutcome(attempt).passed).map(attempt => attempt.original_lesson_id)).size;
-  return <LearnerShell active="/dashboard" name={name} admin={isAdmin(user)} instructor={isInstructor(user)}><div className="portal-page"><header className="portal-heading"><div><span className="eyebrow">MY LEARNING</span><h1>Welcome, {name}.</h1><p>{enrolled.length} enrolled lessons · {passedCount} passed (any version)</p></div><div className="dashboard-actions"><Link className="auth-submit" href="/catalog"><BookOpen size={17} />Find a lesson</Link><Link className="secondary-button" href="/studio"><Plus size={17} />Create a lesson</Link></div></header>{enrolled.length === 0 ? <section className="empty-state"><BookOpen size={32} /><h2>No lessons yet.</h2><p>Choose Find a lesson to explore the catalog and enroll.</p></section> : <div className="learning-list">{enrolled.map(lesson => { const progress = lessonProgress(records.enrollments.find(record => record.lesson_id === lesson.id), records.attempts, lesson.id, lesson.version); return <Link key={lesson.id} href={`/courses/${lesson.id}/lessons/1`}><div><span className="eyebrow">{lesson.visibility} · {lesson.subject}</span><h2>{lesson.title}</h2><p>{lesson.summary}</p><small>Version {lesson.version} · {progress.passed ? "Passed" : progress.attendedAt ? "Attended" : progress.reviewedAt ? "Reviewed" : "Not yet reviewed"}</small></div><strong className="dashboard-continue">Continue lesson <span className="visually-hidden">: {lesson.title}</span></strong></Link>; })}</div>}</div></LearnerShell>;
+  const owned = lessons.filter(lesson => lesson.owner_id === user.id);
+  const passed = new Set(records.attempts.filter(attempt => attemptOutcome(attempt).passed).map(attempt => attempt.original_lesson_id)).size;
+  const interviewed = !interview.error && Boolean(interview.data?.length);
+  return <LearnerShell active="/dashboard" name={name} admin={isAdmin(user)} instructor={isInstructor(user)}>
+    <div className="portal-page">
+      <header className="portal-heading"><div><span className="eyebrow">MY LEARNING</span><h1>Welcome, {name}.</h1></div></header>
+      <section className="record-grid" aria-label="Learning record">
+        <article><strong>{enrolled.length}</strong><span>Lessons enrolled</span></article>
+        <article><strong>{passed}</strong><span>Lessons passed</span></article>
+        <article><strong><Circle size={26} aria-hidden="true" />Not yet</strong><span>Learning game</span></article>
+        <article><strong>{interviewed ? <ThumbsUp size={26} aria-hidden="true" /> : <Circle size={26} aria-hidden="true" />}{interviewed ? "Done" : "Not yet"}</strong><span>Interview</span></article>
+      </section>
+      <section className="learning-section quick-start">
+        <h2>Quick Start</h2>
+        <div className="quick-start-actions">
+          <Link className="secondary-button" href="/catalog">Find a lesson</Link>
+          <Link className="auth-submit" href="/studio">Create a lesson</Link>
+        </div>
+      </section>
+      <details className="lesson-fold">
+        <summary>Your created lessons <small>{owned.length}</small></summary>
+        {!owned.length && <p>No lessons created yet.</p>}
+        {owned.length > 0 && <div className="lesson-table" role="table" aria-label="Your created lessons">
+          <div className="lesson-table-head" role="row"><span>Subject</span><span>Title</span><span>Difficulty</span><span>Status</span><span>Last seen</span></div>
+          {owned.map(lesson => {
+            const published = lesson.visibility === "public";
+            return <div className="lesson-table-row" role="row" key={lesson.id}>
+              <span data-label="Subject">{lesson.subject}</span>
+              <span data-label="Title"><Link className="text-link" href={`/courses/${lesson.id}`}>{lesson.title}</Link></span>
+              <span data-label="Difficulty">{lessonDifficulty(lesson.subject, lesson.metadata)}</span>
+              <span data-label="Status"><span className={`visibility-label ${published ? "visibility-public" : "visibility-private"}`}>{published ? "Published" : "Private"}</span>{!published && <ActionForm action={deletePrivateLesson} label="Delete"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm>}</span>
+              <span data-label="Last seen">{hongKongDate(seen.get(lesson.id)?.at)}</span>
+            </div>;
+          })}
+        </div>}
+      </details>
+      <details className="lesson-fold">
+        <summary>Enrolled lesson <small>{enrolled.length}</small></summary>
+        {!enrolled.length && <p>No enrolled lessons yet.</p>}
+        {enrolled.length > 0 && <div className="lesson-table" role="table" aria-label="Enrolled lessons">
+          <div className="lesson-table-head" role="row"><span>Subject</span><span>Title</span><span>Difficulty</span><span>Progress</span><span>Last seen</span></div>
+          {enrolled.map(lesson => {
+            const progress = lessonProgress(records.enrollments.find(record => record.lesson_id === lesson.id), records.attempts, lesson.id, lesson.version);
+            return <div className="lesson-table-row" role="row" key={lesson.id}>
+              <span data-label="Subject">{lesson.subject}</span>
+              <span data-label="Title"><Link className="text-link" href={`/courses/${lesson.id}/lessons/1`}>{lesson.title}</Link>{lessonHasUpdate(lesson.version, Boolean(lesson.review_requested), lesson.visibility, seen.get(lesson.id), true) && <span className="update-mark">Updated</span>}</span>
+              <span data-label="Difficulty">{lessonDifficulty(lesson.subject, lesson.metadata)}</span>
+              <span data-label="Progress"><Link className="text-link" href={`/courses/${lesson.id}/lessons/1`}>{progress.passed ? "Completed" : "In-progress"}</Link><ActionForm action={leaveLesson} label="Leave lesson"><input type="hidden" name="lessonId" value={lesson.id} /></ActionForm></span>
+              <span data-label="Last seen">{hongKongDate(seen.get(lesson.id)?.at)}</span>
+            </div>;
+          })}
+        </div>}
+      </details>
+    </div>
+  </LearnerShell>;
 }

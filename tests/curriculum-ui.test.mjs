@@ -88,6 +88,7 @@ test("real curriculum routes and components: combined filters, legacy, player, p
       isAdmin: () => false, isInstructor: () => true, canPublishLessons: () => true,
       canEditLesson: (_, row) => row.owner_id === user.id, canManageEnrollment: () => true,
       visibleLessons: async () => rows.map(({ content, ...row }) => ({ ...row, metadata: content.metadata })),
+      hongKongDate: () => "Not seen yet", lessonResumeDates: async () => new Map(), lessonHasUpdate: () => false, lessonCreators: async () => new Map(),
       accessibleLesson: async id => structuredClone(rows.find(row => row.id === id)),
       userRecords: async () => ({ enrollments: [], bookmarks: [], attempts: [] }),
       database: () => ({ from(table) {
@@ -185,9 +186,7 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   assert.equal(await page.locator('input[name="q"]').evaluate(element => document.activeElement === element), true);
   await page.locator('input[name="q"]').fill("Synthetic");
   await page.locator('select[name="subject"]').selectOption("AI Coding-Agent Skills");
-  await page.locator('select[name="audience"]').selectOption("instructors");
   await page.locator('select[name="difficulty"]').selectOption("intermediate");
-  await page.locator('select[name="visibility"]').selectOption("private");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll(".catalog-card").length === 1);
   assert.ok((await cards.innerText()).includes("coding-agents"));
@@ -221,12 +220,12 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   assert.equal(await page.locator('a[href="/courses/00000000-0000-4000-8000-000000000001"]').count(), 0);
   assert.equal(await page.getByRole("button", { name: "Generate AI path" }).isDisabled(), true);
   await page.evaluate(() => curriculumUi.renderRoute("studio"));
-  await page.getByRole("heading",{name:"How to create a lesson"}).waitFor();
+  await page.getByRole("heading",{name:"Write a lesson", exact:true}).waitFor();
   assert.equal(await page.locator('select[name="subject"]').count(),0,"main Create is simple steps, not an AI draft");
   await page.evaluate(() => curriculumUi.renderRoute("studio",{manual:"1",starter:"sdlc-small-change"}));
   await page.getByRole("textbox",{name:"Lesson title",exact:true}).waitFor();
   assert.equal(await page.getByRole("textbox",{name:"Lesson title",exact:true}).inputValue(),"","manual always starts blank");
-  assert.equal(await page.getByRole("heading",{name:"Your lessons",exact:true}).count(),0);
+  assert.equal(await page.getByRole("heading",{name:"Your created lessons",exact:true}).count(),0);
   for (const route of ["teaching"]) {
     await page.evaluate(route => curriculumUi.renderRoute(route), route);
     await page.locator('select[name="subject"]').waitFor();
