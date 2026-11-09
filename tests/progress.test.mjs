@@ -53,7 +53,11 @@ async function fixture(context) {
   await db.exec(source("supabase/migrations/20261021_progress_evidence_ran.sql"));
   const state = { user: { id: owner, app_metadata: {} }, rpcCalls: [], lose: false, malformed: false, beforeRpc: null, fail: false, insertAck: true };
   function query(table) {
-    assert.match(table, /^forge_[a-z_]+$/);
+    assert.match(table, /^forge_[a-z0-9_]+$/);
+    if (table === "forge_v2_sessions") {
+      const q = { select() { return q; }, eq() { return q; }, limit() { return q; }, then(resolve) { resolve({ data: [], error: null }); } };
+      return q;
+    }
     const filters = [], params = [], orders = [];
     let mutation = null, one = false, range = "";
     const q = {
@@ -184,6 +188,7 @@ test("real progress actions and helpers with additive migration (offline PGlite)
       "next/navigation": { notFound() { throw new Error("Not found"); }, redirect(path) { throw new Error(`Redirect ${path}`); } },
       "@/components/learner-shell": { LearnerShell: ({ children }) => createElement("main", {}, children) },
       "@/components/learning-controls": controls, "@/components/lesson-coach": { LessonCoach: () => null },
+      "@/components/visibility-label": { VisibilityLabel: ({ published }) => createElement("span", {}, published ? "Published" : "Private") },
       "@/components/lesson-metadata": { LessonMetadata: () => null }, "@/lib/curriculum": { readMetadata: () => null, DIFFICULTIES: { beginner: "Beginner" } },
       "@/app/learning/actions": h.actions, "@/lib/learning": learning, "@/lib/resume": resume,
       "@/lib/learning-server": { ...h.server, displayName: async () => "Synthetic owner" },

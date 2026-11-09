@@ -69,6 +69,8 @@ function fixture(options = {}) {
         } };
       },
     },
+    "@/components/learning-controls": { ActionForm: ({ children }) => children },
+    "@/app/learning/actions": { deletePrivateLesson: async () => {}, leaveLesson: async () => {} },
   };
   function load(name) {
     if (name === "./diagnostic") name = "@/lib/diagnostic";

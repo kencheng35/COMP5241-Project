@@ -316,7 +316,7 @@ test("offline mounted actual shell and report HTML: 320/1440 wrapping, native de
     load("react-dom/client").createRoot(document.getElementById("root")).render(load("react").createElement(load("shell").LearnerShell, props,
       load("react").createElement("div", { style: { display: "contents" }, dangerouslySetInnerHTML: { __html: content } })));
   }, { sources, props, content });
-  await page.getByRole("heading", { name: "Participation & results." }).waitFor();
+  await page.getByRole("heading", { name: "Student reports", exact: true }).waitFor();
   for (const width of [320, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.waitForFunction(mobile => document.getElementById("learner-navigation").inert === mobile, width === 320);

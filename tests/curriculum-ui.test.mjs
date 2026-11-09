@@ -28,7 +28,7 @@ for (const name of ["learning", "curriculum", "slide-lesson", "demo-lessons", "r
 sources["./presentation.ts"]=sources["./presentation"]=sources["@/lib/presentation"];
 sources["./learning"] = sources["@/lib/learning"];
 sources["./curriculum"] = sources["@/lib/curriculum"];
-for (const name of ["create-lesson", "learning-controls", "lesson-metadata", "lesson-preview", "catalog-search", "learning-path", "lesson-generation"]) {
+for (const name of ["create-lesson", "learning-controls", "lesson-metadata", "lesson-preview", "catalog-search", "learning-path", "lesson-generation", "visibility-label"]) {
   add(`@/components/${name}`, `components/${name}.tsx`);
   sources[`./${name}`] = sources[`@/components/${name}`];
 }
@@ -178,10 +178,14 @@ test("real curriculum routes and components: combined filters, legacy, player, p
     await renderRoute("catalog");
   }, sources);
   const cards = page.locator(".catalog-card");
+  await page.locator("summary", { hasText: /^Not yet enrolled/ }).click();
+  await page.locator("summary", { hasText: /^Private/ }).click();
   await cards.nth(3).waitFor();
   assert.equal(await cards.count(), 4);
-  assert.ok((await cards.nth(3).innerText()).includes("Not specified"));
-  assert.ok(!(await cards.nth(3).innerText()).includes("None specified by author"));
+  const legacyTitle = await page.evaluate(() => window.curriculumUi.rows[3].title);
+  const legacyCard = cards.filter({ hasText: legacyTitle });
+  assert.ok((await legacyCard.innerText()).includes("Not specified"));
+  assert.ok(!(await legacyCard.innerText()).includes("None specified by author"));
   await page.keyboard.press("/");
   assert.equal(await page.locator('input[name="q"]').evaluate(element => document.activeElement === element), true);
   await page.locator('input[name="q"]').fill("Synthetic");
@@ -189,6 +193,7 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   await page.locator('select[name="difficulty"]').selectOption("intermediate");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll(".catalog-card").length === 1);
+  await page.locator("summary", { hasText: /^Private/ }).click();
   assert.ok((await cards.innerText()).includes("coding-agents"));
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: join(screenshots, "catalog-mobile-filtered.png"), fullPage: true });
@@ -196,6 +201,8 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.getByRole("heading", { name: "No matching lessons." }).waitFor();
   await page.getByRole("link", { name: "Clear all filters", exact: true }).click();
+  await page.locator("summary", { hasText: /^Not yet enrolled/ }).click();
+  await page.locator("summary", { hasText: /^Private/ }).click();
   await cards.nth(3).waitFor();
   for (let index = 0; index < 3; index++) {
     await page.evaluate(index => curriculumUi.renderRoute("overview", {}, index), index);
@@ -315,6 +322,8 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   }
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.evaluate(() => curriculumUi.renderRoute("catalog"));
+  await page.locator("summary", { hasText: /^Not yet enrolled/ }).click();
+  await page.locator("summary", { hasText: /^Private/ }).click();
   await cards.nth(3).waitFor();
   await page.screenshot({ path: join(screenshots, "catalog-desktop.png"), fullPage: true });
   assert.deepEqual(errors, []);
