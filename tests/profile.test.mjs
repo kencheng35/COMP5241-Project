@@ -43,6 +43,7 @@ function fixture(options = {}) {
     "lucide-react": { ShieldCheck: () => null, Trash2: () => null },
     "@/components/learner-shell": { LearnerShell: ({ children }) => children },
     "@/components/theme-switch": { ThemeSwitch: () => null },
+    "@/components/remember-avatar": { RememberAvatar: () => null },
     "@/components/profile-form": { ProfileForm: ({ initial, notice }) => require("react").createElement("form", { "data-saveable": true }, JSON.stringify({ initial, notice })) },
     "@/components/email-change-form": { EmailChangeForm: () => require("react").createElement("form", { "aria-label": "Change email" }) },
     "@/components/export-button": { ExportButton: () => require("react").createElement("button", {}, "Export my data") },

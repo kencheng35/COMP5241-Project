@@ -53,7 +53,11 @@ async function fixture(context) {
   await db.exec(source("supabase/migrations/20261021_progress_evidence_ran.sql"));
   const state = { user: { id: owner, app_metadata: {} }, rpcCalls: [], lose: false, malformed: false, beforeRpc: null, fail: false, insertAck: true };
   function query(table) {
-    assert.match(table, /^forge_[a-z_]+$/);
+    assert.match(table, /^forge_[a-z0-9_]+$/);
+    if (table === "forge_v2_sessions") {
+      const q = { select() { return q; }, eq() { return q; }, limit() { return q; }, then(resolve) { resolve({ data: [], error: null }); } };
+      return q;
+    }
     const filters = [], params = [], orders = [];
     let mutation = null, one = false, range = "";
     const q = {
