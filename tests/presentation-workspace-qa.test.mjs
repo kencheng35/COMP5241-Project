@@ -24,6 +24,7 @@ test("QA actual Studio route selection and rendered width isolation, including d
   const marker=kind=>function Marker(){return React.createElement("p",{"data-qa":kind},kind);};
   const Studio=load("../src/app/studio/page.tsx",{
     "react/jsx-runtime":jsx,
+    "lucide-react":{PenLine:marker("write"),Upload:marker("upload-icon")},
     "next/navigation":{notFound(){throw new Error("QA not found");}},
     "@/components/learner-shell":{LearnerShell:({children})=>React.createElement("div",{className:"portal-shell"},
       React.createElement("aside",{className:"portal-sidebar"},"Synthetic sidebar"),

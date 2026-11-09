@@ -69,6 +69,7 @@ function fixture(options = {}) {
         } };
       },
     },
+    "@/components/learning-controls": { ActionForm: ({ children }) => children },
   };
   function load(name) {
     if (name === "./diagnostic") name = "@/lib/diagnostic";

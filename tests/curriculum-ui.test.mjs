@@ -178,6 +178,8 @@ test("real curriculum routes and components: combined filters, legacy, player, p
     await renderRoute("catalog");
   }, sources);
   const cards = page.locator(".catalog-card");
+  await page.locator("summary", { hasText: /^Not yet enrolled/ }).click();
+  await page.locator("summary", { hasText: /^Private/ }).click();
   await cards.nth(3).waitFor();
   assert.equal(await cards.count(), 4);
   assert.ok((await cards.nth(3).innerText()).includes("Not specified"));
@@ -189,6 +191,7 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   await page.locator('select[name="difficulty"]').selectOption("intermediate");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll(".catalog-card").length === 1);
+  await page.locator("summary", { hasText: /^Not yet enrolled/ }).click();
   assert.ok((await cards.innerText()).includes("coding-agents"));
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: join(screenshots, "catalog-mobile-filtered.png"), fullPage: true });
@@ -196,6 +199,8 @@ test("real curriculum routes and components: combined filters, legacy, player, p
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.getByRole("heading", { name: "No matching lessons." }).waitFor();
   await page.getByRole("link", { name: "Clear all filters", exact: true }).click();
+  await page.locator("summary", { hasText: /^Not yet enrolled/ }).click();
+  await page.locator("summary", { hasText: /^Private/ }).click();
   await cards.nth(3).waitFor();
   for (let index = 0; index < 3; index++) {
     await page.evaluate(index => curriculumUi.renderRoute("overview", {}, index), index);
