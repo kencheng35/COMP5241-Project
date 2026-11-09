@@ -79,8 +79,8 @@ test("PDF upload guidance is concise, responsive, and keeps controls reachable",
       await page.setViewportSize({width,height:900});
       await mountUpload(page);
       const guidance=page.locator(".presentation-upload-guidance");
-      assert.equal(await guidance.getByRole("heading",{name:"Upload a PDF",exact:true}).count(),1);
-      assert.equal(await page.getByRole("heading",{name:"Upload a PDF",exact:true}).count(),2);
+      assert.equal(await guidance.getByRole("heading",{name:"Upload a PDF",exact:true}).count(),0);
+      assert.equal(await page.getByRole("heading",{name:"Upload a PDF",exact:true}).count(),1);
       assert.deepEqual(await guidance.locator("li").allTextContents(),expectedGuidance);
       const copy=await guidance.innerText();
       assert.doesNotMatch(copy,/pixels?|privacy|safety|trusted PDFs|review every page|original PDF|private lesson images/i);

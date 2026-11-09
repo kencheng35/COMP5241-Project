@@ -219,15 +219,12 @@ export function UploadLessonPage({ownerId}:{ownerId:string}) {
     <form id="upload-importer" className="learning-form" hidden={!!draft && !importerOpen} onSubmit={event => { event.preventDefault(); void readFile(new FormData(event.currentTarget)); }}>
       {draft && <p>Changing the PDF replaces this preview. Close the importer to keep editing.</p>}
       <div className="presentation-upload-guidance">
-        <section aria-labelledby="pdf-upload-guidance">
-          <h3 id="pdf-upload-guidance">Upload a PDF</h3>
-          <ul>
-            <li>Maximum 4 MiB and 30 pages.</li>
-            <li>Each page becomes a slide image; its text cannot be edited.</li>
-            <li>Password-protected or restricted PDFs cannot be imported.</li>
-            <li>If an image is too large, reduce its resolution and export the PDF again.</li>
-          </ul>
-        </section>
+        <ul>
+          <li>Maximum 4 MiB and 30 pages.</li>
+          <li>Each page becomes a slide image; its text cannot be edited.</li>
+          <li>Password-protected or restricted PDFs cannot be imported.</li>
+          <li>If an image is too large, reduce its resolution and export the PDF again.</li>
+        </ul>
       </div>
       <label>PDF file<input ref={fileInput} type="file" name="material" required disabled={importBlocked} onChange={event => { const current = readPdfRecovery(ownerId); if (current.draftId || locked.current || current.phase !== "idle" && !inFlight.current) return; setFileName(event.currentTarget.files?.[0]?.name ?? ""); invalidate(); }} accept=".pdf,application/pdf" /></label>
       <button className="primary-button" type="submit" disabled={importBlocked}>{busy ? "Rendering PDF pages..." : "Import PDF pages"}</button>
