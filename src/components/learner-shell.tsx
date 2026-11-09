@@ -76,6 +76,7 @@ export function LearnerShell({ children, active, name = "Learner", admin = false
   const [picture, setPicture] = useState<string | null>(avatar);
   useEffect(() => {
     const saved = avatar?.startsWith("data:image/") ? avatar : storedAvatar();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved) setPicture(saved);
     let cancel = false;
     fetch("/api/me/avatar").then(response => response.ok ? response.json() : null).then(data => {
