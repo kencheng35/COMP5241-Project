@@ -65,24 +65,45 @@ async function geometry(page){
 test("PDF safety guidance wraps and keeps controls reachable at mobile and desktop widths",async()=>{
   const browser=await chromium.launch(),context=await browser.newContext({offline:true,serviceWorkers:"block"});
   const artifacts=await mkdtemp(join(tmpdir(),"forge-pdf-guidance-")),requests=[];
+  const responsiveLines={};
   try{
     await context.route("**/*",route=>{requests.push(route.request().url());return route.abort();});
     for(const width of [320,1440]){
       const page=await context.newPage();
       await page.setViewportSize({width,height:900});
       await mountUpload(page);
-      const guidance=page.locator("#upload-importer p").filter({hasText:"PDF only."});
-      assert.match(await guidance.innerText(),/4,000,000 pixels/);
-      assert.match(await guidance.innerText(),/not a hard safety guarantee/);
+      const guidance=page.locator(".presentation-upload-guidance");
+      for(const heading of ["How it works","File and page limits","Privacy and safety"])
+        assert.equal(await page.getByRole("heading",{name:heading,exact:true}).count(),1,`Missing heading: ${heading}`);
+      const copy=await guidance.innerText();
+      for(const fact of [
+        "image slide","aspect ratio","960 × 540","4 MiB","30 pages","declared embedded-image dimensions","4,000,000 pixels",
+        "2,073,600 pixels per page","40 million total page pixels","3,840 pixels per side",
+        "not a hard safety guarantee","Use trusted PDFs","review every page",
+        "Password-protected PDFs","oversized or unreliable content are rejected",
+        "original PDF is not retained or sent to AI","private lesson images",
+      ])assert.ok(copy.includes(fact),`Missing PDF guidance fact: ${fact}`);
       const bounds=await guidance.boundingBox();
       assert.ok(bounds&&bounds.x>=0&&bounds.x+bounds.width<=width);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      const outputLimits=page.locator(".presentation-upload-guidance li").filter({hasText:"2,073,600 pixels per page"});
+      responsiveLines[width]=await outputLimits.evaluate(element=>{
+        const range=document.createRange();range.selectNodeContents(element);return range.getClientRects().length;
+      });
+      for(const control of [page.getByLabel("PDF file",{exact:true}),button(page,"Import PDF pages")]){
+        const controlBounds=await control.boundingBox();
+        assert.ok(controlBounds&&controlBounds.x>=0&&controlBounds.x+controlBounds.width<=width,
+          `${width}px control stays within the viewport`);
+        assert.equal(await control.isVisible(),true);
+      }
       await page.screenshot({path:join(artifacts,`guidance-${width}.png`),fullPage:true});
       await page.getByLabel("PDF file",{exact:true}).focus();
       await page.keyboard.press("Tab");
       assert.equal(await button(page,"Import PDF pages").evaluate(el=>el===document.activeElement),true);
       await page.close();
     }
+    assert.ok(responsiveLines[320]>responsiveLines[1440],
+      `Long limit guidance wraps on mobile: ${JSON.stringify(responsiveLines)}`);
     console.log("Synthetic PDF guidance screenshots:",artifacts);
     assert.deepEqual(requests,[]);
   }finally{await context.close();await browser.close();}

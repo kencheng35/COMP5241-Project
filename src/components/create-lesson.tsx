@@ -218,7 +218,31 @@ export function UploadLessonPage({ownerId}:{ownerId:string}) {
     </div>
     <form id="upload-importer" className="learning-form" hidden={!!draft && !importerOpen} onSubmit={event => { event.preventDefault(); void readFile(new FormData(event.currentTarget)); }}>
       {draft && <p>Changing the PDF replaces this preview. Close the importer to keep editing.</p>}
-      <p>PDF only. Each page is rendered in this browser as one image slide; pages keep their aspect ratio and are fitted and centered on the 960 × 540 canvas. Maximum upload: 4 MiB and 30 pages. PDF.js checks declared embedded-image dimensions against 4,000,000 pixels; output is limited to 2,073,600 pixels per page, 40 million total page pixels, and 3,840 pixels per side. These limits reduce memory and storage use but are not a hard safety guarantee for malformed or compressed images. Use trusted PDFs and review every page. Password-protected files and detected oversized or unreliable content are rejected. Each rendered page uses private lesson image storage; the original PDF is not stored or sent to AI.</p>
+      <div className="presentation-upload-guidance">
+        <section aria-labelledby="pdf-how-it-works">
+          <h3 id="pdf-how-it-works">How it works</h3>
+          <ul>
+            <li>Each PDF page is rendered in this browser as one image slide.</li>
+            <li>Pages keep their aspect ratio and are fitted and centered on a 960 × 540 canvas.</li>
+          </ul>
+        </section>
+        <section aria-labelledby="pdf-file-limits">
+          <h3 id="pdf-file-limits">File and page limits</h3>
+          <ul>
+            <li>PDF only; maximum file size is 4 MiB and maximum length is 30 pages.</li>
+            <li>PDF.js checks declared embedded-image dimensions against 4,000,000 pixels.</li>
+            <li>Output limits: 2,073,600 pixels per page, 40 million total page pixels, and 3,840 pixels per side.</li>
+          </ul>
+        </section>
+        <section aria-labelledby="pdf-privacy-safety">
+          <h3 id="pdf-privacy-safety">Privacy and safety</h3>
+          <ul>
+            <li>These limits reduce memory and storage use, but are not a hard safety guarantee for malformed or compressed images. Use trusted PDFs and review every page.</li>
+            <li>Password-protected PDFs and detected oversized or unreliable content are rejected.</li>
+            <li>The original PDF is not retained or sent to AI. Rendered pages are stored as private lesson images.</li>
+          </ul>
+        </section>
+      </div>
       <label>PDF file<input ref={fileInput} type="file" name="material" required disabled={importBlocked} onChange={event => { const current = readPdfRecovery(ownerId); if (current.draftId || locked.current || current.phase !== "idle" && !inFlight.current) return; setFileName(event.currentTarget.files?.[0]?.name ?? ""); invalidate(); }} accept=".pdf,application/pdf" /></label>
       <button className="primary-button" type="submit" disabled={importBlocked}>{busy ? "Rendering PDF pages..." : "Import PDF pages"}</button>
 
