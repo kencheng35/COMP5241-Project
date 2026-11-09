@@ -2,6 +2,249 @@
 
 Last reviewed: 2026-11-09
 
+## 9 November 2026 — PDF rendering fix: independent offline QA
+
+**Owner: independent QA; status: offline QA completed, not release certification.**
+This handover records reported evidence; earlier entries remain dated history.
+
+- On the real local `C:\HA\Test.pdf`, offline checks used the actual React
+  upload component and PDF worker with mock private image storage/save at
+  320px and 1440px. At each width, six distinct nonblank 1080 × 608 images
+  loaded in previews, with six ordered image references reaching mock save.
+  This QA did not store or upload PDF content or screenshots.
+- Independent local synthetic recovery checks passed **19/19**; local mock
+  authorization-action checks passed **5/5**.
+- `node tests\pdf-import-build-qa.mjs 'C:\Windows' 'C:\Users\SOLUSER'`
+  exited **0**: production typegen/typecheck/build and emitted worker checks
+  passed. The temporary snapshot was removed.
+
+### Remaining boundaries
+
+The real-PDF nonblank and reference metrics do not prove visual identity.
+Earlier synthetic source-limit and aggregate nonblank evidence remains below;
+the prior PDF entries recorded no numerical full-page reference-comparison
+results, and none were supplied or inferred for this handover.
+Actual Vercel, connected storage, live auth and live save/reopen were not tested;
+no deployment occurred. The forged embedded-dimension decoded-memory issue is
+pre-existing and still open. When `sessionStorage` is denied, the user is
+warned and a recovery retry can be lost on reload. Valid JPEG-2000 samples may
+be rejected. The full suite and repository-wide lint have known unrelated
+failures and were not rerun. Independent visual/security and separately
+authorized connected QA remains requested; no release is certified.
+
+No PDF QA or build was rerun for this documentation handover; no code/test files
+were changed, and no installs, application environment or credential access,
+remote operations, commits or deployment occurred.
+
+## 9 November 2026 — PDF tab-recovery warning; independent QA requested
+
+**Owner: feature implementer; status: local implementation evidence, not
+release certification.** The upload screen now warns in its existing accessible
+alert when reading, writing or removing the owner-scoped tab recovery entry
+throws. It explains that reloading can lose a pending cleanup retry or show an
+old retry again, and to keep the page open until cleanup is confirmed. The
+failure flag stays in the owner's in-memory state across remounts, even if a
+later storage operation succeeds; it does not assert persistence.
+
+The existing in-memory lock and explicit retry are unchanged. Only an
+unambiguous cleanup success clears the lock; a failed tab-storage removal does
+not turn a confirmed cleanup into an error or block a successful preview/save.
+An unreadable existing entry cannot restore its lock, and a failed removal can
+leave an outdated entry to reappear on reload. Reload also loses any ID that
+was held only in memory. The warning cannot itself guarantee recovery after
+navigation. No server, authorization, or storage action was changed.
+
+### Local verification
+
+Commands ran in child Node processes with an explicitly constructed OS-only
+environment and `tests/offline-network.mjs` preloaded. Browser contexts were
+offline, with synthetic PDFs and mocked actions; action coverage used PGlite
+and in-memory blobs. No application environment files or credentials were
+read.
+
+- Before the change, the new denial checks plus the existing unavailable-tab
+  test produced **0/6 passes** because the required warning was absent.
+- `node --experimental-strip-types --test --test-concurrency=1 --test-name-pattern="storage denial warning on getItem" tests/pdf-import-upload-qa.test.mjs`:
+  **2/2 passed**, including a previously stored retry made unreadable on reload.
+- `node --experimental-strip-types --test --test-concurrency=1 tests/pdf-import-upload-qa.test.mjs tests/presentation-assets.test.mjs`:
+  **25/25 passed**. Coverage includes denied get/set/remove, a lost in-memory
+  retry and an outdated stored retry on reload, success/error responses,
+  remounts, normal preview/save, owner isolation and saved-image protection.
+  Keyboard focus, alert association and responsive bounds were checked at
+  320px and 1440px; synthetic warning screenshots were captured in memory.
+- `node --experimental-strip-types --test --test-concurrency=1 --test-name-pattern="later PDF image failure|unconfirmed private draft cleanup|PDF importer retains edits/file|actual route renderers" tests/presentation-upload.test.mjs tests/slide-authoring.test.mjs`:
+  **4/4 passed**.
+- `node node_modules/eslint/bin/eslint.js src/components/create-lesson.tsx tests/pdf-import-upload-qa.test.mjs`:
+  **0 errors, 2 pre-existing unused-import warnings**. The action test also
+  emitted the existing Node module-type warning.
+- `node node_modules/typescript/bin/tsc --noEmit --incremental false` passed
+  without Next typegen. Scoped tracked-file diff and untracked-test whitespace
+  checks passed.
+
+No connected services, remote writes, installs, deployment or full-suite/build
+run. Warning screenshots were not independently reviewed; no screen-reader
+testing was performed. Independent QA should recheck the actual upload/recovery
+UI and authorization; the earlier PDF decoded-memory security gate remains
+open.
+
+## 9 November 2026 — PDF import cleanup recovery; independent QA requested
+
+**Owner: feature implementer; status: local implementation evidence, not release
+certification.** The QA reproducer showed that a page-one upload followed by a
+page-two source-limit failure could leave a private draft unconfirmed: after
+the first `discardPresentationDraft` returned an error or threw, the importer
+forgot the ID and allowed a new draft.
+
+The upload screen now retains that ID, blocks file changes/new imports and
+offers an accessible **Retry cleanup**. The first cleanup attempt remains the
+existing automatic attempt; later attempts require an explicit click. One
+in-flight guard covers double clicks, remounts and old requests. Repeated
+failures stay visible and restore keyboard focus; only an unambiguous action
+success unlocks the importer. Stale draft creation/upload results cannot start
+another page upload after unmount. Existing save locks and manual authoring are
+preserved.
+
+The existing discard action checks the signed-in owner, permits an expired
+owned draft, expires it and invokes owner-scoped cleanup. Its retained draft
+row permits retrying the same ID after partial cleanup or a lost response;
+saved image references remain protected. No authorization or storage action
+was changed. The ID is kept in memory and best-effort owner-scoped
+`sessionStorage`; no PDF, filename or rendered image is stored there. The
+server-rendered importer is disabled until tab recovery has been checked.
+
+### Boundaries
+
+- Keep the page open until cleanup is confirmed. If tab storage is unavailable,
+  navigation/reload can lose the in-memory ID; closing the tab ends tab storage.
+  Separate tabs are not coordinated. A draft whose creation response never
+  supplied an ID cannot be recovered by this client-only change. Reloading
+  cannot establish whether an earlier server request is still in flight.
+- Success means the existing discard action returned its success response; the
+  browser does not independently audit remote blobs or other concurrent tabs.
+  The earlier PDF decoded-memory/omission security gate remains open.
+- Browser tests use synthetic PDFs, the real local PDF.js worker and mocked
+  actions. Actual action tests use PGlite and in-memory blob adapters, not a
+  connected database, storage service or Next Server Action transport.
+
+### Local verification
+
+- Before the fix, `node tests/pdf-import-cleanup-qa.mjs` exited **1** for both
+  returned-error and transport-throw modes: a second draft started while the
+  original remained in the mock. The now-obsolete, explicitly owned
+  reproducer was removed after its scenario became passing coverage.
+- `node --experimental-strip-types --test --test-concurrency=1 tests/pdf-import-upload-qa.test.mjs tests/presentation-assets.test.mjs`:
+  **18/18 passed**. Coverage includes repeated failures and recovery, lost and
+  malformed acknowledgements, original-ID retries, double-click/in-flight
+  gating, remount/reload, owner isolation, unavailable tab storage, stale
+  creation/upload, saved references and real action authorization. Chromium
+  checks keyboard focus and horizontal bounds at 320px and 1440px.
+- `node --experimental-strip-types --test --test-concurrency=1 --test-name-pattern='later PDF image failure|unconfirmed private draft cleanup|PDF importer retains edits/file' tests/presentation-upload.test.mjs`:
+  **3/3 passed**, including existing save locks and stale-render handling.
+- `node --experimental-strip-types --test --test-concurrency=1 --test-name-pattern='actual route renderers' tests/slide-authoring.test.mjs`:
+  **1/1 passed**, including the separate manual and upload Studio routes.
+- `node node_modules/eslint/bin/eslint.js src/components/create-lesson.tsx src/app/studio/page.tsx tests/pdf-import-upload-qa-harness.mjs tests/pdf-import-upload-qa.test.mjs tests/presentation-upload.test.mjs tests/presentation-assets.test.mjs`:
+  **0 errors, 2 pre-existing unused-import warnings** in `create-lesson.tsx`.
+  `node node_modules/typescript/bin/tsc --noEmit --incremental false` passed.
+  Scoped tracked-file `git diff --check` passed. Node emitted its existing
+  module-type warning for `presentation-images.ts` during the action test.
+
+No dependency installation, environment-file/credential access, connected
+services, deployment or full-suite run. Next typegen/build, screen-reader
+testing and independent authenticated QA were not performed. Independent QA
+should verify recovery and authorization against the real application.
+
+## 9 November 2026 — PDF source-image limit repair; security gate open
+
+**Owner: feature implementer; independent QA and security review requested.
+Status: partial improvement, not release certification.** This entry supersedes
+the preceding PDF import entry's broad claim that oversized or unsupported
+content is always rejected; that entry remains historical evidence.
+
+The Create lesson importer now uses a separate 4,000,000-pixel PDF.js
+declared source-image limit. Its 4 MiB input, 30-page, 2,073,600-pixel per-page
+output, 40 million total output-pixel and 3,840-pixel output-side limits are
+unchanged. These bounds reduce browser memory/work and private storage use:
+one 4-million-pixel RGBA buffer is about 15.3 MiB, before decoder, mask and
+temporary copies. A small compressed PDF is not a bound on decoded memory, and
+the per-image cap is not an aggregate decoded-image memory budget.
+
+An isolated PDF.js 6.3.289 worker reports only diagnostic categories. The
+import fails on worker warnings, worker stream errors, null image objects and
+decoded image objects over the source limit. Each page is checked before
+upload; failures arriving during an upload or final worker cleanup also fail
+the import and trigger private draft cleanup. Warning text is not forwarded or
+logged by the wrapper. All worker warnings are fatal, so even benign warnings
+may reject a usable PDF.
+Legitimate blank and all-white pages remain accepted. Manual/edit/other
+upload flows, owner authorization and storage actions are unchanged.
+
+### Remaining critical limitation
+
+The source bound is **not a hard decoded-memory or completeness boundary**.
+PDF.js checks declared dimensions of directly painted images; a JPEG's encoded
+dimensions can be larger, and masks and compressed streams may allocate before
+the wrapper sees a decoded object. The reproducible synthetic command
+`node tests/pdf-import-source-limit-diagnostic.mjs` currently **exits 1**:
+PDF.js accepts a 2,001 × 2,000 JPEG declared as 10 × 10. Larger malicious
+compressed images may exhaust memory despite the existing bounds. Omissions
+that produce no observed worker warning, stream error or null/oversized image
+object can still appear as success. Use trusted PDFs and review all slides;
+safe pre-decode validation or a genuinely resource-bounded decoder remains an
+open security gate. Many individually permitted images may also exhaust
+memory. The worker bridge observes PDF.js's internal message protocol and
+fails closed for versions other than 6.3.289; upgrades require renewed review
+and browser tests.
+
+### Local evidence
+
+- `node --experimental-strip-types --test --test-concurrency=1 tests/pdf-import.test.mjs tests/pdf-import-browser.test.mjs`:
+  **18/18 passed**. Real offline Chromium/PDF.js worker tests cover images
+  just below/at/above the source bound, inline/form/annotation images, an
+  oversized decoded mask, damaged image data, blank/white pages, later-page
+  failure, warning privacy, protocol messages and worker startup failure.
+  Unit tests also cover failures during uploads and final worker cleanup.
+- `node --experimental-strip-types --test --test-concurrency=1 --test-name-pattern="private draft|PDF importer retains|PDF safety guidance" tests/presentation-upload.test.mjs`:
+  **4/4 passed**, covering private-draft discard, unconfirmed cleanup, retry,
+  stale rendering, save locks and guidance at 320px and 1440px with keyboard
+  focus and no horizontal overflow. Synthetic screenshots are in
+  `C:\Users\SOLUSER\AppData\Local\Temp\forge-pdf-guidance-Uo45LV`.
+- `node tests/pdf-import-local-diagnostic.mjs <trusted-local-file.pdf>` was run
+  on the owner's local 540,137-byte PDF. All six 1080 × 608 pages contained
+  non-white pixels and their PNGs were under the 4 MiB image-upload input
+  limit; no unexpected requests or page errors occurred. The aggregate check
+  does not prove visual completeness or authenticated save/reopen. The PDF
+  and rendered images were not written to the repository, uploaded or sent
+  elsewhere.
+- `node node_modules/typescript/bin/tsc --noEmit --incremental false` passed.
+  `node tests/offline-build.mjs --pdf-import-worker-gate` passed isolated,
+  network-blocked Next typegen/typecheck/build and checked that both emitted
+  worker assets are referenced and work in an offline browser at the bound,
+  above the bound and for a blank page. The temporary build snapshot was
+  removed. Scoped ESLint completed with two pre-existing unused-import
+  warnings in `create-lesson.tsx`.
+- Repository-wide `npm run lint` **failed** on two unchanged
+  `react-hooks/set-state-in-effect` errors in `learner-shell.tsx:79` and
+  `theme-switch.tsx:8` (plus 11 warnings). A wider seven-file regression run
+  passed **24/27**: the unchanged Studio QA mock lacks `lucide-react`, and two
+  existing layout checks expect a 540px canvas at 1366 × 768 but measured
+  499.546875px. An offline same-browser comparison measured 499.546875px both
+  at HEAD and with this change. These unrelated failures were not modified.
+
+An initial UI test edit was accidentally nested and its recursive run was
+stopped; the corrected targeted tests above passed. An initial packaging check
+incorrectly assumed emitted assets were byte-identical to source; the
+subsequent emitted-asset behavior check passed. The full `npm test` suite and
+connected-service tests were not run.
+
+| Task | Owner | Dependencies | Acceptance |
+| --- | --- | --- | --- |
+| PDF import limit improvement | Feature implementer | Pinned PDF.js worker and existing private draft flow | Owner's six pages are non-white locally; tested oversized images fail visibly; blank pages remain valid |
+| Decoded-memory and omission security gate | Owner / security reviewer | Pre-decode bounds or resource-bounded decoder, PDF.js protocol review | Forged dimensions, compressed streams and masks cannot bypass the resource boundary or silently lose content |
+| Independent feature QA | Coordinator / independent QA | Local implementation and a trusted private test PDF | Visually compare pages and exercise authenticated save/reopen, cleanup, responsive UI and failures independently |
+
+No dependency installation, environment-file access, remote write or
+deployment was performed in this follow-up.
+
 ## 9 November 2026 — PDF page-image import for Create lesson
 
 **Owner: feature implementer; independent QA requested.** Approved scope is

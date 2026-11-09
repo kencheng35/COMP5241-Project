@@ -47,7 +47,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
           })}
         </div>}
       </details>}
-      {!lesson && upload === "1" && <UploadLessonPage key={`${user.id}-upload`} />}
+      {!lesson && upload === "1" && <UploadLessonPage key={`${user.id}-upload`} ownerId={user.id} />}
       {lesson ? <>
         {lesson.content.template === "slides"
           ? <PresentationLessonEditor key={`${user.id}-${lesson.id}`} lessonId={lesson.id} version={lesson.version}

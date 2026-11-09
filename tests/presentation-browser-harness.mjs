@@ -20,7 +20,7 @@ sources.zod=`module.exports=require(${JSON.stringify(bundle(require.resolve("zod
 sources["@/lib/pdf-import"]=`
 exports.validatePdfFile=file=>{if(!/\\.pdf$/i.test(file.name))throw new Error("Only PDF files are supported here.");if(file.size>4194304)throw new Error("PDF files must be at most 4 MiB.");};
 exports.fitPdfPage=(width,height)=>{const ratio=width/height,w=Math.min(960,540*ratio),h=w/ratio;return{x:(960-w)/2,y:(540-h)/2,w,h};};
-exports.renderPdfPages=async(file,onPage)=>{const result=await window.readPdfResult(file.name);if(result.error)throw new Error(result.error);for(const [index,[width,height]] of result.pages.entries())await onPage(index+1,new File(["synthetic rendered page"],"pdf-page-"+(index+1)+".png",{type:"image/png"}),width,height);return result.pages.length;};
+exports.renderPdfPages=async(file,onPage)=>{const result=await window.readPdfResult(file.name);if(result.error)throw new Error(result.error);for(const [index,[width,height]] of result.pages.entries()){await onPage(index+1,new File(["synthetic rendered page"],"pdf-page-"+(index+1)+".png",{type:"image/png"}),width,height);if(result.failAfter===index+1)throw new Error(result.failMessage);}return result.pages.length;};
 `;
 export async function mountPresentation(page,props={}){
   const preflight=readFileSync(join(dirname(require.resolve("tailwindcss/package.json")),"preflight.css"),"utf8");

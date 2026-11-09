@@ -40,6 +40,7 @@ test("actual image actions/reader authorize lesson/draft, sanitize, preserve und
     h.state.user.id=h.other;
     const foreignCalls=storageCalls.length;
     assert.match((await actions.uploadPresentationImage(form)).error,/unavailable/);
+    assert.match((await actions.discardPresentationDraft(begun.id)).error,/unavailable/);
     assert.equal((await read(`draft=${begun.id}`)).status,404);assert.equal(storageCalls.length,foreignCalls);
     h.state.user.id=h.owner;
     const author=presentation.blankPresentation();author.title="Private image lesson";
@@ -70,11 +71,14 @@ test("actual image actions/reader authorize lesson/draft, sanitize, preserve und
     await assert.rejects(()=>assets.validatePresentationAssets(bad.document,begun.id,h.state.user,storedLesson),/dimensions/);
     const discarded=await actions.discardPresentationDraft(begun.id);assert.ok(discarded.success,discarded.error);
     assert.equal(blobs.size,1,"discard must preserve saved reference");
+    const discardedAgain=await actions.discardPresentationDraft(begun.id);assert.ok(discardedAgain.success,discardedAgain.error);
+    assert.equal(blobs.size,1,"retrying a confirmed discard must still preserve the saved reference");
     await h.db.query("delete from forge_lessons where id=$1",[saved.lessonId]);
     removeFailure=true;
-    await assert.rejects(()=>assets.cleanupPresentationAssets(h.owner),/cleanup failed/);
+    const failedDiscard=await actions.discardPresentationDraft(begun.id);assert.match(failedDiscard.error,/cleanup failed/);
     assert.equal((await h.db.query("select status from forge_presentation_assets where id=$1",[upload.id])).rows[0].status,"deleting");
-    removeFailure=false;await assets.cleanupPresentationAssets(h.owner);assert.equal(blobs.size,0);
+    removeFailure=false;const retriedDiscard=await actions.discardPresentationDraft(begun.id);
+    assert.ok(retriedDiscard.success,retriedDiscard.error);assert.equal(blobs.size,0);
     assert.equal((await h.db.query("select * from forge_presentation_assets")).rows.length,0);
     h.state.user=null;const calls=storageCalls.length;assert.equal((await read(`draft=${begun.id}`)).status,404);assert.equal(storageCalls.length,calls);
   }finally{await h.db.close();}

@@ -20,9 +20,10 @@ const pageResult={pages:[[120,60],[60,120]]};
 const imageDraftIds=[];
 const title=page=>page.getByLabel("Lesson title",{exact:true});
 const button=(page,name)=>page.getByRole("button",{name,exact:true});
-async function mountUpload(page,readResult=()=>pageResult){
+async function mountUpload(page,readResult=()=>pageResult,events=[],discardResult={success:"Unused private pages removed."}){
   let uploaded=0;
   await page.exposeFunction("images",async(name,payload)=>{
+    events.push({name,payload});
     if(name==="begin"){const id=crypto.randomUUID();imageDraftIds.push(id);return {id};}
     if(name==="upload"){
       uploaded++;
@@ -30,14 +31,16 @@ async function mountUpload(page,readResult=()=>pageResult){
       const [width,height]=pageResult.pages[(Number(match?.[1]??uploaded)-1)%pageResult.pages.length];
       return {id:crypto.randomUUID(),width,height};
     }
-    if(name==="discard")return {success:"Unused private pages removed."};
+    if(name==="discard")return discardResult;
     return {success:"Synthetic cleanup complete."};
   });
+
   await page.exposeFunction("readPdfResult",readResult);
   await mountPresentation(page);
   await page.evaluate(()=>{
     document.querySelector(".portal-heading h1").textContent="Upload a file.";
-    presentationRoot.render(presentationModules("react").createElement(presentationModules("upload").UploadLessonPage));
+    presentationRoot.render(presentationModules("react").createElement(presentationModules("upload").UploadLessonPage,
+      {ownerId:"00000000-0000-4000-8000-000000000001"}));
   });
   await page.getByLabel("PDF file",{exact:true}).waitFor();
 }
@@ -58,6 +61,72 @@ async function geometry(page){
       importer:r(".presentation-import-bar"),scrollY,overflow:document.documentElement.scrollWidth>innerWidth};
   });
 }
+
+test("PDF safety guidance wraps and keeps controls reachable at mobile and desktop widths",async()=>{
+  const browser=await chromium.launch(),context=await browser.newContext({offline:true,serviceWorkers:"block"});
+  const artifacts=await mkdtemp(join(tmpdir(),"forge-pdf-guidance-")),requests=[];
+  try{
+    await context.route("**/*",route=>{requests.push(route.request().url());return route.abort();});
+    for(const width of [320,1440]){
+      const page=await context.newPage();
+      await page.setViewportSize({width,height:900});
+      await mountUpload(page);
+      const guidance=page.locator("#upload-importer p").filter({hasText:"PDF only."});
+      assert.match(await guidance.innerText(),/4,000,000 pixels/);
+      assert.match(await guidance.innerText(),/not a hard safety guarantee/);
+      const bounds=await guidance.boundingBox();
+      assert.ok(bounds&&bounds.x>=0&&bounds.x+bounds.width<=width);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      await page.screenshot({path:join(artifacts,`guidance-${width}.png`),fullPage:true});
+      await page.getByLabel("PDF file",{exact:true}).focus();
+      await page.keyboard.press("Tab");
+      assert.equal(await button(page,"Import PDF pages").evaluate(el=>el===document.activeElement),true);
+      await page.close();
+    }
+    console.log("Synthetic PDF guidance screenshots:",artifacts);
+    assert.deepEqual(requests,[]);
+  }finally{await context.close();await browser.close();}
+});
+
+test("a later PDF image failure shows an alert and discards the incomplete private draft",async()=>{
+  const browser=await chromium.launch(),context=await browser.newContext({offline:true,serviceWorkers:"block",viewport:{width:320,height:900}});
+  const page=await context.newPage(),events=[],requests=[];
+  const message="An embedded PDF image exceeds the 4,000,000-pixel source limit. Reduce the image resolution and export the PDF again.";
+  try{
+    await context.route("**/*",route=>{requests.push(route.request().url());return route.abort();});
+    await mountUpload(page,()=>({pages:pageResult.pages,failAfter:1,failMessage:message}),events);
+    await page.getByLabel("PDF file",{exact:true}).setInputFiles(file("oversized.pdf"));
+    await button(page,"Import PDF pages").click();
+    assert.equal(await page.getByRole("alert").innerText(),message);
+    await page.waitForFunction(()=>!document.querySelector('input[type="file"]').disabled);
+    const steps=events.filter(event=>["begin","upload","discard"].includes(event.name));
+    assert.deepEqual(steps.map(event=>event.name),["begin","upload","discard"]);
+    assert.equal(steps[1].payload.draftId,steps[2].payload);
+    assert.equal(await title(page).count(),0);
+    assert.equal(await page.getByLabel("PDF file",{exact:true}).evaluate(el=>el.files[0].name),"oversized.pdf");
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    assert.deepEqual(requests,[]);
+  }finally{await context.close();await browser.close();}
+});
+
+test("an unconfirmed private draft cleanup remains visible after a PDF image failure",async()=>{
+  const browser=await chromium.launch(),context=await browser.newContext({offline:true,serviceWorkers:"block",viewport:{width:320,height:900}});
+  const page=await context.newPage(),events=[],requests=[];
+  try{
+    await context.route("**/*",route=>{requests.push(route.request().url());return route.abort();});
+    await mountUpload(page,()=>({pages:pageResult.pages,failAfter:1,failMessage:"PDF image exceeds the source limit."}),events,{error:"Cleanup failed."});
+    await page.getByLabel("PDF file",{exact:true}).setInputFiles(file("oversized.pdf"));
+    await button(page,"Import PDF pages").click();
+    const retry=button(page,"Retry cleanup");await retry.waitFor();
+    await page.waitForFunction(()=>!document.querySelector('button[aria-describedby="pdf-import-error"]').disabled);
+    assert.match(await page.getByRole("alert").innerText(),/PDF image exceeds the source limit\. Private page cleanup is pending/);
+    assert.deepEqual(events.filter(event=>["begin","upload","discard"].includes(event.name)).map(event=>event.name),["begin","upload","discard"]);
+    assert.equal(await page.getByLabel("PDF file",{exact:true}).isDisabled(),true);
+    assert.equal(await button(page,"Import PDF pages").isDisabled(),true);
+    assert.equal(await title(page).count(),0);
+    assert.deepEqual(requests,[]);
+  }finally{await context.close();await browser.close();}
+});
 
 test("uploaded workspace fits desktop shell; 320px importer, primary controls and canvas remain reachable",async()=>{
   const browser=await chromium.launch(),context=await browser.newContext({offline:true,serviceWorkers:"block"});

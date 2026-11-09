@@ -6,16 +6,98 @@ For a presentation-ready overview of features, design choices and prototype scre
 
 Track remaining work, blockers, acceptance criteria and verification updates in [IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md).
 
-## 9 November 2026 — PDF page-image import for Create lesson
+## 9 November 2026 — PDF rendering fix: independent offline QA
 
-The Studio **Create lesson > Upload a PDF** screen now accepts PDF only.
-PDF.js renders each page locally into one image slide, fitted and centered
-without changing its aspect ratio on the existing 960 × 540 canvas. Limits are
-4 MiB per source PDF, 30 pages, 2,073,600 rendered pixels per page, 40 million
-total rendered pixels and 3,840 pixels per side. Page images use the existing
-owner-scoped private presentation asset draft and save flow; the source PDF is
-not retained or sent to AI. Manual lesson authoring, editing existing lessons
-and other upload workflows are unchanged. This is implementation evidence,
+Independent QA completed for the **offline scope**, not release certification.
+The local real `C:\HA\Test.pdf` passed through the actual React upload component
+and PDF worker at 320px and 1440px, using mock private image storage and save.
+At each width, six distinct nonblank 1080 × 608 images loaded in previews and
+six ordered image references reached the mock save. This QA did not store or
+upload PDF content or screenshots. Nonblank and reference metrics do not prove
+visual identity.
+
+Independent local synthetic recovery checks passed **19/19**; local mock
+authorization-action checks passed **5/5**. The final
+`node tests\pdf-import-build-qa.mjs 'C:\Windows' 'C:\Users\SOLUSER'` exited
+**0**, with production typegen/typecheck/build and emitted worker checks
+passing; the temporary snapshot was removed.
+
+Actual Vercel, connected storage, live auth and live save/reopen were not tested;
+no deployment occurred. The pre-existing forged embedded-dimension decoded-memory
+issue remains open; denied `sessionStorage` can lose a recovery retry on reload
+and the user is warned. Valid JPEG-2000 samples may be rejected. The full suite
+and repository-wide lint have known unrelated failures and were not rerun.
+Independent visual/security and separately authorized connected QA remains
+requested; earlier entries below are dated history.
+
+## 9 November 2026 — PDF import cleanup recovery
+
+If a PDF import fails after creating a private image draft, the existing first
+cleanup attempt still runs. If its result is an error, a lost response or
+otherwise lacks an unambiguous success, the importer stays blocked and offers
+**Retry cleanup** for that same draft. Each retry is explicit; file changes and
+new imports remain disabled until the discard action reports success. Keep the
+page open until cleanup is confirmed; do not assume private pages were removed
+after an uncertain response.
+
+The known draft ID is kept in memory and, when available, in owner-scoped tab
+storage (no PDF, filename or page images are stored there). This supports
+same-tab remount/reload recovery; other tabs are not coordinated. If reading,
+writing or clearing tab storage fails, the upload screen warns that recovery
+is unavailable and reloading can lose a pending retry. Keep the page open
+until cleanup is confirmed. The warning remains in memory for that owner until
+reload, even if a later storage operation succeeds. If removal fails, an old
+retry can instead reappear after reload; confirmed cleanup still unlocks the
+importer. A denied read can also make an existing retry inaccessible, so its
+lock cannot be restored. If draft creation never returns an ID, the browser
+cannot recover an unknown draft.
+Reloading also cannot establish whether an earlier server request is still
+running. Confirmation is the existing action's response, not an independent
+storage audit. Server-side ownership checks and saved-image protection remain
+in place.
+
+Focused offline checks passed: 25 browser/action tests and four existing
+cleanup/stale/save-lock and manual-versus-upload route tests. Scoped
+lint had two existing unused-import warnings; direct TypeScript checking passed.
+Independent QA is requested; the PDF decoded-memory security limitation below
+remains open.
+
+## 9 November 2026 — PDF import improvement; security limit remains open
+
+The Studio **Create lesson > Upload a PDF** screen renders each page locally
+into an aspect-preserving image on the existing 960 × 540 slide. PDF.js now
+checks the declared dimensions of directly painted embedded images against a
+separate 4,000,000-pixel source limit, rather than the smaller output limit.
+The original safeguards remain: 4 MiB per PDF, 30 pages, 2,073,600 output
+pixels per page, 40 million total output pixels and 3,840 pixels per output
+side. Page images use the existing owner-scoped private draft/save flow; the
+source PDF is not retained or sent to AI.
+
+These limits reduce browser memory, rendering work and private storage use. A
+single 4,000,000-pixel RGBA buffer alone takes 16,000,000 bytes (about 15.3 MiB),
+and decoding, masks and temporary copies can require considerably more. The
+4 MiB file limit is on compressed input, not decoded memory; the per-image
+limit is not an aggregate source-image memory budget. A dedicated PDF.js
+worker treats its warnings, stream errors and failed image objects as import
+errors; decoded oversized image objects are also rejected. It reports only
+error categories, not PDF warning text. This conservative policy can reject
+an otherwise usable PDF with a benign worker warning. The guard fails closed
+for PDF.js versions other than the reviewed 6.3.289.
+
+**This is a partial improvement, not a hard security or completeness
+guarantee.** PDF.js can trust an understated image dictionary, and some image
+or mask data can allocate memory before its decoded dimensions are checked.
+For example, the synthetic `node tests/pdf-import-source-limit-diagnostic.mjs`
+currently exits 1: a JPEG encoded at 2,001 × 2,000 pixels is accepted when
+declared as 10 × 10. Compressed streams can expand beyond the limits, and
+many individually permitted images can still exhaust memory. PDF.js omissions
+that produce no observed worker warning, stream error or failed image object
+may still be saved. Use trusted PDFs and review every imported slide. Genuine
+blank pages are not rejected.
+
+For a local, aggregate-only diagnostic, run
+`node tests/pdf-import-local-diagnostic.mjs <trusted-local-file.pdf>`; it does
+not upload or save the source or page images. This is implementation evidence,
 not independent release QA; see the newest tracker entry.
 
 ## 6 November 2026 — eight UI/UX enhancements: bounded independent local gates passed
