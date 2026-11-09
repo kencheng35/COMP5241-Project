@@ -219,27 +219,13 @@ export function UploadLessonPage({ownerId}:{ownerId:string}) {
     <form id="upload-importer" className="learning-form" hidden={!!draft && !importerOpen} onSubmit={event => { event.preventDefault(); void readFile(new FormData(event.currentTarget)); }}>
       {draft && <p>Changing the PDF replaces this preview. Close the importer to keep editing.</p>}
       <div className="presentation-upload-guidance">
-        <section aria-labelledby="pdf-how-it-works">
-          <h3 id="pdf-how-it-works">How it works</h3>
+        <section aria-labelledby="pdf-upload-guidance">
+          <h3 id="pdf-upload-guidance">Upload a PDF</h3>
           <ul>
-            <li>Each PDF page is rendered in this browser as one image slide.</li>
-            <li>Pages keep their aspect ratio and are fitted and centered on a 960 × 540 canvas.</li>
-          </ul>
-        </section>
-        <section aria-labelledby="pdf-file-limits">
-          <h3 id="pdf-file-limits">File and page limits</h3>
-          <ul>
-            <li>PDF only; maximum file size is 4 MiB and maximum length is 30 pages.</li>
-            <li>PDF.js checks declared embedded-image dimensions against 4,000,000 pixels.</li>
-            <li>Output limits: 2,073,600 pixels per page, 40 million total page pixels, and 3,840 pixels per side.</li>
-          </ul>
-        </section>
-        <section aria-labelledby="pdf-privacy-safety">
-          <h3 id="pdf-privacy-safety">Privacy and safety</h3>
-          <ul>
-            <li>These limits reduce memory and storage use, but are not a hard safety guarantee for malformed or compressed images. Use trusted PDFs and review every page.</li>
-            <li>Password-protected PDFs and detected oversized or unreliable content are rejected.</li>
-            <li>The original PDF is not retained or sent to AI. Rendered pages are stored as private lesson images.</li>
+            <li>Maximum 4 MiB and 30 pages.</li>
+            <li>Each page becomes a slide image; its text cannot be edited.</li>
+            <li>Password-protected or restricted PDFs cannot be imported.</li>
+            <li>If an image is too large, reduce its resolution and export the PDF again.</li>
           </ul>
         </section>
       </div>
