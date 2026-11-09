@@ -6,6 +6,18 @@ For a presentation-ready overview of features, design choices and prototype scre
 
 Track remaining work, blockers, acceptance criteria and verification updates in [IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md).
 
+## 9 November 2026 — PDF page-image import for Create lesson
+
+The Studio **Create lesson > Upload a PDF** screen now accepts PDF only.
+PDF.js renders each page locally into one image slide, fitted and centered
+without changing its aspect ratio on the existing 960 × 540 canvas. Limits are
+4 MiB per source PDF, 30 pages, 2,073,600 rendered pixels per page, 40 million
+total rendered pixels and 3,840 pixels per side. Page images use the existing
+owner-scoped private presentation asset draft and save flow; the source PDF is
+not retained or sent to AI. Manual lesson authoring, editing existing lessons
+and other upload workflows are unchanged. This is implementation evidence,
+not independent release QA; see the newest tracker entry.
+
 ## 6 November 2026 — eight UI/UX enhancements: bounded independent local gates passed
 
 All eight approved enhancements are implemented: private **Save & request

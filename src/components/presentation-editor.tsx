@@ -38,8 +38,8 @@ function FontSizeInput({value,onApply,handle}:{value:number|null;onApply:(size:n
   </>;
 }
 
-export function PresentationLessonEditor({lessonId="",version=1,initial,initialLegacy,onSaveLock}:{
-  lessonId?:string;version?:number;initial?:PresentationAuthor;initialLegacy?:AuthorLesson;onSaveLock?:(locked:boolean)=>void;
+export function PresentationLessonEditor({lessonId="",version=1,initial,initialLegacy,initialDraftId="",onSaveLock}:{
+  lessonId?:string;version?:number;initial?:PresentationAuthor;initialLegacy?:AuthorLesson;initialDraftId?:string;onSaveLock?:(locked:boolean)=>void;
 }) {
   const router=useRouter();
   const [history]=useState(()=>new PresentationHistory(initial??(initialLegacy?legacyPresentation(initialLegacy):blankPresentation())));
@@ -48,7 +48,7 @@ export function PresentationLessonEditor({lessonId="",version=1,initial,initialL
   const [selection,setSelection]=useState<string[]>([]);
   const [textStyle,setTextStyle]=useState<CanvasTextStyle|null>(null);
   const [ack,setAck]=useState({id:lessonId,version});
-  const [draftId,setDraftId]=useState("");
+  const [draftId,setDraftId]=useState(initialDraftId);
   const [pending,setPending]=useState(false),[uploading,setUploading]=useState(false),[uncertain,setUncertain]=useState(false);
   const [saveIntent,setSaveIntent]=useState<"save"|"publish">("save");
   const [error,setError]=useState(""),[success,setSuccess]=useState("");

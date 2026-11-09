@@ -1,6 +1,56 @@
 # Implementation Tracker
 
-Last reviewed: 2026-11-06
+Last reviewed: 2026-11-09
+
+## 9 November 2026 — PDF page-image import for Create lesson
+
+**Owner: feature implementer; independent QA requested.** Approved scope is
+limited to the Studio Create lesson upload screen: PDF-only input, client-side
+PDF.js rendering, one image per lesson slide, preserving aspect ratio and
+centering within the existing 960 × 540 canvas. Manual lesson creation, current
+lesson editing, teaching-material upload and other flows remain unchanged.
+
+The implementation reuses the authenticated presentation draft/image actions.
+The source PDF stays in the browser; rendered PNGs are uploaded as private
+assets and referenced by the existing presentation save flow. Bounds are 4 MiB
+per source, 30 pages, 2,073,600 output pixels per page, 40 million cumulative
+rendered pixels and 3,840 pixels per side. Password, damaged, unsupported,
+oversized and failed page uploads report an error; incomplete drafts are sent
+through existing cleanup.
+
+### Verification
+
+Focused offline evidence: `tests/pdf-import.test.mjs` **3/3** verifies input,
+page and render limits, page placement, sequential raster output, cleanup and
+clear failures using a synthetic PDF.js interface. `tests/presentation-upload.test.mjs`
+**2/2** checks the PDF-only interface, image placement, 320px and desktop
+layouts, retry/stale render handling and save locks using synthetic rendering/
+storage. The shared upload harness passes `tests/slide-authoring-ui.test.mjs`
+**1/1** and `tests/presentation-workspace-qa.test.mjs` **2/2**. Existing private
+image action/read/save/cleanup tests passed **4/4** across
+`tests/presentation-assets.test.mjs` and `tests/presentation-acceptance.test.mjs`.
+Unchanged teaching import and manual authoring suites passed **38/38**.
+
+Repository gates: `npm run lint`, `npm run typecheck` and `npm run build` passed.
+Build emitted `.next/static/media/pdf.worker.972312f9.mjs`. The complete offline
+`npm test` run (before the final assertions were added to the focused PDF save
+test) produced **482 pass / 1 fail** of 483: the unrelated onboarding/dashboard
+assertion expected `<strong>Version 2 · Continue</strong>`, while the rendered
+dashboard says `Continue lesson`; no dashboard files were changed. This was not
+repaired as it is outside this scope. The updated focused PDF tests were rerun
+and pass **5/5**. PDF.js page rendering is unit-tested through a synthetic API;
+live browser-worker parsing and a real-image save/reopen from this importer
+remain for independent QA.
+
+| Task | Owner | Dependencies | Acceptance |
+| --- | --- | --- | --- |
+| PDF-only Create lesson import | Feature implementer | Existing PDF.js package; private presentation draft/image flow | Local one-page-per-slide import, documented limits, no changes to manual/edit/other upload workflows |
+| Independent feature QA | Coordinator/independent QA | Completed local implementation and focused evidence | Independently exercise PDF fixtures, private image save/reopen, responsive UI and failures; no implementer self-certification |
+
+No dependency install, external conversion, deployment or remote database write
+was performed. Next.js build output indicated automatic `.env.local`
+configuration loading; no values were inspected or printed. **Independent QA
+is requested; this entry is not release certification.**
 
 ## 6 November 2026 — eight UI/UX enhancements: independent bounded local acceptance
 

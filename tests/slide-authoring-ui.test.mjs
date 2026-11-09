@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { chromium } from "@playwright/test";
-import { harness, draft, slides, presentation, transpile } from "./slide-authoring-harness.mjs";
+import { harness, draft, slides, transpile } from "./slide-authoring-harness.mjs";
 import {sources as presentationSources} from "./presentation-browser-harness.mjs";
 
 const require = createRequire(import.meta.url);
@@ -39,9 +39,12 @@ test("mounted author/upload/player: same-tick guard, versions, uncertainty, styl
   const browser = await chromium.launch();
   const bc = await browser.newContext({ offline:true,serviceWorkers:"block",viewport:{width:1440,height:900} });
   const requests = [], errors = [];
-  await bc.route("**/*",route => { requests.push(route.request().url()); return route.abort(); });
+  await bc.route("**/*",route => {
+    if(route.request().url().includes("/api/presentation/assets/"))return route.fulfill({contentType:"image/png",body:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/mk0AAAAASUVORK5CYII=","base64")});
+    requests.push(route.request().url()); return route.abort();
+  });
   const artifacts = await mkdtemp(join(tmpdir(),"forge-slide-authoring-"));
-  let gate = null, uploadFailure = false, uploads = 0, uploadedSlides = draft().slides;
+  let gate = null, uploadFailure = false, uploads = 0;
   try {
     async function mount(component,props = {}) {
       const page = await bc.newPage();
@@ -55,10 +58,16 @@ test("mounted author/upload/player: same-tick guard, versions, uncertainty, styl
         }
         return h.actions[name](...args);
       });
-      await page.exposeFunction("extract",async () => {
+      await page.exposeFunction("readPdfResult",async () => {
         uploads++;
-        if (uploadFailure) throw new Error("PRIVATE_TRANSPORT");
-        return { name:"Imported lesson",slides:uploadedSlides };
+        if (uploadFailure) return {error:"Synthetic PDF render failure."};
+        return {pages:[[120,60],[60,120]]};
+      });
+      await page.exposeFunction("images",async name=>{
+        if(name==="begin")return {id:crypto.randomUUID()};
+        if(name==="upload")return {id:crypto.randomUUID(),width:120,height:60};
+        if(name==="discard")return {success:"Unused private pages removed."};
+        return {success:"Synthetic cleanup complete."};
       });
       await page.exposeFunction("studioUser",() => h.state.user);
       await page.exposeFunction("studioLesson",(id,user,review) => h.server.accessibleLesson(id,user,review));
@@ -72,13 +81,17 @@ test("mounted author/upload/player: same-tick guard, versions, uncertainty, styl
           if (name === "@/lib/learning") return load("./learning");
           if (name === "fabric") return fabric;
           if (name === "./presentation-editor"||name === "@/components/presentation-editor") return load("editor");
-          if (name === "@/app/presentation/actions") return new Proxy({},{get:()=>async()=>({error:"Image actions are covered by presentation-assets.test.mjs"})});
+          if (name === "@/app/presentation/actions") return {
+            beginPresentationDraft:lesson=>images("begin",lesson),
+            uploadPresentationImage:async form=>images("upload",{size:form.get("image").size,name:form.get("image").name}),
+            discardPresentationDraft:id=>images("discard",id),
+            cleanExpiredPresentationUploads:()=>images("clean"),
+          };
           if (name === "@/app/presentation/ai-actions") return new Proxy({},{get:()=>async()=>({error:"AI actions are covered by presentation-ai.test.mjs"})});
           if (name === "@/components/create-lesson") return load("author");
           if (name === "@/components/learning-controls") return load("player");
           if (name === "@/components/learner-shell") return {LearnerShell:({children})=>load("react").createElement("main",{},children)};
           if (name === "@/lib/learning-server") return {...load("permissions"),requireUser:()=>studioUser(),accessibleLesson:(...args)=>studioLesson(...args),displayName:async()=>"Synthetic author"};
-          if (name === "@/app/teaching/actions") return { extractLessonUpload: () => extract() };
           if (name === "@/app/learning/actions") return new Proxy({}, { get: (_,name) => (...args) => action(name,["createManualLesson","updateLesson"].includes(name) ? [args[0],[...args[1].entries()]] : args) });
           if (name === "next/navigation") return { notFound(){throw new Error("Not found");},useRouter: () => ({ refresh() { window.refreshes++; if(window.renderStudio) void window.renderStudio(); } }) };
           if (name === "next/link") return { __esModule:true,default:({children,...props}) => load("react").createElement("a",props,children) };
@@ -230,42 +243,29 @@ test("mounted author/upload/player: same-tick guard, versions, uncertainty, styl
     assert.equal(await quizPage.getByRole("alert").evaluate(el => el === document.activeElement),true);
     assert.doesNotMatch(await quizPage.locator("body").innerText(),/PRIVATE_/);
     const upload = await mount("UploadLessonPage");
-    const file = {name:"synthetic.pptx",mimeType:"application/octet-stream",buffer:Buffer.from("synthetic transport fixture")};
-    await upload.getByLabel("File",{exact:true}).setInputFiles(file);
-    await upload.getByRole("button",{name:"Preview slides",exact:true}).click();
+    const file = {name:"synthetic.pdf",mimeType:"application/pdf",buffer:Buffer.from("%PDF-1.7 synthetic transport fixture")};
+    await upload.getByLabel("PDF file",{exact:true}).setInputFiles(file);
+    await upload.getByRole("button",{name:"Import PDF pages",exact:true}).click();
     await upload.getByRole("textbox",{name:"Lesson title",exact:true}).waitFor();
     await upload.getByRole("button",{name:"Change file",exact:true}).click();
-    await upload.getByLabel("File",{exact:true}).setInputFiles({...file,name:"changed.pptx"});
+    await upload.getByLabel("PDF file",{exact:true}).setInputFiles({...file,name:"changed.pdf"});
     assert.equal(await upload.getByRole("textbox",{name:"Lesson title",exact:true}).count(),0);
     uploadFailure = true;
-    await upload.getByRole("button",{name:"Preview slides",exact:true}).click();
+    await upload.getByRole("button",{name:"Import PDF pages",exact:true}).click();
     await upload.getByRole("alert").waitFor();
     assert.equal(await upload.getByRole("textbox",{name:"Lesson title",exact:true}).count(),0);
     uploadFailure = false;
-    await upload.getByRole("button",{name:"Preview slides",exact:true}).click();
+    await upload.getByRole("button",{name:"Import PDF pages",exact:true}).click();
     await upload.getByRole("textbox",{name:"Lesson title",exact:true}).waitFor();
     assert.equal(uploads,3);
+    assert.equal(await upload.getByRole("radio").count(),0);
+    assert.match(await upload.locator(".presentation-slides > summary").innerText(),/Slides \(2\)/);
     await upload.setViewportSize({width:320,height:900});
     // Let Fabric's ResizeObserver apply the new viewport before measuring.
     await upload.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     assert.ok(await upload.evaluate(()=>document.documentElement.scrollWidth <= innerWidth),
       await upload.evaluate(()=>JSON.stringify([...document.querySelectorAll("body *")].filter(el=>el.getBoundingClientRect().right>innerWidth).map(el=>({tag:el.tagName,class:el.className,right:el.getBoundingClientRect().right})))));
     await upload.screenshot({path:join(artifacts,"upload320.png"),fullPage:true});
-    await upload.getByRole("button",{name:"Change file",exact:true}).click();
-    await upload.getByLabel("Import the PowerPoint as slides",{exact:true}).check();
-    assert.equal(await upload.getByRole("textbox",{name:"Lesson title",exact:true}).count(),0);
-    await upload.getByRole("button",{name:"Preview slides",exact:true}).focus();
-    await upload.keyboard.press("Enter");
-    await upload.getByRole("textbox",{name:"Lesson title",exact:true}).waitFor();
-    await upload.getByLabel("Lesson title",{exact:true}).fill("Uploaded accepted lesson");
-    await upload.getByRole("button",{name:"Save and publish",exact:true}).focus();
-    await upload.keyboard.press("Enter");
-    await upload.getByRole("status").filter({hasText:"Version 1"}).waitFor();
-    const imported = (await h.db.query("select * from forge_lessons where title='Uploaded accepted lesson'")).rows[0];
-    assert.equal(imported.visibility,"private"); assert.equal(imported.review_requested,true);
-    assert.equal(imported.content.format,"presentation");
-    assert.deepEqual(imported.content.slides.map(s=>s.elements[1].paragraphs.map(p=>p.runs.map(r=>r.text).join("")).join("\n")),draft().slides.map(s=>s.body));
-    await upload.screenshot({path:join(artifacts,"upload-review320.png"),fullPage:true});
     // New boundaries in the actual legacy editor, using keyboard at 320px.
     const expanded=await mount("SlideLessonEditor",{initial:draft()});
     await expanded.setViewportSize({width:320,height:900});
@@ -293,39 +293,21 @@ test("mounted author/upload/player: same-tick guard, versions, uncertainty, styl
     await reduced.keyboard.press("Enter");
     await reduced.getByRole("status").filter({hasText:"Version 2"}).waitFor();
     assert.equal((await h.server.accessibleLesson(legacy.id,h.state.user)).content.slides.length,1);
-    // Upload transport fixtures feed the actual presentation preview/save/reopen;
-    // real parser/action extraction is independently exercised in teaching-material.
-    const importCases=[
-      {name:"Seven imported slides",mode:"powerpoint",material:{text:"",slides:Array.from({length:7},(_,i)=>`Ordered source slide ${i+1}`)}},
-      {name:"2401 imported characters",mode:"text",material:{text:"a ".repeat(1200)+"a"}},
-    ];
-    for(const fixture of importCases) {
-      uploadedSlides=slides.slidesFromMaterial(fixture.material,fixture.mode);
-      const importedPage=await mount("UploadLessonPage");
-      assert.doesNotMatch(await importedPage.locator("body").innerText(),/2,400|3–6|six slides|400 text characters/);
-      if(fixture.mode==="powerpoint") await importedPage.getByLabel("Import the PowerPoint as slides",{exact:true}).check();
-      await importedPage.getByLabel("File",{exact:true}).setInputFiles(file);
-      await importedPage.getByRole("button",{name:"Preview slides",exact:true}).focus();
-      await importedPage.keyboard.press("Enter");
-      await importedPage.getByLabel("Lesson title",{exact:true}).waitFor();
-      await importedPage.getByLabel("Lesson title",{exact:true}).fill(fixture.name);
-      await importedPage.getByRole("button",{name:"Save",exact:true}).focus();
-      await importedPage.keyboard.press("Enter");
-      await importedPage.getByRole("status").filter({hasText:"Version 1"}).waitFor();
-      const record=(await h.db.query("select * from forge_lessons where title=$1",[fixture.name])).rows[0];
-      assert.equal(record.content.format,"presentation");
-      assert.deepEqual(record.content.slides.map(s=>presentation.textOf(s.elements[1])),uploadedSlides.map(s=>s.body));
-      const reopened=await mount("Studio",{edit:record.id});
-      await reopened.getByLabel("Lesson title",{exact:true}).waitFor();
-      assert.equal(await reopened.getByLabel("Lesson title",{exact:true}).inputValue(),fixture.name);
-      await reopened.getByRole("button",{name:"Save",exact:true}).click();
-      await reopened.getByRole("status").filter({hasText:"Version 2"}).waitFor();
-      assert.deepEqual((await h.server.accessibleLesson(record.id,h.state.user)).content.slides,record.content.slides);
-      await importedPage.setViewportSize({width:320,height:900});
-      await importedPage.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-      assert.ok(await importedPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-      await importedPage.screenshot({path:join(artifacts,`${fixture.mode}-expanded320.png`),fullPage:true});
-    }
+    // PDF import is client-rasterized, then handed to the image-based editor.
+    // Existing storage/action authorization is exercised in presentation-assets.
+    const importedPage=await mount("UploadLessonPage");
+    const pdfFile={name:"accepted.pdf",mimeType:"application/pdf",buffer:Buffer.from("%PDF-1.7 synthetic upload fixture")};
+    await importedPage.getByLabel("PDF file",{exact:true}).setInputFiles(pdfFile);
+    await importedPage.getByRole("button",{name:"Import PDF pages",exact:true}).focus();
+    await importedPage.keyboard.press("Enter");
+    await importedPage.getByLabel("Lesson title",{exact:true}).waitFor();
+    await importedPage.getByLabel("Lesson title",{exact:true}).fill("Uploaded accepted lesson");
+    assert.match(await importedPage.locator(".presentation-slides > summary").innerText(),/Slides \(2\)/);
+    assert.equal(await importedPage.getByRole("radio").count(),0);
+    await importedPage.setViewportSize({width:320,height:900});
+    await importedPage.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    assert.ok(await importedPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await importedPage.screenshot({path:join(artifacts,"pdf-expanded320.png"),fullPage:true});
     assert.deepEqual(requests,[]); assert.deepEqual(errors,[]);
     context.diagnostic(`Offline Chromium ${browser.version()}; screenshots ${artifacts}`);
   } finally { await bc.close(); await browser.close(); await h.db.close(); }

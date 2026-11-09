@@ -17,6 +17,11 @@ function bundle(path){
   sources[path]=readFileSync(path,"utf8").replace(/require\(["']([^"']+)["']\)/g,(_,name)=>`require(${JSON.stringify(bundle(local.resolve(name)))})`);return path;
 }
 sources.zod=`module.exports=require(${JSON.stringify(bundle(require.resolve("zod")))});`;
+sources["@/lib/pdf-import"]=`
+exports.validatePdfFile=file=>{if(!/\\.pdf$/i.test(file.name))throw new Error("Only PDF files are supported here.");if(file.size>4194304)throw new Error("PDF files must be at most 4 MiB.");};
+exports.fitPdfPage=(width,height)=>{const ratio=width/height,w=Math.min(960,540*ratio),h=w/ratio;return{x:(960-w)/2,y:(540-h)/2,w,h};};
+exports.renderPdfPages=async(file,onPage)=>{const result=await window.readPdfResult(file.name);if(result.error)throw new Error(result.error);for(const [index,[width,height]] of result.pages.entries())await onPage(index+1,new File(["synthetic rendered page"],"pdf-page-"+(index+1)+".png",{type:"image/png"}),width,height);return result.pages.length;};
+`;
 export async function mountPresentation(page,props={}){
   const preflight=readFileSync(join(dirname(require.resolve("tailwindcss/package.json")),"preflight.css"),"utf8");
   const css=`@layer base {${preflight}}\n${readFileSync("src/app/globals.css","utf8").replace('@import "tailwindcss";',"")}`;
@@ -53,7 +58,7 @@ export async function mountPresentation(page,props={}){
       if(name==="@/app/learning/actions")return new Proxy({},{get:(_,name)=>(previous,form)=>persist(name,[...form.entries()])});
       if(name==="@/app/presentation/actions")return {
         beginPresentationDraft:lesson=>images("begin",lesson),
-        uploadPresentationImage:async form=>images("upload",{draftId:form.get("draftId"),size:form.get("image").size}),
+        uploadPresentationImage:async form=>images("upload",{draftId:form.get("draftId"),size:form.get("image").size,name:form.get("image").name}),
         discardPresentationDraft:id=>images("discard",id),cleanExpiredPresentationUploads:()=>images("clean"),
       };
       if(name==="@/app/presentation/ai-actions")return {

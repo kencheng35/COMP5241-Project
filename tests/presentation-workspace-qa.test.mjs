@@ -81,12 +81,11 @@ test("QA actual Studio route selection and rendered width isolation, including d
   }finally{await context.close();await browser.close();}
 });
 
-test("QA real upload-to-presentation placement retains desktop canvas and initial primary actions",async()=>{
-  // Extend the existing in-memory module harness. Only the module alias and
-  // extraction transport are adapted; original UploadLessonPage JSX/state runs.
+test("QA real PDF upload-to-presentation placement retains desktop canvas and initial primary actions",async()=>{
+  // Extend the in-memory module harness. Rendering/storage are synthetic;
+  // original PDF-only UploadLessonPage JSX/state and editor placement run.
   sources["qa-upload"]=transpile("../src/components/create-lesson.tsx")
     .replaceAll('require("./presentation-editor")','require("editor")');
-  sources["@/app/teaching/actions"]="exports.extractLessonUpload=()=>window.extractUpload();";
   sources["@/lib/slide-lesson"]=transpile("../src/lib/slide-lesson.ts");
   sources["./learning"]=transpile("../src/lib/learning.ts");
   sources["./curriculum"]=transpile("../src/lib/curriculum.ts");
@@ -96,23 +95,33 @@ test("QA real upload-to-presentation placement retains desktop canvas and initia
   const artifacts=await mkdtemp(join(tmpdir(),"forge-workspace-qa-"));
   const requests=[],errors=[],failures=[];
   try{
-    await context.route("**/*",route=>{requests.push(route.request().url());return route.abort();});
+    await context.route("**/*",route=>{
+      if(route.request().url().includes("/api/presentation/assets/"))return route.fulfill({contentType:"image/png",body:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/mk0AAAAASUVORK5CYII=","base64")});
+      requests.push(route.request().url());return route.abort();
+    });
     for(const [width,height,minCanvas] of [[1440,900,600],[1366,768,540],[1920,1080,600]]){
       const page=await context.newPage();
       page.on("pageerror",error=>errors.push(error.message));
       await page.setViewportSize({width,height});
-      await page.exposeFunction("extractUpload",()=>({name:"Synthetic uploaded lesson",slides:draft().slides}));
+      await page.exposeFunction("readPdfResult",()=>({pages:[[120,60],[60,120]]}));
+      await page.exposeFunction("images",async name=>{
+        if(name==="begin")return {id:crypto.randomUUID()};
+        if(name==="upload")return {id:crypto.randomUUID(),width:120,height:60};
+        if(name==="discard")return {success:"Unused private pages removed."};
+        return {success:"Synthetic cleanup complete."};
+      });
       await mountPresentation(page);
       await page.evaluate(()=>{
-        document.querySelector(".portal-heading h1").textContent="Upload a file.";
+        document.querySelector(".portal-heading h1").textContent="Upload a PDF.";
         presentationRoot.render(presentationModules("react").createElement(presentationModules("qa-upload").UploadLessonPage));
       });
-      await page.getByLabel("File",{exact:true}).setInputFiles({
-        name:"synthetic.pptx",mimeType:"application/octet-stream",buffer:Buffer.from("Synthetic extraction transport fixture"),
+      await page.getByLabel("PDF file",{exact:true}).setInputFiles({
+        name:"synthetic.pdf",mimeType:"application/pdf",buffer:Buffer.from("%PDF-1.7 synthetic upload fixture"),
       });
-      await page.getByRole("button",{name:"Preview slides",exact:true}).click();
+      await page.getByRole("button",{name:"Import PDF pages",exact:true}).click();
       await page.getByLabel("Lesson title",{exact:true}).waitFor();
-      await page.waitForFunction(()=>document.querySelector(".canvas-container")&&editCanvas.getObjects().length===2);
+      await page.waitForFunction(()=>document.querySelector(".canvas-container")&&editCanvas.getObjects().length===1);
+      assert.equal(await page.getByRole("radio").count(),0);
       await page.waitForTimeout(150);
       const geometry=await page.evaluate(()=>{
         const r=s=>{const b=document.querySelector(s).getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height,bottom:b.bottom};};

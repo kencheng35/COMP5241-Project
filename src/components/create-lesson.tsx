@@ -2,25 +2,25 @@
 
 import { lazy,Suspense,useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { extractLessonUpload } from "@/app/teaching/actions";
 import { createManualLesson, updateLesson, type ActionState } from "@/app/learning/actions";
 import { authorLessonSchema, emptyAuthorLesson, type AuthorLesson } from "@/lib/slide-lesson";
-import { MAX_PRESENTATION_SLIDES, MAX_TEXTBOX_CHARACTERS } from "@/lib/presentation";
+import { blankPresentation, MAX_PRESENTATION_SLIDES, MAX_TEXTBOX_CHARACTERS, type PresentationAuthor } from "@/lib/presentation";
+import { beginPresentationDraft, discardPresentationDraft, uploadPresentationImage } from "@/app/presentation/actions";
+import { fitPdfPage, renderPdfPages, validatePdfFile } from "@/lib/pdf-import";
 const PresentationLessonEditor=lazy(()=>import("./presentation-editor").then(m=>({default:m.PresentationLessonEditor})));
 
 // Mount inside Suspense so focus moves only after the lazy editor is ready,
 // never back to the now-hidden Preview slides button.
-function UploadPreview({draft,onSaveLock}:{draft:AuthorLesson;onSaveLock:(locked:boolean)=>void}) {
+function UploadPreview({draft,draftId,onSaveLock}:{draft:PresentationAuthor;draftId:string;onSaveLock:(locked:boolean)=>void}) {
   const preview=useRef<HTMLDivElement>(null);
   useEffect(()=>{preview.current?.querySelector<HTMLInputElement>(".presentation-document-bar input")?.focus();},[]);
-  return <div ref={preview}><PresentationLessonEditor initialLegacy={draft} onSaveLock={onSaveLock}/></div>;
+  return <div ref={preview}><PresentationLessonEditor initial={draft} initialDraftId={draftId} onSaveLock={onSaveLock}/></div>;
 }
 
 export function UploadLessonPage() {
-  const [mode, setMode] = useState<"text" | "powerpoint">("text");
   const [fileName, setFileName] = useState("");
   const [importerOpen, setImporterOpen] = useState(true);
-  const [draft, setDraft] = useState<AuthorLesson | null>(null);
+  const [draft, setDraft] = useState<{presentation:PresentationAuthor;draftId:string} | null>(null);
   const [generation, setGeneration] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -39,49 +39,80 @@ export function UploadLessonPage() {
     if (inFlight.current || locked.current) return;
     inFlight.current = true;
     const request = ++epoch.current;
-    form.set("mode", mode);
     setBusy(true);
     setDraft(null);
     setError("");
+    let imageDraftId = "";
+    let complete = false;
     try {
-      const result = await extractLessonUpload(form);
-      if (request !== epoch.current) return;
-      if (!result.slides) {
-        setError(result.error ?? "Could not read that file.");
-        return;
-      }
-      setDraft({ ...emptyAuthorLesson(), title: result.name ?? "", slides: result.slides });
+      const file = form.get("material");
+      if (!(file instanceof File)) throw new Error("Choose a PDF file.");
+      validatePdfFile(file);
+      const presentation = blankPresentation();
+      const slides:PresentationAuthor["document"]["slides"] = [];
+      const title = file.name.replace(/\.pdf$/i,"").trim().slice(0,120);
+      presentation.title = title.length >= 3 ? title : "Imported PDF lesson";
+      const totalPages = await renderPdfPages(file,async(pageNumber,image) => {
+        if(request!==epoch.current)throw new Error("PDF import canceled.");
+        if(!imageDraftId){
+          const begun=await beginPresentationDraft();
+          if(!begun.id)throw new Error(begun.error??"Private image storage is unavailable.");
+          imageDraftId=begun.id;
+        }
+        const uploadForm=new FormData();
+        uploadForm.set("draftId",imageDraftId);
+        uploadForm.set("image",image);
+        const uploaded=await uploadPresentationImage(uploadForm);
+        if(!uploaded.id||!uploaded.width||!uploaded.height)throw new Error(uploaded.error??"Image upload failed.");
+        const box=fitPdfPage(uploaded.width,uploaded.height);
+        slides.push({
+          id:crypto.randomUUID(),title:`Page ${pageNumber}`,background:"#ffffff",
+          elements:[{id:crypto.randomUUID(),type:"image",assetId:uploaded.id,alt:`Imported PDF page ${pageNumber}`,
+            ratio:uploaded.width/uploaded.height,...box,rotation:0}],
+        });
+      });
+      if(request!==epoch.current)return;
+      if(!imageDraftId||slides.length!==totalPages)throw new Error("Not every PDF page was imported. Nothing was saved.");
+      presentation.document.slides=slides;
+      if(!presentation.document.slides.length)throw new Error("The PDF contains no importable pages.");
+      setDraft({presentation,draftId:imageDraftId});
+      complete=true;
       setGeneration(value => value + 1);
       setImporterOpen(false);
-    } catch {
-      if (request === epoch.current) setError("Upload failed. Try the file again.");
+    } catch (cause) {
+      if(request===epoch.current)setError(cause instanceof Error?cause.message:"PDF import failed. Try the file again.");
     } finally {
-      inFlight.current = false;
-      setBusy(false);
+      try {
+        if(imageDraftId&&!complete){
+          const cleanup=await discardPresentationDraft(imageDraftId);
+          const message=cleanup.error;
+          if(message&&request===epoch.current)setError(value=>value?`${value} Private page cleanup is pending; retry cleanup before importing again.`:message);
+        }
+      } catch {
+        if(request===epoch.current)setError(value=>value?`${value} Private page cleanup could not be confirmed; retry cleanup before importing again.`:"Private page cleanup could not be confirmed; retry cleanup before importing again.");
+      } finally {
+        inFlight.current = false;
+        setBusy(false);
+      }
     }
   }
 
   return <section className={`learning-section presentation-upload-page${draft ? " presentation-upload-ready" : ""}`} aria-labelledby="upload-heading">
     <div className={draft ? "presentation-import-bar" : undefined}>
-      <h2 id="upload-heading">{draft ? "Imported file" : "Upload a file"}</h2>
+      <h2 id="upload-heading">{draft ? "Imported PDF" : "Upload a PDF"}</h2>
       {draft && <>
-        <p title={fileName}><strong>{fileName}</strong> · {mode === "text" ? "Text only" : "PowerPoint slides"}</p>
+        <p title={fileName}><strong>{fileName}</strong> · {draft.presentation.document.slides.length} PDF page{draft.presentation.document.slides.length===1?"":"s"}</p>
         <button type="button" className="secondary-button" aria-expanded={importerOpen} aria-controls="upload-importer" disabled={busy || saveLocked} onClick={() => setImporterOpen(value => !value)}>{importerOpen ? "Close importer" : "Change file"}</button>
       </>}
     </div>
     <form id="upload-importer" className="learning-form" hidden={!!draft && !importerOpen} onSubmit={event => { event.preventDefault(); void readFile(new FormData(event.currentTarget)); }}>
-      {draft && <p>Changing the file or import mode replaces this preview. Close the importer to keep editing.</p>}
-      <fieldset disabled={busy || saveLocked}>
-        <legend>How should this file become a lesson?</legend>
-        <label className="checkbox-field"><input type="radio" name="mode" checked={mode === "text"} onChange={() => { setMode("text"); invalidate(); }} /> Copy the text only</label>
-        <label className="checkbox-field"><input type="radio" name="mode" checked={mode === "powerpoint"} onChange={() => { setMode("powerpoint"); invalidate(); }} /> Import the PowerPoint as slides</label>
-      </fieldset>
-      <p>{mode === "text" ? "PDF, DOCX and PPTX text only: extracted text is split across up to 30 slides, preserving all text within the parser's 60,000-character file ceiling." : "PPTX only: 1–30 slides, at most 10,000 text characters per slide. Real slide order is retained, not original layout. Image-only slides cannot be imported."} Binary PPT and DOC cannot be imported safely; export as PPTX or DOCX first. Images, original fonts, positioning and full formatting are not imported. Files must be at most 4 MiB. Originals are not stored or sent to AI. Over-limit content is rejected, never clipped. Adjust text size or layout in the preview if needed; text must fit on the canvas before saving.</p>
-      <label>File<input type="file" name="material" required disabled={busy || saveLocked} onChange={event => { setFileName(event.currentTarget.files?.[0]?.name ?? ""); invalidate(); }} accept={mode === "powerpoint" ? ".ppt,.pptx" : ".ppt,.pptx,.pdf,.doc,.docx"} /></label>
-      <button className="primary-button" type="submit" disabled={busy || saveLocked}>{busy ? "Reading file..." : "Preview slides"}</button>
+      {draft && <p>Changing the PDF replaces this preview. Close the importer to keep editing.</p>}
+      <p>PDF only. Each page is rendered in this browser as one image slide; pages keep their aspect ratio and are fitted and centered on the 960 × 540 canvas. Maximum upload: 4 MiB and 30 pages. Rendering is limited to 2,073,600 pixels per page, 40 million total page pixels, and 3,840 pixels per side. Each rendered page is uploaded through private lesson image storage. The original PDF is not stored or sent to AI. Protected, damaged, oversized or unsupported PDFs and pages that exceed image-storage limits are rejected.</p>
+      <label>PDF file<input type="file" name="material" required disabled={busy || saveLocked} onChange={event => { setFileName(event.currentTarget.files?.[0]?.name ?? ""); invalidate(); }} accept=".pdf,application/pdf" /></label>
+      <button className="primary-button" type="submit" disabled={busy || saveLocked}>{busy ? "Rendering PDF pages..." : "Import PDF pages"}</button>
     </form>
     {error && <p role="alert" className="form-notice notice-error">{error}</p>}
-    {draft && <Suspense fallback={<p>Loading presentation editor…</p>}><UploadPreview key={generation} draft={draft} onSaveLock={value => { locked.current = value; setSaveLocked(value); }} /></Suspense>}
+    {draft && <Suspense fallback={<p>Loading presentation editor…</p>}><UploadPreview key={generation} draft={draft.presentation} draftId={draft.draftId} onSaveLock={value => { locked.current = value; setSaveLocked(value); }} /></Suspense>}
   </section>;
 }
 
