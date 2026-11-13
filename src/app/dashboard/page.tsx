@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Circle, ThumbsUp } from "lucide-react";
+import { Circle, Gamepad2, ThumbsUp } from "lucide-react";
 import { LearnerShell } from "@/components/learner-shell";
 import { isInstructor, database, displayName, hongKongDate, isAdmin, lessonHasUpdate, lessonResumeDates, userRecords, visibleLessons } from "@/lib/learning-server";
 import { loadSetup } from "@/lib/onboarding-server";
@@ -38,7 +38,7 @@ export default async function Dashboard() {
       <section className="record-grid" aria-label="Learning record">
         <article><strong>{enrolled.length}</strong><span>Lessons enrolled</span></article>
         <article><strong>{passed}</strong><span>Lessons passed</span></article>
-        <article><strong><Circle size={26} aria-hidden="true" />Not yet</strong><span>Learning game</span></article>
+        <Link href="/games/neon-requiem" className="record-grid-link"><strong><Gamepad2 size={26} aria-hidden="true" />Let&apos;s Explore!</strong><span>Learning game</span></Link>
         <article><strong>{interviewed ? <ThumbsUp size={26} aria-hidden="true" /> : <Circle size={26} aria-hidden="true" />}{interviewed ? "Done" : "Not yet"}</strong><span>Interview</span></article>
       </section>
       <section className="learning-section quick-start">
