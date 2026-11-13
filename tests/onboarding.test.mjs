@@ -28,7 +28,7 @@ function fixture(options = {}) {
   const stubs = {
     "server-only": {}, zod: require("zod"), "react/jsx-runtime": require("react/jsx-runtime"),
     "next/link": { __esModule: true, default: "a" },
-    "lucide-react": { BookOpen: () => null, Plus: () => null, Circle: () => null, ThumbsUp: () => null },
+    "lucide-react": { BookOpen: () => null, Plus: () => null, Circle: () => null, ThumbsUp: () => null, Gamepad2: () => null },
     "@/lib/curriculum": { DIFFICULTIES: { beginner: "Beginner" }, readMetadata: () => null },
     "@/components/learner-shell": { LearnerShell: ({ children }) => children },
     "next/navigation": { redirect(path) { throw new Error(`REDIRECT:${path}`); } },

@@ -172,7 +172,7 @@ test("actual route renderers: owner-only Create history, separate blank/upload, 
     const deps = {
       "react/jsx-runtime":jsx, "next/link":{default:({children,...props})=>React.createElement("a",props,children),__esModule:true},
       "next/navigation":{notFound(){throw new Error("Not found");},redirect(){throw new Error("Redirect");}},
-      "lucide-react":{BookOpen:()=>null,Plus:()=>null,PenLine:()=>null,Upload:()=>null,Circle:()=>null,ThumbsUp:()=>null},
+      "lucide-react":{BookOpen:()=>null,Plus:()=>null,PenLine:()=>null,Upload:()=>null,Circle:()=>null,ThumbsUp:()=>null,Gamepad2:()=>null},
       "@/components/learner-shell":{LearnerShell:({children})=>React.createElement("main",{},children)},
       "@/components/learning-controls":{...controls,ActionForm:({children})=>React.createElement("form",{},children),LessonEditor:()=>React.createElement("p",{},"Legacy editor")},
       "@/components/create-lesson":{SlideLessonEditor:({initial})=>React.createElement("p",{},initial ? "Slide editor" : "Blank manual"),UploadLessonPage:()=>React.createElement("p",{},"Separate upload")},
