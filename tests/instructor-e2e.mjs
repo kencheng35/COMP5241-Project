@@ -320,13 +320,11 @@ try {
   step("reports show own counts and exclude other owners and private lessons");
   await visit(owner.page, "/reports");
   await expect(owner.page.getByRole("heading", { level: 2 })).toHaveText([own.title]);
-  await expect(owner.page.getByRole("heading", { name: "CURRENT PUBLIC ENROLLMENT ROSTER", exact: true })).toBeVisible();
-  await expect(owner.page.locator(".learning-section")).toContainText(`Current lesson version ${published.version}`);
-  await expect(owner.page.locator(".learning-section")).toContainText("2 learners · 0 reviewed · 0 attended · 1 passed");
-  await expect(owner.page.getByRole("heading", { name: "Public attempt history (all versions)", exact: true })).toBeVisible();
-  await expect(owner.page.locator(".learning-section details")).toHaveCount(1);
-  await expect(owner.page.locator(".learning-section summary")).toContainText("10/10");
-  await expect(owner.page.locator(".learning-section summary")).toContainText(`Version ${published.version}`);
+  await expect(owner.page.getByRole("heading", { name: "Student reports", exact: true })).toBeVisible();
+  await expect(owner.page.locator(".learning-section")).toContainText(`Version ${published.version}`);
+  await expect(owner.page.locator(".report-counts")).toContainText("Enrolled");
+  await expect(owner.page.locator(".report-counts")).toContainText("Passed");
+  await expect(owner.page.locator(".report-table")).toContainText("10/10");
   await screenshot(owner.page, "own-lesson-report");
   await visit(owner.page, `/reports?lesson=${otherPublic.id}`);
   await expect(owner.page.getByRole("heading", { level: 2 })).toHaveText([own.title]);

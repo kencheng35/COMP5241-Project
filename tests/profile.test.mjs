@@ -42,6 +42,8 @@ function fixture(options = {}) {
     "react/jsx-runtime": require("react/jsx-runtime"), "next/link": { __esModule: true, default: "a" },
     "lucide-react": { ShieldCheck: () => null, Trash2: () => null },
     "@/components/learner-shell": { LearnerShell: ({ children }) => children },
+    "@/components/theme-switch": { ThemeSwitch: () => null },
+    "@/components/remember-avatar": { RememberAvatar: () => null },
     "@/components/profile-form": { ProfileForm: ({ initial, notice }) => require("react").createElement("form", { "data-saveable": true }, JSON.stringify({ initial, notice })) },
     "@/components/email-change-form": { EmailChangeForm: () => require("react").createElement("form", { "aria-label": "Change email" }) },
     "@/components/export-button": { ExportButton: () => require("react").createElement("button", {}, "Export my data") },
@@ -120,7 +122,7 @@ test("profile page load failures override success query, never offer fallback fi
     const f = fixture(options);
     const html = renderToStaticMarkup(await f.page({ searchParams: Promise.resolve({ success: "Saved successfully" }) }));
     assert.doesNotMatch(html, /data-saveable|Saved successfully|Foundation/);
-    assert.match(html, /Retry loading/); assert.match(html, /Export my data/); assert.match(html, /\/profile\/delete/);
+    assert.match(html, /Retry loading/); assert.doesNotMatch(html, /Export my data|\/profile\/delete/);
     assert.match(html, options.read?.data === null && options.read.error === null ? /profile is missing/ : /Could not/);
   }
   const f = fixture();
@@ -143,6 +145,6 @@ test("ordinary profile saves reject stale setup revisions and use owner-scoped a
 test("profile page missing setup schema blocks editing but not privacy controls", async () => {
   const f = fixture({ read: { data: { age: 22, age_range: "18-24", display_name: "Owner" }, error: null } });
   const html = require("react-dom/server").renderToStaticMarkup(await f.page({ searchParams: Promise.resolve({ success: "Old success" }) }));
-  assert.match(html, /schema upgrade/); assert.match(html, /Export my data/);
+  assert.match(html, /schema upgrade/); assert.doesNotMatch(html, /Export my data/);
   assert.doesNotMatch(html, /data-saveable|Old success/);
 });

@@ -259,7 +259,7 @@ test("mounted profile/email real actions retain files and text, avoid replay and
     await noOverflow(); await page.screenshot({ path: join(screenshots, "profile-mobile-320.png"), fullPage: true });
     await page.setViewportSize({ width: 1440, height: 1000 }); await noOverflow();
     await page.locator('input[name="displayName"]').focus(); await page.keyboard.press("Tab");
-    await expect(page.getByLabel("Email address", { exact: false }).first()).toBeFocused();
+    await expect(page.locator('input[name="age"]')).toBeFocused();
     await page.screenshot({ path: join(screenshots, "profile-desktop.png"), fullPage: true });
   });
   assert.deepEqual(requests, []); assert.deepEqual(errors, []);

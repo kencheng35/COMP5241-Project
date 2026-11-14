@@ -9,6 +9,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('forge-theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}" }} />
+      </head>
       <body>{children}</body>
     </html>
   );

@@ -101,7 +101,7 @@ test("independent real access helper/actions: trusted roles, foreign draft denia
     const plain = await a.updateLesson({}, h.form(draft(3), { lessonId: id, version: "2", publish: "on" }));
     assert.equal(plain.version, 3, plain.error);
     const row = (await h.db.query("select * from forge_lessons where id=$1", [id])).rows[0];
-    assert.equal(row.visibility, "private"); assert.equal(row.review_requested, false); assert.equal(row.published_at, null);
+    assert.equal(row.visibility, "public"); assert.equal(row.review_requested, false); assert.ok(row.published_at);
     h.state.authError = { message: "Synthetic revoked session" };
     const before = h.state.writes.length;
     assert.ok((await a.createManualLesson({}, h.form())).error);

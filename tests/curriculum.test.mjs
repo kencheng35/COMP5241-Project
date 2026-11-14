@@ -84,7 +84,7 @@ test("actual lesson loader projects metadata only and preserves public/owner and
       order() { return query; }, eq(key, value) { assert.equal(key, "id"); selected = value; return query; },
       range: async () => {
         assert.equal(filter, `visibility.eq.public,owner_id.eq.${user.id}`);
-        assert.equal(columns, "id,owner_id,title,subject,summary,visibility,version,created_at,metadata:content->metadata");
+        assert.equal(columns, "id,owner_id,title,subject,summary,visibility,version,review_requested,created_at,published_at,metadata:content->metadata");
         return { data: rows.filter(row => row.visibility === "public" || row.owner_id === user.id).map(({ content, ...row }) => ({ ...row, metadata: content.metadata })), error: null };
       },
       maybeSingle: async () => ({ data: rows.find(row => row.id === selected), error: null }),

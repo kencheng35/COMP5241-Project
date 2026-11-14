@@ -77,9 +77,10 @@ test("daily reflections navigation is hidden for all roles on desktop and mobile
       }
       assert.equal(await page.locator('a[href="/reflections"]').count(), 0);
       assert.equal(await page.getByRole("link", { name: "Daily 4D reflections", exact: true }).count(), 0);
-      assert.equal(await page.getByRole("link", { name: "Create lesson", exact: true }).isVisible(), true);
-      assert.equal(await page.getByRole("link", { name: "Quiz reports", exact: true }).isVisible(), true);
-      assert.equal(await page.getByRole("link", { name: "Teaching", exact: true }).count(), role === "learner" ? 0 : 1);
+      assert.equal(await page.getByRole("link", { name: "Create lesson", exact: true }).count(), 1);
+      assert.equal(await page.getByRole("link", { name: "Quiz reports", exact: true }).count(), role === "admin" ? 1 : 0);
+      assert.equal(await page.getByRole("link", { name: "Student reports", exact: true }).count(), role === "instructor" ? 1 : 0);
+      assert.equal(await page.getByRole("link", { name: "Teaching", exact: true }).count(), role === "admin" ? 1 : 0);
       assert.equal(await page.getByRole("link", { name: "Account maintenance", exact: true }).count(), role === "admin" ? 1 : 0);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
       if (role === "admin") await page.screenshot({ path: join(screenshots, `navigation-${width}.png`), fullPage: true });

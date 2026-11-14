@@ -477,7 +477,7 @@ test("Apply rechecks save/upload/export/uncertain locks and late local Discard w
           await page.waitForFunction(()=>document.querySelector(".presentation-save-state").textContent.includes("Save needs checking"));
           await expect(page.getByRole("button",{name:"Apply",exact:true})).toBeDisabled();
           await expect(page.getByRole("button",{name:"Generate suggestions",exact:true})).toBeDisabled();
-          await expect(page.locator("#presentation-ai-state")).toContainText("reconcile Your lessons");
+          await expect(page.locator("#presentation-ai-state")).toContainText("reconcile Your created lessons");
         }else await expect(page.getByRole("button",{name:"Save",exact:true})).toBeEnabled();
       }
       assert.equal(await page.evaluate(()=>editCanvas.getObjects()[0].text),"Complex SDLC requirements");

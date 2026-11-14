@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { createRequire } from "node:module";
-import { harness, draft, slides, learning, migration, load } from "./slide-authoring-harness.mjs";
+import { harness, draft, slides, learning, curriculum, migration, load } from "./slide-authoring-harness.mjs";
 const require = createRequire(import.meta.url);
 const React = require("react");
 const jsx = require("react/jsx-runtime");
@@ -92,7 +92,7 @@ test("new migration and actual actions: private/review/version/variable attempts
     const saved = await a.updateLesson({}, form(draft(3), { lessonId: id, version: "2" }));
     assert.equal(saved.version, 3);
     const row = (await db.query("select * from forge_lessons where id=$1", [id])).rows[0];
-    assert.equal(row.visibility, "private"); assert.equal(row.review_requested, false); assert.equal(row.published_at, null);
+    assert.equal(row.visibility, "public"); assert.equal(row.review_requested, false); assert.ok(row.published_at);
     assert.ok((await a.updateLesson({}, form(standard, { template: "", lessonId: id, version: "3", publish: "on" }))).error);
     await db.query(`insert into forge_enrollments(user_id,lesson_id,progress_evidence) values($1,$2,'{"3":{"attended_at":"2026-11-05T00:00:00Z"}}')`, [h.owner,id]);
     for (const [answers,passed] of [[[0,0,1],true],[[0,1,1],false]]) {
@@ -158,6 +158,11 @@ test("actual route renderers: owner-only Create history, separate blank/upload, 
     const server = {
       ...h.server, requireUser:async () => h.state.user,displayName:async () => "Synthetic author",
       visibleLessons:async () => lessons,userRecords:async () => ({attempts,enrollments,bookmarks:[]}),
+      hongKongDate: value => value ? "1 Jan 2026" : "Not seen yet", lessonResumeDates: async () => new Map(), lessonHasUpdate: () => false,
+      database() {
+        const db = h.server.database();
+        return { from(table) { return table === "forge_v2_sessions" ? { select() { return this; }, eq() { return this; }, limit: async () => ({ data: [], error: null }) } : db.from(table); } };
+      },
     };
     const controls = load("../src/components/learning-controls.tsx",{
       react:React,"react/jsx-runtime":jsx,"next/link":{default:({children,...props})=>React.createElement("a",props,children),__esModule:true},
@@ -167,33 +172,33 @@ test("actual route renderers: owner-only Create history, separate blank/upload, 
     const deps = {
       "react/jsx-runtime":jsx, "next/link":{default:({children,...props})=>React.createElement("a",props,children),__esModule:true},
       "next/navigation":{notFound(){throw new Error("Not found");},redirect(){throw new Error("Redirect");}},
-      "lucide-react":{BookOpen:()=>null,Plus:()=>null},
+      "lucide-react":{BookOpen:()=>null,Plus:()=>null,PenLine:()=>null,Upload:()=>null,Circle:()=>null,ThumbsUp:()=>null,Gamepad2:()=>null},
       "@/components/learner-shell":{LearnerShell:({children})=>React.createElement("main",{},children)},
       "@/components/learning-controls":{...controls,ActionForm:({children})=>React.createElement("form",{},children),LessonEditor:()=>React.createElement("p",{},"Legacy editor")},
       "@/components/create-lesson":{SlideLessonEditor:({initial})=>React.createElement("p",{},initial ? "Slide editor" : "Blank manual"),UploadLessonPage:()=>React.createElement("p",{},"Separate upload")},
       "@/components/presentation-editor":{PresentationLessonEditor:({initial,initialLegacy})=>React.createElement("p",{},initial||initialLegacy?"Slide editor":"Blank manual")},
-      "@/lib/slide-lesson":slides, "@/lib/learning":learning,"@/lib/learning-server":server,"@/app/learning/actions":h.actions,
+      "@/lib/slide-lesson":slides, "@/lib/learning":learning, "@/lib/curriculum":curriculum,"@/lib/learning-server":server,"@/app/learning/actions":h.actions,
       "@/lib/onboarding-server":{loadSetup:async()=>({code:"ok",user:h.state.user,profile:{onboarding_completed_at:"2026-11-05"}})},
       "@/components/learner-import":{LearnerImport:()=>React.createElement("p",{},"Roster management")},
       "@/components/lesson-generation":{LessonGeneration:()=>null},
     };
     const studio = load("../src/app/studio/page.tsx",deps).default;
     const home = render(await studio({searchParams:Promise.resolve({})}));
-    assert.match(home,/Only owner sees/); assert.doesNotMatch(home,/FOREIGN PRIVATE/);
-    assert.ok(home.indexOf("Your lessons") < home.indexOf("How to create a lesson"));
+    assert.match(home,/Write a lesson/); assert.doesNotMatch(home,/FOREIGN PRIVATE/);
+    assert.ok(home.indexOf("Write a lesson") < home.indexOf("Your created lessons"));
     for (const [route,text] of [[{manual:"1",starter:"sdlc-small-change"},"Blank manual"],[{upload:"1"},"Separate upload"]]) {
       const html = render(await studio({searchParams:Promise.resolve(route)}));
-      assert.match(html,new RegExp(text)); assert.doesNotMatch(html,/Your lessons|Only owner sees|starter/i);
+      assert.match(html,new RegExp(text)); assert.doesNotMatch(html,/Your created lessons|Only owner sees|starter/i);
     }
     const dashboard = render(await load("../src/app/dashboard/page.tsx",deps).default());
-    assert.match(dashboard,/1 passed/); assert.doesNotMatch(dashboard,/Your private creations|Only owner sees/);
+    assert.match(dashboard,/Your created lessons/); assert.match(dashboard,/Published/); assert.match(dashboard,/Private/); assert.match(dashboard,/Completed/); assert.doesNotMatch(dashboard,/Your private creations/);
     const progress = render(await load("../src/app/progress/page.tsx",deps).default());
     assert.match(progress,/2\/3.*PASSED/); assert.match(progress,/1\/3.*Not passed/);
     assert.match(progress,/50%/); assert.equal((progress.match(/Certificate \(HTML\)/g)??[]).length,1);
     h.state.user.app_metadata.role="instructor";
     const teaching = render(await load("../src/app/teaching/page.tsx",deps).default({searchParams:Promise.resolve({lesson:id})}));
     assert.match(teaching,/Published lesson roster|Roster management/);
-    assert.doesNotMatch(teaching,/Only owner sees|Your lessons|Lesson library/);
+    assert.doesNotMatch(teaching,/Only owner sees|Your created lessons|Lesson library/);
     const route = load("../src/app/api/certificates/[id]/route.ts",{
       "next/server":{NextResponse:class extends Response{static json(...args){return Response.json(...args);}}},
       zod:require("zod"),"@/lib/learning-server":server,"@/lib/learning":learning,

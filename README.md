@@ -6,6 +6,188 @@ For a presentation-ready overview of features, design choices and prototype scre
 
 Track remaining work, blockers, acceptance criteria and verification updates in [IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md).
 
+## PDF import: diagnosing image-draft startup failures
+
+Draft startup now distinguishes the exact SQL `P0001` / `draft limit` response
+from missing RPC/schema, permission/configuration, transient/unexpected failures
+and an invalid UUID acknowledgment. Server logs contain only
+`presentation_draft_start_failed`, a fixed `category` and an allowlisted `code`
+(otherwise `null`), never raw errors, credentials or user IDs. Unknown `P0001`
+messages are **not** treated as quota failures. There is no automatic retry or
+cleanup: after an ambiguous failure, a draft may exist even without a returned
+ID. Ask an administrator to check before trying again; do not discard unrelated
+drafts. The configured limit is ten unexpired owner drafts, including drafts
+associated with saved lessons, not ten PDFs; new drafts normally expire after
+seven days.
+
+**Remote cause and successful live import remain unverified.** These messages
+are diagnostic categories, not proof of the deployed schema or credentials.
+The required migration is
+`supabase/migrations/20261105140000_presentations_ran.sql` (and its prerequisite
+migrations). The `_ran` filename does **not** prove it was applied. Do not rerun
+the full migration as a diagnostic or change grants/limits/bucket privacy.
+
+Before any connected operation, confirm the intended Supabase project and
+Vercel deployment/environment (Production vs Preview) with its authorized
+operator. Privately verify that `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` and server-only `SUPABASE_SERVICE_ROLE_KEY`
+belong to that **same project**, and `NEXT_PUBLIC_SITE_URL` is the correct site
+origin. Never paste key values into logs, tickets or SQL. No environment files
+or connected services were inspected for this fix.
+
+Only after target confirmation, an authorized operator can run these
+**read-only** metadata checks in that project's Supabase SQL editor. They do
+not invoke the create RPC or select private lesson/image content:
+
+```sql
+begin read only;
+with target as (
+  select to_regprocedure('public.forge_begin_presentation_draft(uuid,uuid)')::oid as oid
+)
+select t.oid is not null as rpc_exists,
+       pg_get_function_result(t.oid) as return_type, p.proargnames as argument_names,
+       has_function_privilege('service_role', t.oid, 'EXECUTE') as service_execute,
+       has_function_privilege('anon', t.oid, 'EXECUTE') as anon_execute,
+       has_function_privilege('authenticated', t.oid, 'EXECUTE') as authenticated_execute
+from target t left join pg_proc p on p.oid = t.oid;
+
+select has_schema_privilege('service_role', 'public', 'USAGE') as service_schema_usage;
+
+select v.name, c.oid is not null as table_exists, c.relrowsecurity as rls_enabled,
+       has_table_privilege('service_role', c.oid, 'SELECT') as service_select,
+       has_table_privilege('service_role', c.oid, 'INSERT') as service_insert,
+       has_table_privilege('service_role', c.oid, 'UPDATE') as service_update,
+       has_table_privilege('service_role', c.oid, 'DELETE') as service_delete,
+       has_table_privilege('anon', c.oid, 'SELECT,INSERT,UPDATE,DELETE') as anon_any_access,
+       has_table_privilege('authenticated', c.oid, 'SELECT,INSERT,UPDATE,DELETE') as authenticated_any_access
+from (values ('public.forge_presentation_drafts'),
+             ('public.forge_presentation_assets')) v(name)
+left join pg_class c on c.oid = to_regclass(v.name);
+
+select exists(select 1 from storage.buckets where id = 'forge-presentation-images') as bucket_exists,
+       (select public from storage.buckets where id = 'forge-presentation-images') as bucket_public;
+rollback;
+```
+
+Expected: RPC returns `uuid`, arguments `{request_owner,request_lesson}`;
+service-role execute/schema usage/table privileges are true; anon/authenticated
+execute and table access are false; both tables have RLS; bucket exists and is
+**not public**. Missing objects yield false/null. Existence and permissions alone
+do not verify the routine body or PostgREST schema cache; an operator should
+compare the installed definition with the migration and check API schema
+exposure/cache separately before proposing any repair.
+
+Once the drafts table is confirmed, replace the placeholder **privately with
+your own UUID** and run only this aggregate count (do not share the UUID):
+
+```sql
+begin read only;
+select count(*) as active_draft_count
+from public.forge_presentation_drafts
+where owner_id = 'YOUR-OWN-UUID'::uuid and expires_at > now();
+rollback;
+```
+
+A count of ten or more is consistent with the quota at the query time; a later
+count cannot prove what happened during an earlier request. Share only sanitized
+category/code and aggregate/boolean findings. Any connected repair, explicit
+discard or live-import verification needs separate target-confirmed approval.
+Independent QA is requested; offline tests are not release certification.
+
+## 9 November 2026 — PDF rendering fix: independent offline QA
+
+Independent QA completed for the **offline scope**, not release certification.
+The local real `C:\HA\Test.pdf` passed through the actual React upload component
+and PDF worker at 320px and 1440px, using mock private image storage and save.
+At each width, six distinct nonblank 1080 × 608 images loaded in previews and
+six ordered image references reached the mock save. This QA did not store or
+upload PDF content or screenshots. Nonblank and reference metrics do not prove
+visual identity.
+
+Independent local synthetic recovery checks passed **19/19**; local mock
+authorization-action checks passed **5/5**. The final
+`node tests\pdf-import-build-qa.mjs 'C:\Windows' 'C:\Users\SOLUSER'` exited
+**0**, with production typegen/typecheck/build and emitted worker checks
+passing; the temporary snapshot was removed.
+
+Actual Vercel, connected storage, live auth and live save/reopen were not tested;
+no deployment occurred. The pre-existing forged embedded-dimension decoded-memory
+issue remains open; denied `sessionStorage` can lose a recovery retry on reload
+and the user is warned. Valid JPEG-2000 samples may be rejected. The full suite
+and repository-wide lint have known unrelated failures and were not rerun.
+Independent visual/security and separately authorized connected QA remains
+requested; earlier entries below are dated history.
+
+## 9 November 2026 — PDF import cleanup recovery
+
+If a PDF import fails after creating a private image draft, the existing first
+cleanup attempt still runs. If its result is an error, a lost response or
+otherwise lacks an unambiguous success, the importer stays blocked and offers
+**Retry cleanup** for that same draft. Each retry is explicit; file changes and
+new imports remain disabled until the discard action reports success. Keep the
+page open until cleanup is confirmed; do not assume private pages were removed
+after an uncertain response.
+
+The known draft ID is kept in memory and, when available, in owner-scoped tab
+storage (no PDF, filename or page images are stored there). This supports
+same-tab remount/reload recovery; other tabs are not coordinated. If reading,
+writing or clearing tab storage fails, the upload screen warns that recovery
+is unavailable and reloading can lose a pending retry. Keep the page open
+until cleanup is confirmed. The warning remains in memory for that owner until
+reload, even if a later storage operation succeeds. If removal fails, an old
+retry can instead reappear after reload; confirmed cleanup still unlocks the
+importer. A denied read can also make an existing retry inaccessible, so its
+lock cannot be restored. If draft creation never returns an ID, the browser
+cannot recover an unknown draft.
+Reloading also cannot establish whether an earlier server request is still
+running. Confirmation is the existing action's response, not an independent
+storage audit. Server-side ownership checks and saved-image protection remain
+in place.
+
+Focused offline checks passed: 25 browser/action tests and four existing
+cleanup/stale/save-lock and manual-versus-upload route tests. Scoped
+lint had two existing unused-import warnings; direct TypeScript checking passed.
+Independent QA is requested; the PDF decoded-memory security limitation below
+remains open.
+
+## 9 November 2026 — PDF import improvement; security limit remains open
+
+The Studio **Create lesson > Upload a PDF** screen renders each page locally
+into an aspect-preserving image on the existing 960 × 540 slide. PDF.js now
+checks the declared dimensions of directly painted embedded images against a
+separate 4,000,000-pixel source limit, rather than the smaller output limit.
+The original safeguards remain: 4 MiB per PDF, 30 pages, 2,073,600 output
+pixels per page, 40 million total output pixels and 3,840 pixels per output
+side. Page images use the existing owner-scoped private draft/save flow; the
+source PDF is not retained or sent to AI.
+
+These limits reduce browser memory, rendering work and private storage use. A
+single 4,000,000-pixel RGBA buffer alone takes 16,000,000 bytes (about 15.3 MiB),
+and decoding, masks and temporary copies can require considerably more. The
+4 MiB file limit is on compressed input, not decoded memory; the per-image
+limit is not an aggregate source-image memory budget. A dedicated PDF.js
+worker treats its warnings, stream errors and failed image objects as import
+errors; decoded oversized image objects are also rejected. It reports only
+error categories, not PDF warning text. This conservative policy can reject
+an otherwise usable PDF with a benign worker warning. The guard fails closed
+for PDF.js versions other than the reviewed 6.3.289.
+
+**This is a partial improvement, not a hard security or completeness
+guarantee.** PDF.js can trust an understated image dictionary, and some image
+or mask data can allocate memory before its decoded dimensions are checked.
+For example, the synthetic `node tests/pdf-import-source-limit-diagnostic.mjs`
+currently exits 1: a JPEG encoded at 2,001 × 2,000 pixels is accepted when
+declared as 10 × 10. Compressed streams can expand beyond the limits, and
+many individually permitted images can still exhaust memory. PDF.js omissions
+that produce no observed worker warning, stream error or failed image object
+may still be saved. Use trusted PDFs and review every imported slide. Genuine
+blank pages are not rejected.
+
+For a local, aggregate-only diagnostic, run
+`node tests/pdf-import-local-diagnostic.mjs <trusted-local-file.pdf>`; it does
+not upload or save the source or page images. This is implementation evidence,
+not independent release QA; see the newest tracker entry.
+
 ## 6 November 2026 — eight UI/UX enhancements: bounded independent local gates passed
 
 All eight approved enhancements are implemented: private **Save & request

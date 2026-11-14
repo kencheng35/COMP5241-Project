@@ -38,8 +38,8 @@ function FontSizeInput({value,onApply,handle}:{value:number|null;onApply:(size:n
   </>;
 }
 
-export function PresentationLessonEditor({lessonId="",version=1,initial,initialLegacy,onSaveLock}:{
-  lessonId?:string;version?:number;initial?:PresentationAuthor;initialLegacy?:AuthorLesson;onSaveLock?:(locked:boolean)=>void;
+export function PresentationLessonEditor({lessonId="",version=1,initial,initialLegacy,initialDraftId="",onSaveLock}:{
+  lessonId?:string;version?:number;initial?:PresentationAuthor;initialLegacy?:AuthorLesson;initialDraftId?:string;onSaveLock?:(locked:boolean)=>void;
 }) {
   const router=useRouter();
   const [history]=useState(()=>new PresentationHistory(initial??(initialLegacy?legacyPresentation(initialLegacy):blankPresentation())));
@@ -48,7 +48,7 @@ export function PresentationLessonEditor({lessonId="",version=1,initial,initialL
   const [selection,setSelection]=useState<string[]>([]);
   const [textStyle,setTextStyle]=useState<CanvasTextStyle|null>(null);
   const [ack,setAck]=useState({id:lessonId,version});
-  const [draftId,setDraftId]=useState("");
+  const [draftId,setDraftId]=useState(initialDraftId);
   const [pending,setPending]=useState(false),[uploading,setUploading]=useState(false),[uncertain,setUncertain]=useState(false);
   const [saveIntent,setSaveIntent]=useState<"save"|"publish">("save");
   const [error,setError]=useState(""),[success,setSuccess]=useState("");
@@ -280,14 +280,14 @@ export function PresentationLessonEditor({lessonId="",version=1,initial,initialL
       const result:ActionState=ack.id?await updateLesson({},form):await createManualLesson({},form);
       if(!live.current)return;
       if(result.saveUncertain||!result.error&&(!result.lessonId||!result.version)){
-        blocked.current=true;setUncertain(true);setError("Save outcome is unknown. Keep this tab and check Your lessons in another tab before saving again.");
+        blocked.current=true;setUncertain(true);setError("Save outcome is unknown. Keep this tab and check Your created lessons in another tab before saving again.");
       }else if(result.error)setError(result.error);
       else{
         ackState.current={id:result.lessonId!,version:result.version!};setAck(ackState.current);
         setSaved(JSON.stringify(normalized));setSuccess(`${result.success} Version ${result.version}.`);router.refresh();
       }
     }catch(e){if(live.current){
-      if(dispatched){blocked.current=true;setUncertain(true);setError("Save outcome is unknown. Keep this tab and reconcile Your lessons before retrying.");}
+      if(dispatched){blocked.current=true;setUncertain(true);setError("Save outcome is unknown. Keep this tab and reconcile Your created lessons before retrying.");}
       else setError(e instanceof Error?e.message:"Slide validation failed. Nothing was saved.");
     }}
     finally{inFlight.current=false;if(live.current){setPending(false);onSaveLock?.(blocked.current);}}
@@ -362,7 +362,7 @@ export function PresentationLessonEditor({lessonId="",version=1,initial,initialL
       </div>
     </div>
     {(error||success)&&!panel&&<p ref={notice} tabIndex={-1} role={error?"alert":"status"} className={`form-notice${error?" notice-error":""}`}>{error||success}</p>}
-    {uncertain&&<a href="/studio" target="_blank" rel="noopener noreferrer">Check Your lessons in another tab; saving is locked here</a>}
+    {uncertain&&<a href="/studio" target="_blank" rel="noopener noreferrer">Check Your created lessons in another tab; saving is locked here</a>}
     <div ref={workspace} className="presentation-workspace">
       <details ref={slidesPanel} open className="presentation-slides"><summary>Slides ({draft.document.slides.length})</summary>
         <div className="presentation-slides-body">

@@ -1,87 +1,243 @@
 "use client";
 
-import { lazy,Suspense,useEffect, useRef, useState } from "react";
+import { lazy,Suspense,useCallback,useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { FileText, Presentation } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { extractLessonUpload } from "@/app/teaching/actions";
 import { createManualLesson, updateLesson, type ActionState } from "@/app/learning/actions";
 import { authorLessonSchema, emptyAuthorLesson, type AuthorLesson } from "@/lib/slide-lesson";
-import { MAX_PRESENTATION_SLIDES, MAX_TEXTBOX_CHARACTERS } from "@/lib/presentation";
+import { blankPresentation, MAX_PRESENTATION_SLIDES, MAX_TEXTBOX_CHARACTERS, type PresentationAuthor } from "@/lib/presentation";
+import { beginPresentationDraft, discardPresentationDraft, uploadPresentationImage } from "@/app/presentation/actions";
+import { fitPdfPage, renderPdfPages, validatePdfFile } from "@/lib/pdf-import";
 const PresentationLessonEditor=lazy(()=>import("./presentation-editor").then(m=>({default:m.PresentationLessonEditor})));
+
+type PdfRecovery = {
+  draftId:string;
+  phase:"loading"|"idle"|"importing"|"cleaning";
+  error:string;
+  notice:string;
+  attempts:number;
+  storageUnavailable:boolean;
+};
+const emptyPdfRecovery:PdfRecovery = {draftId:"",phase:"idle",error:"",notice:"",attempts:0,storageUnavailable:false};
+const pdfRecoveries = new Map<string,PdfRecovery>();
+const pdfRecoveryListeners = new Map<string,Set<() => void>>();
+const pdfRecoveryKey = (ownerId:string) => `forge-pdf-import-cleanup:${ownerId}`;
+
+// Keep only the opaque draft ID in this tab, scoped to the signed-in owner.
+// The in-memory state also keeps an old request from racing a remounted page.
+function readPdfRecovery(ownerId:string):PdfRecovery {
+  if (typeof window === "undefined") return emptyPdfRecovery;
+  const cached = pdfRecoveries.get(ownerId);
+  if (cached) return cached;
+  let draftId = "";
+  let storageUnavailable = false;
+  try { draftId = window.sessionStorage.getItem(pdfRecoveryKey(ownerId)) ?? ""; } catch { storageUnavailable = true; }
+  const state = {...emptyPdfRecovery,draftId,storageUnavailable,
+    error:draftId ? "Private page cleanup is pending; retry cleanup before importing again." : ""};
+  pdfRecoveries.set(ownerId,state);
+  return state;
+}
+function updatePdfRecovery(ownerId:string,change:Partial<PdfRecovery>) {
+  const previous = readPdfRecovery(ownerId);
+  const next = {...previous,...change};
+  if (previous.draftId !== next.draftId) {
+    try {
+      if (next.draftId) window.sessionStorage.setItem(pdfRecoveryKey(ownerId),next.draftId);
+      else window.sessionStorage.removeItem(pdfRecoveryKey(ownerId));
+    } catch { next.storageUnavailable = true; }
+  }
+  pdfRecoveries.set(ownerId,next);
+  pdfRecoveryListeners.get(ownerId)?.forEach(listener => listener());
+}
+function subscribePdfRecovery(ownerId:string,listener:() => void) {
+  let listeners = pdfRecoveryListeners.get(ownerId);
+  if (!listeners) { listeners = new Set(); pdfRecoveryListeners.set(ownerId,listeners); }
+  listeners.add(listener);
+  return () => { listeners.delete(listener); if (!listeners.size) pdfRecoveryListeners.delete(ownerId); };
+}
+// Keep the server-rendered controls locked until the tab's recovery state is read.
+const loadingPdfRecovery:PdfRecovery = {...emptyPdfRecovery,phase:"loading"};
+const serverPdfRecovery = () => loadingPdfRecovery;
 
 // Mount inside Suspense so focus moves only after the lazy editor is ready,
 // never back to the now-hidden Preview slides button.
-function UploadPreview({draft,onSaveLock}:{draft:AuthorLesson;onSaveLock:(locked:boolean)=>void}) {
+function UploadPreview({draft,draftId,onSaveLock}:{draft:PresentationAuthor;draftId:string;onSaveLock:(locked:boolean)=>void}) {
   const preview=useRef<HTMLDivElement>(null);
   useEffect(()=>{preview.current?.querySelector<HTMLInputElement>(".presentation-document-bar input")?.focus();},[]);
-  return <div ref={preview}><PresentationLessonEditor initialLegacy={draft} onSaveLock={onSaveLock}/></div>;
+  return <div ref={preview}><PresentationLessonEditor initial={draft} initialDraftId={draftId} onSaveLock={onSaveLock}/></div>;
 }
 
-export function UploadLessonPage() {
-  const [mode, setMode] = useState<"text" | "powerpoint">("text");
+export function UploadLessonPage({ownerId}:{ownerId:string}) {
+  const subscribe = useCallback((listener:() => void) => subscribePdfRecovery(ownerId,listener),[ownerId]);
+  const snapshot = useCallback(() => readPdfRecovery(ownerId),[ownerId]);
+  const recovery = useSyncExternalStore(subscribe,snapshot,serverPdfRecovery);
   const [fileName, setFileName] = useState("");
   const [importerOpen, setImporterOpen] = useState(true);
-  const [draft, setDraft] = useState<AuthorLesson | null>(null);
+  const [draft, setDraft] = useState<{presentation:PresentationAuthor;draftId:string} | null>(null);
   const [generation, setGeneration] = useState(0);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const inFlight = useRef(false);
   const epoch = useRef(0);
+  const live = useRef(true);
   const locked = useRef(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const retryButton = useRef<HTMLButtonElement>(null);
   const [saveLocked, setSaveLocked] = useState(false);
-  useEffect(() => () => { epoch.current++; }, []);
+  useEffect(() => {
+    live.current = true;
+    const activeEpoch = epoch;
+    return () => { live.current = false; activeEpoch.current++; };
+  }, [ownerId]);
+  useEffect(() => {
+    if (recovery.phase !== "idle" || saveLocked) return;
+    if (recovery.draftId) retryButton.current?.focus();
+    else if (recovery.attempts && recovery.notice) fileInput.current?.focus();
+  }, [recovery.attempts, recovery.draftId, recovery.notice, recovery.phase, saveLocked]);
   function invalidate() {
     epoch.current++;
     setDraft(null);
     setError("");
+    updatePdfRecovery(ownerId,{notice:""});
   }
 
-  async function readFile(form: FormData) {
-    if (inFlight.current || locked.current) return;
-    inFlight.current = true;
-    const request = ++epoch.current;
-    form.set("mode", mode);
-    setBusy(true);
-    setDraft(null);
-    setError("");
+  async function cleanupDraft(id:string) {
+    let detail = "";
+    let confirmed = false;
     try {
-      const result = await extractLessonUpload(form);
-      if (request !== epoch.current) return;
-      if (!result.slides) {
-        setError(result.error ?? "Could not read that file.");
-        return;
-      }
-      setDraft({ ...emptyAuthorLesson(), title: result.name ?? "", slides: result.slides });
-      setGeneration(value => value + 1);
-      setImporterOpen(false);
+      const result = await discardPresentationDraft(id);
+      if (result?.error) detail = result.error;
+      else confirmed = typeof result?.success === "string" && result.success.trim().length > 0;
     } catch {
-      if (request === epoch.current) setError("Upload failed. Try the file again.");
+      // A transport failure can occur after the server has already cleaned.
+    }
+    const current = readPdfRecovery(ownerId);
+    if (current.draftId !== id || current.phase !== "cleaning") return;
+    updatePdfRecovery(ownerId,{
+      draftId:confirmed ? "" : id,phase:"idle",attempts:current.attempts + 1,
+      error:confirmed ? "" : `Private page cleanup is pending; retry cleanup before importing again.${detail ? ` ${detail}` : " Cleanup could not be confirmed."}`,
+      notice:confirmed ? "Private page cleanup confirmed. You can import another PDF." : "",
+    });
+  }
+
+  async function retryCleanup() {
+    const current = readPdfRecovery(ownerId);
+    const id = current.draftId;
+    if (!id || current.phase !== "idle" || inFlight.current || locked.current) return;
+    inFlight.current = true;
+    updatePdfRecovery(ownerId,{phase:"cleaning",notice:""});
+    try {
+      await cleanupDraft(id);
     } finally {
       inFlight.current = false;
-      setBusy(false);
     }
   }
 
+  async function readFile(form: FormData) {
+    const recovery = readPdfRecovery(ownerId);
+    if (inFlight.current || locked.current || recovery.phase !== "idle" || recovery.draftId) return;
+    inFlight.current = true;
+    const request = ++epoch.current;
+    const current = () => live.current && request === epoch.current;
+    updatePdfRecovery(ownerId,{phase:"importing",error:"",notice:""});
+    setDraft(null);
+    setError("");
+    let imageDraftId = "";
+    let complete = false;
+    try {
+      const file = form.get("material");
+      if (!(file instanceof File)) throw new Error("Choose a PDF file.");
+      validatePdfFile(file);
+      const presentation = blankPresentation();
+      const slides:PresentationAuthor["document"]["slides"] = [];
+      const title = file.name.replace(/\.pdf$/i,"").trim().slice(0,120);
+      presentation.title = title.length >= 3 ? title : "Imported PDF lesson";
+      const totalPages = await renderPdfPages(file,async(pageNumber,image) => {
+        if(!current())throw new Error("PDF import canceled.");
+        if(!imageDraftId){
+          const begun=await beginPresentationDraft();
+          if(!begun.id)throw new Error(begun.error??"Private image storage is unavailable.");
+          imageDraftId=begun.id;
+          updatePdfRecovery(ownerId,{draftId:imageDraftId});
+        }
+        if(!current())throw new Error("PDF import canceled.");
+        const uploadForm=new FormData();
+        uploadForm.set("draftId",imageDraftId);
+        uploadForm.set("image",image);
+        const uploaded=await uploadPresentationImage(uploadForm);
+        if(!current())throw new Error("PDF import canceled.");
+        if(!uploaded.id||!uploaded.width||!uploaded.height)throw new Error(uploaded.error??"Image upload failed.");
+        const box=fitPdfPage(uploaded.width,uploaded.height);
+        slides.push({
+          id:crypto.randomUUID(),title:`Page ${pageNumber}`,background:"#ffffff",
+          elements:[{id:crypto.randomUUID(),type:"image",assetId:uploaded.id,alt:`Imported PDF page ${pageNumber}`,
+            ratio:uploaded.width/uploaded.height,...box,rotation:0}],
+        });
+      });
+      if(!current())return;
+      if(!imageDraftId||slides.length!==totalPages)throw new Error("Not every PDF page was imported. Nothing was saved.");
+      presentation.document.slides=slides;
+      if(!presentation.document.slides.length)throw new Error("The PDF contains no importable pages.");
+      setDraft({presentation,draftId:imageDraftId});
+      complete=true;
+      setGeneration(value => value + 1);
+      setImporterOpen(false);
+    } catch (cause) {
+      if(current())setError(cause instanceof Error?cause.message:"PDF import failed. Try the file again.");
+    } finally {
+      try {
+        if(imageDraftId&&!complete){
+          updatePdfRecovery(ownerId,{draftId:imageDraftId,phase:"cleaning"});
+          await cleanupDraft(imageDraftId);
+        } else {
+          updatePdfRecovery(ownerId,{draftId:"",phase:"idle"});
+        }
+      } finally {
+        inFlight.current = false;
+      }
+    }
+  }
+
+  const busy = recovery.phase === "importing";
+  const cleanupBusy = recovery.phase === "cleaning";
+  const pendingCleanup = !!recovery.draftId && !busy;
+  const importBlocked = recovery.phase !== "idle" || saveLocked || !!recovery.draftId;
+  const storageWarning = recovery.storageUnavailable
+    ? "Tab recovery is unavailable. Reloading can lose a pending cleanup retry or show an old retry again."
+    : "";
+  const keepOpen = recovery.error
+    ? "Keep this page open until cleanup is confirmed."
+    : recovery.storageUnavailable ? "If cleanup is needed, keep this page open until cleanup is confirmed." : "";
+  const alert = [error,recovery.error,storageWarning,keepOpen].filter(Boolean).join(" ");
   return <section className={`learning-section presentation-upload-page${draft ? " presentation-upload-ready" : ""}`} aria-labelledby="upload-heading">
     <div className={draft ? "presentation-import-bar" : undefined}>
-      <h2 id="upload-heading">{draft ? "Imported file" : "Upload a file"}</h2>
+      <h2 id="upload-heading">{draft ? "Imported PDF" : "Upload a PDF"}</h2>
       {draft && <>
-        <p title={fileName}><strong>{fileName}</strong> · {mode === "text" ? "Text only" : "PowerPoint slides"}</p>
-        <button type="button" className="secondary-button" aria-expanded={importerOpen} aria-controls="upload-importer" disabled={busy || saveLocked} onClick={() => setImporterOpen(value => !value)}>{importerOpen ? "Close importer" : "Change file"}</button>
+        <p title={fileName}><strong>{fileName}</strong> · {draft.presentation.document.slides.length} PDF page{draft.presentation.document.slides.length===1?"":"s"}</p>
+        <button type="button" className="secondary-button" aria-expanded={importerOpen} aria-controls="upload-importer" disabled={importBlocked} onClick={() => setImporterOpen(value => !value)}>{importerOpen ? "Close importer" : "Change file"}</button>
       </>}
     </div>
     <form id="upload-importer" className="learning-form" hidden={!!draft && !importerOpen} onSubmit={event => { event.preventDefault(); void readFile(new FormData(event.currentTarget)); }}>
-      {draft && <p>Changing the file or import mode replaces this preview. Close the importer to keep editing.</p>}
-      <fieldset disabled={busy || saveLocked}>
-        <legend>How should this file become a lesson?</legend>
-        <label className="checkbox-field"><input type="radio" name="mode" checked={mode === "text"} onChange={() => { setMode("text"); invalidate(); }} /> Copy the text only</label>
-        <label className="checkbox-field"><input type="radio" name="mode" checked={mode === "powerpoint"} onChange={() => { setMode("powerpoint"); invalidate(); }} /> Import the PowerPoint as slides</label>
-      </fieldset>
-      <p>{mode === "text" ? "PDF, DOCX and PPTX text only: extracted text is split across up to 30 slides, preserving all text within the parser's 60,000-character file ceiling." : "PPTX only: 1–30 slides, at most 10,000 text characters per slide. Real slide order is retained, not original layout. Image-only slides cannot be imported."} Binary PPT and DOC cannot be imported safely; export as PPTX or DOCX first. Images, original fonts, positioning and full formatting are not imported. Files must be at most 4 MiB. Originals are not stored or sent to AI. Over-limit content is rejected, never clipped. Adjust text size or layout in the preview if needed; text must fit on the canvas before saving.</p>
-      <label>File<input type="file" name="material" required disabled={busy || saveLocked} onChange={event => { setFileName(event.currentTarget.files?.[0]?.name ?? ""); invalidate(); }} accept={mode === "powerpoint" ? ".ppt,.pptx" : ".ppt,.pptx,.pdf,.doc,.docx"} /></label>
-      <button className="primary-button" type="submit" disabled={busy || saveLocked}>{busy ? "Reading file..." : "Preview slides"}</button>
+      {draft && <p>Changing the PDF replaces this preview. Close the importer to keep editing.</p>}
+      <div className="presentation-upload-guidance">
+        <ul>
+          <li>Maximum 4 MiB and 30 pages.</li>
+          <li>Each page becomes a slide image; its text cannot be edited.</li>
+          <li>Password-protected or restricted PDFs cannot be imported.</li>
+          <li>If an image is too large, reduce its resolution and export the PDF again.</li>
+        </ul>
+      </div>
+      <label>PDF file<input ref={fileInput} type="file" name="material" required disabled={importBlocked} onChange={event => { const current = readPdfRecovery(ownerId); if (current.draftId || locked.current || current.phase !== "idle" && !inFlight.current) return; setFileName(event.currentTarget.files?.[0]?.name ?? ""); invalidate(); }} accept=".pdf,application/pdf" /></label>
+      <button className="primary-button" type="submit" disabled={importBlocked}>{busy ? "Rendering PDF pages..." : "Import PDF pages"}</button>
+
     </form>
-    {error && <p role="alert" className="form-notice notice-error">{error}</p>}
-    {draft && <Suspense fallback={<p>Loading presentation editor…</p>}><UploadPreview key={generation} draft={draft} onSaveLock={value => { locked.current = value; setSaveLocked(value); }} /></Suspense>}
+    {recovery.phase === "loading" && <p role="status">Checking PDF recovery…</p>}
+    {alert && <p id="pdf-import-error" role="alert" className="form-notice notice-error">{alert}</p>}
+    {recovery.notice && <p role="status" className="form-notice">{recovery.notice}</p>}
+    {pendingCleanup && <>
+      {cleanupBusy && <p role="status">Cleaning private pages…</p>}
+      <button ref={retryButton} type="button" className="secondary-button" aria-describedby={alert ? "pdf-import-error" : undefined} disabled={cleanupBusy || saveLocked} onClick={() => void retryCleanup()}>Retry cleanup</button>
+    </>}
+    {draft && <Suspense fallback={<p>Loading presentation editor…</p>}><UploadPreview key={generation} draft={draft.presentation} draftId={draft.draftId} onSaveLock={value => { locked.current = value; setSaveLocked(value); }} /></Suspense>}
   </section>;
 }
 
@@ -135,7 +291,7 @@ export function SlideLessonEditor({ lessonId = "", version = 1, initial, onSaveL
       if (!live.current) return;
       if (result.saveUncertain || !result.error && (!result.lessonId || !result.version)) {
         blocked.current = true; setUncertain(true);
-        setError("Save outcome is unknown. Keep this input and check Your lessons in another tab before saving again.");
+        setError("Save outcome is unknown. Keep this input and check Your created lessons in another tab before saving again.");
       } else if (result.error) setError(result.error);
       else {
         setAck({ id: result.lessonId!, version: result.version! });
@@ -147,7 +303,7 @@ export function SlideLessonEditor({ lessonId = "", version = 1, initial, onSaveL
     } catch {
       if (!live.current) return;
       blocked.current = true; setUncertain(true);
-      setError("Save outcome is unknown. Keep this input and check Your lessons in another tab before saving again.");
+      setError("Save outcome is unknown. Keep this input and check Your created lessons in another tab before saving again.");
     } finally {
       inFlight.current = false;
       if (live.current) { setPending(false); onSaveLock?.(blocked.current); }
@@ -217,7 +373,7 @@ export function SlideLessonEditor({ lessonId = "", version = 1, initial, onSaveL
     </>}
     </fieldset>
     {(error || success) && <p ref={notice} tabIndex={-1} role={error ? "alert" : "status"} className={`form-notice${error ? " notice-error" : ""}`}>{error || success}</p>}
-    {uncertain && <a className="text-link" href="/studio" target="_blank" rel="noopener noreferrer">Check Your lessons (new tab)</a>}
+    {uncertain && <a className="text-link" href="/studio" target="_blank" rel="noopener noreferrer">Check Your created lessons (new tab)</a>}
     <p>
       <button type="button" className="secondary-button" disabled={pending || uncertain} onClick={() => void save("save")}>{pending ? "Saving..." : "Save"}</button>
       <button type="button" className="auth-submit" disabled={pending || uncertain} onClick={() => void save("publish")}>{pending ? "Saving..." : "Save and publish"}</button>

@@ -80,7 +80,7 @@ export function OnboardingForm({ initial, role }: { initial: SetupProfile; role:
       {roleChanged && <a className="text-link" href="/onboarding">Reopen onboarding</a>}
       {saved.onboarding_completed_at && <Link className="text-link" href="/dashboard">Continue to dashboard</Link>}
       <Link className="text-link" href="/diagnostic">Optional local diagnostic</Link>
-      <Link className="text-link" href="/profile">Profile, export & deletion</Link>
+      <Link className="text-link" href="/profile">Profile & settings</Link>
       <Link className="text-link" href="/login">Log in / account recovery</Link>
     </div>
     <p className={styles.review}>Draft questions and rubric require project-owner pedagogical review. No external inference is used.</p>

@@ -12,7 +12,7 @@ export default async function DiagnosticPage() {
       {loaded.code === "ok" ? <DiagnosticForm initial={loaded.profile} role={loaded.role} /> :
         <section><p role="alert" className="form-notice notice-error">{loaded.message}</p>
           <p><a className="text-link" href="/diagnostic">Try loading again</a></p>
-          <p><Link className="text-link" href="/profile">Profile, export & deletion</Link></p>
+          <p><Link className="text-link" href="/profile">Profile & settings</Link></p>
           <p><Link className="text-link" href="/login">Log in / account recovery</Link></p></section>}
     </div>
   </LearnerShell>;

@@ -8,12 +8,22 @@ import { logOut } from "@/app/auth/actions";
 const links = [
   ["Dashboard", "/dashboard", LayoutDashboard],
   ["Course catalog", "/catalog", Library],
-  ["Learning paths", "/paths", Route],
+  ["Create lesson", "/studio", BookOpen],
+  ["Learning path", "/paths", Route],
+  ["Interview simulator", "/interviews-v2", MessagesSquare],
   ["Learning game", "/games/neon-requiem", Gamepad2],
   ["Interview simulator", "/interviews", MessageSquare],
-  ["Interview simulator v2", "/interviews-v2", MessagesSquare],
-  ["Create lesson", "/studio", BookOpen],
   ["Progress", "/progress", Award],
+  ["Profile & settings", "/profile", Settings],
+] as const;
+
+const instructorLinks = [
+  ["Dashboard", "/dashboard", LayoutDashboard],
+  ["Course catalog", "/catalog", Library],
+  ["Create lesson", "/studio", BookOpen],
+  ["Interview question bank", "/interviews-v2/bank", MessagesSquare],
+  ["Learning game", "/games/neon-requiem", Gamepad2],
+  ["Student reports", "/reports", BarChart3],
   ["Profile & settings", "/profile", Settings],
 ] as const;
 
@@ -26,7 +36,24 @@ function subscribeToMobileNavigation(onChange: () => void) {
 function isMobileNavigation() { return window.matchMedia("(max-width: 900px)").matches; }
 function serverMobileNavigation() { return true; }
 
-export function LearnerShell({ children, active, name = "Learner", admin = false, instructor = false }: { children: React.ReactNode; active: string; name?: string; admin?: boolean; instructor?: boolean }) {
+const avatarKey = "forge-avatar";
+
+function storedAvatar() {
+  try {
+    const value = localStorage.getItem(avatarKey);
+    return value?.startsWith("data:image/") ? value : null;
+  } catch { return null; }
+}
+
+export function rememberAvatar(avatar: string | null) {
+  try {
+    if (avatar?.startsWith("data:image/")) localStorage.setItem(avatarKey, avatar);
+    else localStorage.removeItem(avatarKey);
+  } catch { /* private browsing can block storage */ }
+  window.dispatchEvent(new Event("forge-avatar"));
+}
+
+export function LearnerShell({ children, active, name = "Learner", admin = false, instructor = false, avatar = null }: { children: React.ReactNode; active: string; name?: string; admin?: boolean; instructor?: boolean; avatar?: string | null }) {
   const [open, setOpen] = useState(false);
   const mobile = useSyncExternalStore(subscribeToMobileNavigation, isMobileNavigation, serverMobileNavigation);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -46,19 +73,35 @@ export function LearnerShell({ children, active, name = "Learner", admin = false
   }, [open, mobile]);
   function closeMenu() { setOpen(false); menuButton.current?.focus(); }
   const initials = name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  const [picture, setPicture] = useState<string | null>(avatar);
+  useEffect(() => {
+    const saved = avatar?.startsWith("data:image/") ? avatar : storedAvatar();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (saved) setPicture(saved);
+    let cancel = false;
+    fetch("/api/me/avatar").then(response => response.ok ? response.json() : null).then(data => {
+      if (cancel) return;
+      const next = typeof data?.avatar === "string" && data.avatar.startsWith("data:image/") ? data.avatar : null;
+      if (next) { rememberAvatar(next); setPicture(next); }
+      else if (!avatar?.startsWith("data:image/")) { rememberAvatar(null); setPicture(null); }
+    }).catch(() => {});
+    function onChange() { if (!cancel) setPicture(storedAvatar()); }
+    window.addEventListener("forge-avatar", onChange);
+    return () => { cancel = true; window.removeEventListener("forge-avatar", onChange); };
+  }, [avatar]);
   return <div className="portal-shell">
     <a className="portal-skip" href="#page-content" onClick={event => {
       event.preventDefault(); content.current?.focus(); content.current?.scrollIntoView({ block: "start" });
     }}>Skip to page content</a>
     <aside id="learner-navigation" className={`portal-sidebar ${open ? "portal-sidebar-open" : ""}`} inert={mobile && !open}>
       <div className="brand-row"><Link href="/dashboard" className="portal-brand"><span><Zap size={18} /></span><strong>FORGE</strong></Link><button ref={closeButton} className="portal-close" onClick={closeMenu} aria-label="Close navigation"><X size={19} /></button></div>
-      <Link href="/profile" className="portal-profile"><span className="avatar">{initials}</span><span><strong>{name}</strong><small>{admin ? "Administrator" : instructor ? "Instructor" : "Learner"}</small></span></Link>
-      <nav className="portal-nav" aria-label="Learner navigation">{links.filter(([, href]) => href !== "/interviews-v2" || !(instructor || admin)).map(([label, href, Icon]) => <Link key={href} href={href} className={active === href ? "active" : ""} aria-current={active === href ? "page" : undefined} onClick={() => setOpen(false)}><Icon size={18} />{label}</Link>)}{(instructor || admin) && <Link href="/teaching" className={active === "/teaching" ? "active" : ""} aria-current={active === "/teaching" ? "page" : undefined} onClick={() => setOpen(false)}><GraduationCap size={18} />Teaching</Link>}{(instructor || admin) && <Link href="/interviews-v2/bank" className={active === "/interviews-v2/bank" ? "active" : ""} aria-current={active === "/interviews-v2/bank" ? "page" : undefined} onClick={() => setOpen(false)}><MessagesSquare size={18} />Question bank</Link>}</nav>
-      <nav className="portal-nav" aria-label="Reporting"><Link href="/reports" className={active === "/reports" ? "active" : ""} aria-current={active === "/reports" ? "page" : undefined} onClick={() => setOpen(false)}><BarChart3 size={18} />Quiz reports</Link>{admin && <><Link href="/admin" className={active === "/admin" ? "active" : ""} aria-current={active === "/admin" ? "page" : undefined} onClick={() => setOpen(false)}><ShieldCheck size={18} />Publish & review</Link><Link href="/admin/accounts" className={active === "/admin/accounts" ? "active" : ""} aria-current={active === "/admin/accounts" ? "page" : undefined} onClick={() => setOpen(false)}><Users size={18} />Account maintenance</Link></>}</nav>
+      <Link href="/profile" className="portal-profile"><span className="avatar">{picture ? <img src={picture} alt="" /> : initials}</span><span><strong>{name}</strong><small>{admin ? "Administrator" : instructor ? "Instructor" : "Learner"}</small></span></Link>
+      <nav className="portal-nav" aria-label="Learner navigation">{(instructor && !admin ? instructorLinks : links.filter(([, href]) => admin ? href !== "/interviews-v2" : href !== "/interviews" && href !== "/paths" && href !== "/progress")).map(([label, href, Icon]) => <Link key={href} href={href} className={active === href ? "active" : ""} aria-current={active === href ? "page" : undefined} onClick={() => setOpen(false)}><Icon size={18} />{label}</Link>)}{admin && <Link href="/teaching" className={active === "/teaching" ? "active" : ""} aria-current={active === "/teaching" ? "page" : undefined} onClick={() => setOpen(false)}><GraduationCap size={18} />Teaching</Link>}{admin && <Link href="/interviews-v2/bank" className={active === "/interviews-v2/bank" ? "active" : ""} aria-current={active === "/interviews-v2/bank" ? "page" : undefined} onClick={() => setOpen(false)}><MessagesSquare size={18} />Question bank</Link>}</nav>
+      {admin && <nav className="portal-nav" aria-label="Reporting"><Link href="/reports" className={active === "/reports" ? "active" : ""} aria-current={active === "/reports" ? "page" : undefined} onClick={() => setOpen(false)}><BarChart3 size={18} />Quiz reports</Link><Link href="/admin" className={active === "/admin" ? "active" : ""} aria-current={active === "/admin" ? "page" : undefined} onClick={() => setOpen(false)}><ShieldCheck size={18} />Publish & review</Link><Link href="/admin/accounts" className={active === "/admin/accounts" ? "active" : ""} aria-current={active === "/admin/accounts" ? "page" : undefined} onClick={() => setOpen(false)}><Users size={18} />Account maintenance</Link></nav>}
       <div className="portal-foot"><form action={logOut}><button type="submit"><LogOut size={17} /> Log out</button></form></div>
     </aside>
     <section className="portal-workspace">
-      <header className="portal-topbar"><button ref={menuButton} className="portal-menu" onClick={() => setOpen(true)} aria-label="Open navigation" aria-controls="learner-navigation" aria-expanded={open}><Menu size={20} /></button><Link href="/catalog" className="catalog-shortcut">Explore courses</Link><Link href="/profile" className="avatar portal-avatar" aria-label="Profile & settings">{initials}</Link></header>
+      <header className="portal-topbar"><button ref={menuButton} className="portal-menu" onClick={() => setOpen(true)} aria-label="Open navigation" aria-controls="learner-navigation" aria-expanded={open}><Menu size={20} /></button><Link href="/profile" className="avatar portal-avatar" aria-label="Profile & settings">{picture ? <img src={picture} alt="" /> : initials}</Link></header>
       <main ref={content} id="page-content" tabIndex={-1}>{children}</main>
     </section>
     {open && mobile && <button className="portal-scrim" onClick={closeMenu} aria-label="Close navigation overlay" />}
