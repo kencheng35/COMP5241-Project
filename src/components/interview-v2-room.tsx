@@ -4,10 +4,21 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { changeQuestion, endSession, skipIntro, submitAnswer, submitIntro } from "@/app/interviews-v2/actions";
 import { InterviewV2Dictation } from "@/components/interview-v2-dictation";
+import {
+  intervieweeLookKey,
+  interviewerLookKey,
+  readMute,
+  readStoredLook,
+  subscribeLooks,
+  subscribeMute,
+  writeLook,
+  writeMute,
+  type InterviewLook,
+} from "@/lib/interview-v2-prefs";
 import { sessionQuestionCap, v2Notices, wordCount, type V2Code, type V2View } from "@/lib/interviews-v2";
 import styles from "./interview-v2.module.css";
 
-type Look = "male" | "female";
+type Look = InterviewLook;
 const roomArt = {
   office: "/interviews-v2/room/05-office-background.png",
   table: "/interviews-v2/room/06-table.png",
@@ -25,26 +36,6 @@ const artSize = {
   interviewee: { male: [807, 878], female: [706, 880] },
 } as const;
 
-function storedLook(key: string): Look | null {
-  try {
-    const value = sessionStorage.getItem(key);
-    return value === "male" || value === "female" ? value : null;
-  } catch { return null; }
-}
-const lookBus = new Set<() => void>();
-const lookMemory = new Map<string, Look>();
-function subscribeLooks(onChange: () => void) {
-  lookBus.add(onChange);
-  return () => { lookBus.delete(onChange); };
-}
-function readStoredLook(key: string) {
-  return lookMemory.get(key) ?? storedLook(key);
-}
-function writeLook(key: string, look: Look) {
-  lookMemory.set(key, look);
-  try { sessionStorage.setItem(key, look); } catch { /* The scene still changes for this visit. */ }
-  for (const notify of lookBus) notify();
-}
 function subscribeVoice() {
   return () => {};
 }
@@ -57,10 +48,31 @@ function clock(ms: number) {
   const total = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
-function englishVoice(synth: SpeechSynthesis) {
-  const voices = synth.getVoices();
-  return voices.find(voice => voice.lang.toLowerCase() === "en-us")
-    ?? voices.find(voice => voice.lang.toLowerCase().startsWith("en"));
+const clipCache = new Map<string, string>();
+const maleVoiceHints = ["guy", "davis", "andrew", "jason", "tony", "brian", "david", "mark", "daniel", "james", "george"];
+const femaleVoiceHints = ["jenny", "aria", "jane", "nancy", "sara", "ava", "emma", "zira", "samantha", "susan", "hazel"];
+function englishVoice(synth: SpeechSynthesis, look: Look) {
+  const voices = synth.getVoices().filter(voice => voice.lang.toLowerCase().startsWith("en"));
+  const hints = look === "male" ? maleVoiceHints : femaleVoiceHints;
+  return voices.find(voice => hints.some(hint => voice.name.toLowerCase().includes(hint)))
+    ?? voices.find(voice => voice.lang.toLowerCase() === "en-us")
+    ?? voices[0];
+}
+function rememberClip(key: string, url: string) {
+  const existing = clipCache.get(key);
+  if (existing) {
+    if (existing !== url) URL.revokeObjectURL(url);
+    return existing;
+  }
+  clipCache.set(key, url);
+  while (clipCache.size > 16) {
+    const oldest = clipCache.keys().next().value;
+    if (oldest === undefined) break;
+    const stale = clipCache.get(oldest);
+    clipCache.delete(oldest);
+    if (stale) URL.revokeObjectURL(stale);
+  }
+  return url;
 }
 
 function TurnList({ turns }: { turns: V2View["turns"] }) {
@@ -89,20 +101,23 @@ export function InterviewV2Room({ initial }: { initial: V2View }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<V2Code | null>(null);
-  const [muted, setMuted] = useState(false);
+  const muted = useSyncExternalStore(subscribeMute, readMute, () => false);
   const cancelDictation = useRef<(() => void) | null>(null);
   const feedbackRef = useRef<HTMLElement>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const speakTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const keepAlive = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const speechAbort = useRef<AbortController | null>(null);
+  const speechGeneration = useRef(0);
   const micOn = useRef(false);
   const [hearing, setHearing] = useState(false);
   const [hearingSince, setHearingSince] = useState<number | null>(null);
   const [now, setNow] = useState<number | null>(null);
   const voiceOn = useSyncExternalStore(subscribeVoice, readVoice, () => true);
   const professor = view.session.interviewer === "professor";
-  const savedInterviewer = useSyncExternalStore(subscribeLooks, () => readStoredLook("forge-v2-interviewer-look"), () => null);
-  const savedInterviewee = useSyncExternalStore(subscribeLooks, () => readStoredLook("forge-v2-interviewee-look"), () => null);
+  const savedInterviewer = useSyncExternalStore(subscribeLooks, () => readStoredLook(interviewerLookKey), () => null);
+  const savedInterviewee = useSyncExternalStore(subscribeLooks, () => readStoredLook(intervieweeLookKey), () => null);
   const interviewerLook = savedInterviewer ?? (professor ? "female" : "male");
   const intervieweeLook = savedInterviewee ?? "male";
   const words = wordCount(draft);
@@ -121,55 +136,96 @@ export function InterviewV2Room({ initial }: { initial: V2View }) {
     speakTimer.current = null;
     if (keepAlive.current) window.clearInterval(keepAlive.current);
     keepAlive.current = null;
+    speechAbort.current?.abort();
+    speechAbort.current = null;
+    speechGeneration.current += 1;
     utteranceRef.current = null;
+    audioRef.current?.pause();
     const synth = window.speechSynthesis;
     // Pause, do not cancel. Chrome drops the microphone if cancel() was the last speech call.
     if (synth && (synth.speaking || synth.pending) && !synth.paused) synth.pause();
   }, []);
   const speakText = useCallback((text: string) => {
-    const synth = window.speechSynthesis;
-    if (!text || !synth || typeof synth.speak !== "function" || micOn.current) return;
-    if (speakTimer.current) window.clearTimeout(speakTimer.current);
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-US";
-    utterance.rate = 1;
-    utterance.pitch = professor ? 0.9 : 1;
-    utterance.volume = 1;
-    const voice = englishVoice(synth);
-    if (voice) utterance.voice = voice;
-    utterance.onstart = () => {
-      if (keepAlive.current) window.clearInterval(keepAlive.current);
-      keepAlive.current = window.setInterval(() => {
-        if (micOn.current || !synth.speaking) {
-          if (keepAlive.current) window.clearInterval(keepAlive.current);
-          keepAlive.current = null;
-          return;
-        }
-        synth.resume();
-      }, 4000);
+    if (!text || micOn.current) return;
+    stopSpeech();
+    const token = speechGeneration.current;
+    const look = interviewerLook;
+    const playBrowser = () => {
+      const synth = window.speechSynthesis;
+      if (!text || token !== speechGeneration.current || micOn.current || !synth || typeof synth.speak !== "function") return;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "en-US";
+      utterance.rate = 1;
+      utterance.pitch = look === "male" ? 0.9 : 1.05;
+      utterance.volume = 1;
+      const voice = englishVoice(synth, look);
+      if (voice) utterance.voice = voice;
+      utterance.onstart = () => {
+        if (keepAlive.current) window.clearInterval(keepAlive.current);
+        keepAlive.current = window.setInterval(() => {
+          if (micOn.current || token !== speechGeneration.current || !synth.speaking) {
+            if (keepAlive.current) window.clearInterval(keepAlive.current);
+            keepAlive.current = null;
+            return;
+          }
+          synth.resume();
+        }, 4000);
+      };
+      utteranceRef.current = utterance;
+      const start = () => {
+        if (utteranceRef.current !== utterance || token !== speechGeneration.current || micOn.current) return;
+        try {
+          if (synth.paused) synth.resume();
+          synth.speak(utterance);
+        } catch { /* The Speak button stays available if the browser blocks audio. */ }
+      };
+      if (synth.speaking || synth.pending || synth.paused) {
+        synth.cancel();
+        speakTimer.current = setTimeout(start, 80);
+      } else {
+        start();
+      }
     };
-    utteranceRef.current = utterance;
-    const start = () => {
-      if (utteranceRef.current !== utterance || micOn.current) return;
-      try {
-        if (synth.paused) synth.resume();
-        synth.speak(utterance);
-      } catch { /* The Speak button stays available if the browser blocks audio. */ }
+    const playUrl = (url: string) => {
+      if (token !== speechGeneration.current || micOn.current) return;
+      const audio = audioRef.current ?? new Audio();
+      audioRef.current = audio;
+      audio.src = url;
+      void audio.play().catch(() => {});
     };
-    if (synth.speaking || synth.pending || synth.paused) {
-      synth.cancel();
-      speakTimer.current = setTimeout(start, 80);
-    } else {
-      start();
+    const cached = clipCache.get(`${look}:${text}`);
+    if (cached) {
+      playUrl(cached);
+      return;
     }
-  }, [professor]);
+    const controller = new AbortController();
+    speechAbort.current = controller;
+    void fetch("/api/interviews-v2/speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, voice: look }),
+      signal: controller.signal,
+    }).then(async response => {
+      if (token !== speechGeneration.current || micOn.current) return;
+      if (!response.ok) {
+        playBrowser();
+        return;
+      }
+      const url = rememberClip(`${look}:${text}`, URL.createObjectURL(await response.blob()));
+      playUrl(url);
+    }).catch(error => {
+      if (error instanceof Error && error.name === "AbortError") return;
+      if (token !== speechGeneration.current || micOn.current) return;
+      playBrowser();
+    });
+  }, [interviewerLook, stopSpeech]);
   useEffect(() => {
     if (!hearing) return;
     const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
   }, [hearing]);
   function chooseLook(who: "interviewer" | "interviewee", look: Look) {
-    writeLook(who === "interviewer" ? "forge-v2-interviewer-look" : "forge-v2-interviewee-look", look);
+    writeLook(who === "interviewer" ? interviewerLookKey : intervieweeLookKey, look);
   }
   useEffect(() => {
     const synth = window.speechSynthesis;
@@ -199,7 +255,7 @@ export function InterviewV2Room({ initial }: { initial: V2View }) {
       window.clearTimeout(timer);
       stopSpeech();
     };
-  }, [view.bubble, view.session.revision, muted, speakText, stopSpeech]);
+  }, [view.bubble, view.session.revision, interviewerLook, muted, speakText, stopSpeech]);
   async function run(action: () => Promise<{ code: V2Code; view?: V2View }>) {
     cancelDictation.current?.();
     stopSpeech();
@@ -273,7 +329,7 @@ export function InterviewV2Room({ initial }: { initial: V2View }) {
             {speech.status && <p className={styles.micNote} role="status">{speech.status}</p>}
           </div>
           <div className={styles.toolCol}>
-            <button type="button" className={styles.mute} aria-pressed={muted} onClick={() => setMuted(value => !value)}>{muted ? "Unmute interviewer" : "Mute interviewer"}</button>
+            <button type="button" className={styles.mute} aria-pressed={muted} onClick={() => writeMute(!muted)}>{muted ? "Unmute interviewer" : "Mute interviewer"}</button>
             <button className="primary-button" disabled={busy || !draft.trim()}>Send answer</button>
             {intro && <button type="button" className={styles.skip} disabled={busy} onClick={() => void run(() => skipIntro({ id: view.session.id, revision: view.session.revision }))}>Skip introduction</button>}
             {asking && <button type="button" className={styles.change} disabled={busy} onClick={() => void run(() => changeQuestion({ id: view.session.id, revision: view.session.revision }))}>Change question</button>}

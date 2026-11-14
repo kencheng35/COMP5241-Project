@@ -92,7 +92,8 @@
 .staff a { color: var(--v2-green-deep); }
 
 .status,
-.notice {
+.notice,
+.preflight {
   margin: 14px 0 0;
   padding: 12px 14px;
   border-radius: 4px;
@@ -101,6 +102,22 @@
 }
 .status { background: var(--v2-paper); color: var(--v2-muted); }
 .notice { border-left: 4px solid #8a6a12; background: #f4edcf; color: #3f3110; }
+.preflight {
+  display: grid;
+  gap: 12px;
+  background: var(--v2-paper);
+  color: var(--v2-ink);
+}
+.preflight h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--v2-muted);
+}
+.preflight .cast { gap: 10px 16px; }
+.preflight .fine { margin: 0; }
 
 .sessions, .turns, .questions, .sessionList { list-style: none; margin: 0; padding: 0; }
 .sessionItem {

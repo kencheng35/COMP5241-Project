@@ -4,6 +4,17 @@ import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { deleteSession, startSession } from "@/app/interviews-v2/actions";
+import {
+  intervieweeLookKey,
+  interviewerLookKey,
+  readMute,
+  readStoredLook,
+  subscribeLooks,
+  subscribeMute,
+  writeLook,
+  writeMute,
+  type InterviewLook,
+} from "@/lib/interview-v2-prefs";
 import { v2Notices, v2Profiles, type ProfileId, type V2Code } from "@/lib/interviews-v2";
 import styles from "./interview-v2.module.css";
 
@@ -41,9 +52,18 @@ export function InterviewV2Lobby({ sessions, staff = false }: {
   const [notice, setNotice] = useState<V2Code | null>(null);
   const [busy, setBusy] = useState(false);
   const voice = useSyncExternalStore(subscribeVoice, readVoice, () => true);
+  const muted = useSyncExternalStore(subscribeMute, readMute, () => false);
+  const savedInterviewer = useSyncExternalStore(subscribeLooks, () => readStoredLook(interviewerLookKey), () => null);
+  const savedInterviewee = useSyncExternalStore(subscribeLooks, () => readStoredLook(intervieweeLookKey), () => null);
+  const professor = v2Profiles[profileId].interviewer === "professor";
+  const interviewerLook = savedInterviewer ?? (professor ? "female" : "male");
+  const intervieweeLook = savedInterviewee ?? "male";
   const [hidden, setHidden] = useState<string[]>([]);
   function chooseVoice(on: boolean) {
     writeVoice(on);
+  }
+  function chooseLook(who: "interviewer" | "interviewee", look: InterviewLook) {
+    writeLook(who === "interviewer" ? interviewerLookKey : intervieweeLookKey, look);
   }
   return <div className={styles.lobby}>
     <form className={`${styles.panel} ${styles.setup}`} onSubmit={async event => {
@@ -70,7 +90,28 @@ export function InterviewV2Lobby({ sessions, staff = false }: {
       {!voice && <p className={styles.warn} role="status">Voice recording will not work if this is unticked.</p>}
       <button className="primary-button" disabled={busy}>Start interview</button>
       {staff && <p className={styles.staff}><Link href="/interviews-v2/bank">Edit the question bank</Link></p>}
-      <p className={notice ? styles.notice : styles.status} role="status">{notice ? v2Notices[notice] : "Questions come from the tutor question bank."}</p>
+      {notice && <p className={styles.notice} role="status">{v2Notices[notice]}</p>}
+      <section className={styles.preflight} aria-labelledby="v2-settings-heading">
+        <h3 id="v2-settings-heading">Interview settings</h3>
+        <fieldset className={styles.cast}>
+          <legend>Appearance</legend>
+          <div className={styles.castRow}>
+            <span>Interviewer</span>
+            <label><input type="radio" name="v2-lobby-interviewer-look" value="male" checked={interviewerLook === "male"} disabled={busy} onChange={() => chooseLook("interviewer", "male")} /> Male</label>
+            <label><input type="radio" name="v2-lobby-interviewer-look" value="female" checked={interviewerLook === "female"} disabled={busy} onChange={() => chooseLook("interviewer", "female")} /> Female</label>
+          </div>
+          <div className={styles.castRow}>
+            <span>You</span>
+            <label><input type="radio" name="v2-lobby-interviewee-look" value="male" checked={intervieweeLook === "male"} disabled={busy} onChange={() => chooseLook("interviewee", "male")} /> Male</label>
+            <label><input type="radio" name="v2-lobby-interviewee-look" value="female" checked={intervieweeLook === "female"} disabled={busy} onChange={() => chooseLook("interviewee", "female")} /> Female</label>
+          </div>
+        </fieldset>
+        <label className={styles.optin}>
+          <input type="checkbox" checked={muted} disabled={busy} aria-describedby="v2-mute-note" onChange={event => writeMute(event.target.checked)} />
+          Mute interviewer
+        </label>
+        <p className={styles.fine} id="v2-mute-note">These apply when the interview starts. You can change them again in the room.</p>
+      </section>
     </form>
     <section className={styles.panel} aria-labelledby="v2-sessions-heading">
       <h2 id="v2-sessions-heading">Your sessions</h2>

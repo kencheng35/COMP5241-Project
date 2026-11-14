@@ -40,7 +40,24 @@ test("simulator v2 room keeps the side bubble, word count and end control", asyn
     const modules = {};
     const finished = { ...view, session: { ...view.session, state: "complete", revision: 2 }, bubble: null, wordTarget: null, ratingState: "empty", canAnswer: false };
     function load(name) {
-      if (name === "@/lib/interviews-v2") return { wordCount: text => text.trim() ? text.trim().split(/\s+/).length : 0, v2Notices: notices };
+      if (name === "@/lib/interviews-v2") return { wordCount: text => text.trim() ? text.trim().split(/\s+/).length : 0, v2Notices: notices, sessionQuestionCap: 7 };
+      if (name === "@/lib/interview-v2-prefs") {
+        const looks = new Map();
+        let muted = false;
+        const lookBus = new Set();
+        const muteBus = new Set();
+        return {
+          interviewerLookKey: "forge-v2-interviewer-look",
+          intervieweeLookKey: "forge-v2-interviewee-look",
+          muteKey: "forge-v2-mute",
+          subscribeLooks: onChange => { lookBus.add(onChange); return () => lookBus.delete(onChange); },
+          readStoredLook: key => looks.get(key) ?? null,
+          writeLook: (key, look) => { looks.set(key, look); for (const notify of lookBus) notify(); },
+          subscribeMute: onChange => { muteBus.add(onChange); return () => muteBus.delete(onChange); },
+          readMute: () => muted,
+          writeMute: on => { muted = on; for (const notify of muteBus) notify(); },
+        };
+      }
       if (name === "@/app/interviews-v2/actions") return new Proxy({}, { get: (_, key) => async payload => { calls.push([key, payload]); return { code: "ok", view: finished }; } });
       if (name === "next/link") return { __esModule: true, default: ({ children, href }) => load("react").createElement("a", { href }, children) };
       if (name === "./interview-v2.module.css") return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
