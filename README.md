@@ -21,13 +21,13 @@ Use one of these learner accounts instead of registering a new account. The
 user guide recommends them because email verification or signup can be limited
 by server email-send limits. All five use the same password:
 
-| Account | Password |
-| --- | --- |
-| `learner1@example.com` | `DemoLearner2026!` |
-| `learner2@example.com` | `DemoLearner2026!` |
-| `learner3@example.com` | `DemoLearner2026!` |
-| `learner4@example.com` | `DemoLearner2026!` |
-| `learner5@example.com` | `DemoLearner2026!` |
+|  Role | Account | Password |
+| --- | --- | --- |
+| `Learner` | `learner1@example.com` | `DemoLearner2026!` |
+| `Learner` | `learner2@example.com` | `DemoLearner2026!` |
+| `Learner` | `learner3@example.com` | `DemoLearner2026!` |
+| `Instructor` | `learner4@example.com` | `DemoLearner2026!` |
+| `Instructor` | `learner5@example.com` | `DemoLearner2026!` |
 
 These are learner accounts, not instructor or administrator accounts. Use
 different accounts for concurrent testers where possible; lessons, enrollments
